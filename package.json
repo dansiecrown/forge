@@ -1,0 +1,36 @@
+{
+  "name": "project-forge",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.15.4"
+  },
+  "scripts": {
+    "build": "pnpm --recursive --if-present run build",
+    "dev:web": "pnpm --filter @forge/web dev",
+    "dev:api": "pnpm --filter @forge/api start:dev",
+    "lint": "eslint .",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "typecheck": "pnpm --recursive --if-present run typecheck",
+    "test": "pnpm --recursive --if-present run test",
+    "prepare": "husky"
+  },
+  "prettier": "@forge/config/prettier",
+  "devDependencies": {
+    "@forge/config": "workspace:*",
+    "eslint": "^9.22.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.0",
+    "prettier": "^3.5.3"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css}": "prettier --write"
+  }
+}
