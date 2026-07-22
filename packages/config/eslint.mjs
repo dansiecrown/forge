@@ -10,6 +10,12 @@ export const baseConfig = tseslint.config(
   {
     files: ['**/*.{ts,tsx,mts,cts}'],
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
+    },
   },
   {
     files: ['**/*.cjs'],

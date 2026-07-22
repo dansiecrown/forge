@@ -4,12 +4,47 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 47.4% 11.2%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --canvas: 210 20% 98%;
+    --surface: 0 0% 100%;
+    --ink: 220 34% 13%;
+    --muted-foreground: 216 15% 40%;
+    --border: 216 21% 91%;
+    --brand: 227 92% 60%;
+    --brand-hover: 228 74% 50%;
+    --success: 152 76% 27%;
+    --warning: 34 100% 32%;
+    --danger: 4 65% 47%;
+    --focus: 220 100% 57%;
+
+    --background: var(--canvas);
+    --foreground: var(--ink);
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family:
+      Inter,
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      sans-serif;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--focus));
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }

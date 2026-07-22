@@ -1,21 +1,38 @@
-import { join } from 'node:path';
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import * as Joi from 'joi';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { AppConfigModule } from './config/app-config.module';
+import { DatabaseModule } from './database/database.module';
+import { HttpExceptionFilter } from './filters/http-exception.filter';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { PermissionsGuard } from './guards/permissions.guard';
+import { ResponseInterceptor } from './interceptors/response.interceptor';
+import { RequestIdMiddleware } from './middlewares/request-id.middleware';
+import { IdentityModule } from './modules/identity/identity.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { PlatformModule } from './modules/platform/platform.module';
 import { HealthController } from './health.controller';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: join(__dirname, '../../../.env'),
-      validationSchema: Joi.object({
-        DATABASE_URL: Joi.string().uri().required(),
-        API_PORT: Joi.number().port().default(3000),
-        WEB_ORIGIN: Joi.string().uri().required(),
-      }),
-    }),
+    AppConfigModule,
+    DatabaseModule,
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
+    PlatformModule,
+    OrganizationsModule,
+    IdentityModule,
   ],
   controllers: [HealthController],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: PermissionsGuard },
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}

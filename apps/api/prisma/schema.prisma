@@ -7,4 +7,320 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Domain models are intentionally deferred to the data-platform phase.
+// ---------------------------------------------------------------------------
+// Milestone 2 — Identity & Access Control Foundation
+//
+// Organization is a minimal stub: id/name/slug/status only. It exists solely
+// as the FK anchor that Membership requires per docs/database-design.md.
+// Organization administration (provisioning, settings, academies) is out of
+// scope for this milestone and lands with the Organizations/Academies work.
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  invited
+  active
+  suspended
+  deactivated
+}
+
+enum ExternalIdentityProvider {
+  password
+  google
+  microsoft
+  oidc
+}
+
+enum RoleScopeType {
+  platform
+  organization
+  academy
+}
+
+enum MembershipStatus {
+  invited
+  active
+  suspended
+  ended
+}
+
+enum AuditOutcome {
+  success
+  failure
+}
+
+enum OrganizationStatus {
+  provisioning
+  active
+  suspended
+  archived
+}
+
+model User {
+  id              String     @id @default(uuid())
+  emailCanonical  String     @unique @map("email_canonical")
+  displayName     String     @map("display_name")
+  givenName       String?    @map("given_name")
+  familyName      String?    @map("family_name")
+  status          UserStatus @default(invited)
+  emailVerifiedAt DateTime?  @map("email_verified_at")
+  locale          String     @default("en-NG")
+  timezone        String     @default("Africa/Lagos")
+  lastLoginAt     DateTime?  @map("last_login_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  deletedAt       DateTime?  @map("deleted_at")
+
+  externalIdentities      ExternalIdentity[]
+  passwordCredential      PasswordCredential?
+  authSessions            AuthSession[]
+  mfaFactors              MfaFactor[]
+  recoveryCodes           RecoveryCode[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  memberships             Membership[]
+
+  @@index([status, lastLoginAt])
+  @@map("users")
+}
+
+model ExternalIdentity {
+  id              String                   @id @default(uuid())
+  userId          String                   @map("user_id")
+  provider        ExternalIdentityProvider
+  providerSubject String                   @map("provider_subject")
+  verifiedAt      DateTime?                @map("verified_at")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerSubject])
+  @@index([userId])
+  @@map("external_identities")
+}
+
+model PasswordCredential {
+  id             String    @id @default(uuid())
+  userId         String    @unique @map("user_id")
+  passwordHash   String    @map("password_hash")
+  changedAt      DateTime  @default(now()) @map("changed_at")
+  failedAttempts Int       @default(0) @map("failed_attempts")
+  lockedUntil    DateTime? @map("locked_until")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("password_credentials")
+}
+
+model AuthSession {
+  id                  String    @id @default(uuid())
+  userId              String    @map("user_id")
+  familyId            String    @map("family_id")
+  refreshTokenHash    String    @map("refresh_token_hash")
+  deviceLabel         String?   @map("device_label")
+  ipHash              String?   @map("ip_hash")
+  mfaVerifiedAt       DateTime? @map("mfa_verified_at")
+  issuedAt            DateTime  @default(now()) @map("issued_at")
+  expiresAt           DateTime  @map("expires_at")
+  revokedAt           DateTime? @map("revoked_at")
+  replacedBySessionId String?   @map("replaced_by_session_id")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
+  @@map("auth_sessions")
+}
+
+model MfaFactor {
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  type            String    @default("totp")
+  secretEncrypted String    @map("secret_encrypted")
+  verifiedAt      DateTime? @map("verified_at")
+  disabledAt      DateTime? @map("disabled_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id])
+  recoveryCodes RecoveryCode[]
+
+  @@index([userId])
+  @@map("mfa_factors")
+}
+
+model RecoveryCode {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  mfaFactorId String?   @map("mfa_factor_id")
+  codeHash    String    @map("code_hash")
+  usedAt      DateTime? @map("used_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user      User       @relation(fields: [userId], references: [id])
+  mfaFactor MfaFactor? @relation(fields: [mfaFactorId], references: [id])
+
+  @@index([userId])
+  @@map("recovery_codes")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Minimal organization stub — FK anchor only, no administration in this
+// milestone.
+// ---------------------------------------------------------------------------
+model Organization {
+  id        String             @id @default(uuid())
+  name      String
+  slug      String             @unique
+  status    OrganizationStatus @default(active)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  memberships Membership[]
+  roles       Role[]
+
+  @@map("organizations")
+}
+
+// System roles (is_system = true) are global catalog entries with
+// organizationId = null, per docs/database-design.md ("unique system key
+// globally"). Tenant scope is carried by Membership, not by the Role row.
+model Role {
+  id             String        @id @default(uuid())
+  organizationId String?       @map("organization_id")
+  key            String
+  name           String
+  scopeType      RoleScopeType @map("scope_type")
+  isSystem       Boolean       @default(false) @map("is_system")
+  status         String        @default("active")
+  version        Int           @default(1)
+  description    String?
+  hierarchyRank  Int?          @map("hierarchy_rank")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
+
+  organization    Organization?    @relation(fields: [organizationId], references: [id])
+  rolePermissions RolePermission[]
+  membershipRoles MembershipRole[]
+
+  @@index([scopeType, status])
+  @@map("roles")
+}
+
+model Permission {
+  id              String   @id @default(uuid())
+  key             String   @unique
+  resource        String
+  action          String
+  scopeCapability String   @map("scope_capability")
+  status          String   @default("active")
+  description     String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String   @map("role_id")
+  permissionId String   @map("permission_id")
+  grantedAt    DateTime @default(now()) @map("granted_at")
+  grantedBy    String?  @map("granted_by")
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Membership {
+  id             String           @id @default(uuid())
+  organizationId String           @map("organization_id")
+  userId         String           @map("user_id")
+  status         MembershipStatus @default(invited)
+  invitedAt      DateTime         @default(now()) @map("invited_at")
+  joinedAt       DateTime?        @map("joined_at")
+  endedAt        DateTime?        @map("ended_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  user            User             @relation(fields: [userId], references: [id])
+  membershipRoles MembershipRole[]
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+model MembershipRole {
+  id           String    @id @default(uuid())
+  membershipId String    @map("membership_id")
+  roleId       String    @map("role_id")
+  grantedAt    DateTime  @default(now()) @map("granted_at")
+  grantedBy    String?   @map("granted_by")
+  revokedAt    DateTime? @map("revoked_at")
+
+  membership Membership @relation(fields: [membershipId], references: [id])
+  role       Role       @relation(fields: [roleId], references: [id])
+
+  @@index([membershipId, revokedAt])
+  @@map("membership_roles")
+}
+
+// Simplified per Milestone 2's scoped kernel: synchronous writes, no outbox.
+// Full outbox/async delivery pattern is Phase 2/later-milestone work.
+model AuditLog {
+  id             String       @id @default(uuid())
+  organizationId String?      @map("organization_id")
+  actorUserId    String?      @map("actor_user_id")
+  action         String
+  entityType     String       @map("entity_type")
+  entityId       String?      @map("entity_id")
+  outcome        AuditOutcome
+  requestId      String?      @map("request_id")
+  metadata       Json?
+  occurredAt     DateTime     @default(now()) @map("occurred_at")
+
+  @@index([organizationId, occurredAt(sort: Desc)])
+  @@index([actorUserId, occurredAt(sort: Desc)])
+  @@index([entityType, entityId, occurredAt(sort: Desc)])
+  @@map("audit_logs")
+}
