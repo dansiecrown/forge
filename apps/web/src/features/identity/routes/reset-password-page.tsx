@@ -22,7 +22,7 @@ export function ResetPasswordPage() {
 
   if (!token) {
     return (
-      <Card>
+      <Card glass>
         <CardHeader>
           <CardTitle>Invalid reset link</CardTitle>
         </CardHeader>
@@ -42,7 +42,7 @@ export function ResetPasswordPage() {
 
   if (resetPassword.isSuccess) {
     return (
-      <Card>
+      <Card glass>
         <CardHeader>
           <CardTitle>Password updated</CardTitle>
         </CardHeader>
@@ -68,7 +68,7 @@ export function ResetPasswordPage() {
         : null;
 
   return (
-    <Card>
+    <Card glass>
       <CardHeader>
         <CardTitle>Set a new password</CardTitle>
         <CardDescription>Use at least 8 characters.</CardDescription>

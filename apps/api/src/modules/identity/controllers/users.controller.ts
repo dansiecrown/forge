@@ -12,10 +12,13 @@ import {
 import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { RequirePermissions } from '../../../decorators/require-permissions.decorator';
 import { AppException } from '../../../shared/errors/app.exception';
+import { IdempotencyService } from '../../../shared/idempotency/idempotency.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
 import { PermissionResolverService } from '../../organizations/services/permission-resolver.service';
 import { InviteUserDto } from '../dtos/users.dto';
 import { UsersService } from '../services/users.service';
+
+const INVITATIONS_ROUTE = 'POST /users/invitations';
 
 @Controller('users')
 export class UsersController {
@@ -23,6 +26,7 @@ export class UsersController {
     private readonly usersService: UsersService,
     private readonly membershipsService: MembershipsService,
     private readonly permissionResolver: PermissionResolverService,
+    private readonly idempotencyService: IdempotencyService,
   ) {}
 
   @Get()
@@ -62,7 +66,20 @@ export class UsersController {
     @Body() dto: InviteUserDto,
     @CurrentUser() user: { id: string },
     @Headers('x-organization-id') organizationId: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
+    const requestHash = this.idempotencyService.hashRequest(dto);
+
+    if (idempotencyKey) {
+      const replay = await this.idempotencyService.checkReplay<{
+        invitationId: string;
+        status: string;
+      }>(idempotencyKey, INVITATIONS_ROUTE, requestHash);
+      if (replay.replayed) {
+        return replay.body;
+      }
+    }
+
     const invited = await this.usersService.invite(dto.email, dto.displayName, user.id);
     await this.membershipsService.inviteIntoOrganization(
       { organizationId },
@@ -70,6 +87,18 @@ export class UsersController {
       dto.roles ?? [],
       user.id,
     );
-    return { invitationId: invited.id, status: 'sent' };
+    const response = { invitationId: invited.id, status: 'sent' };
+
+    if (idempotencyKey) {
+      await this.idempotencyService.record(
+        idempotencyKey,
+        INVITATIONS_ROUTE,
+        requestHash,
+        HttpStatus.ACCEPTED,
+        response,
+      );
+    }
+
+    return response;
   }
 }

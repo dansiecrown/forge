@@ -3,21 +3,58 @@
 @tailwind utilities;
 
 @layer base {
+  /* Dark is the default theme. Values are accessibility-tuned for a
+     near-black canvas — see docs/adr/0004-premium-dark-design-system.md.
+     Primary buttons are monochrome (bg-foreground/text-background); `brand`
+     is only ever used for text (links, focus glow, decorative accents), so
+     it needs one tone. `danger` still backs a solid destructive button fill
+     as well as inline error text, so it keeps a text/`-solid` split — one
+     lightness cannot satisfy AA contrast against both a black canvas and a
+     white button label at once. */
   :root {
-    --canvas: 210 20% 98%;
-    --surface: 0 0% 100%;
-    --ink: 220 34% 13%;
-    --muted-foreground: 216 15% 40%;
-    --border: 216 21% 91%;
-    --brand: 227 92% 60%;
-    --brand-hover: 228 74% 50%;
-    --success: 152 76% 27%;
-    --warning: 34 100% 32%;
-    --danger: 4 65% 47%;
-    --focus: 220 100% 57%;
+    --canvas: 0 0% 0%;
+    --surface: 0 0% 8%;
+    --surface-2: 0 0% 13%;
+    --ink: 0 0% 97%;
+    --muted-foreground: 0 0% 63%;
+    --border: 0 0% 20%;
+
+    --brand: 227 92% 66%;
+
+    --success: 152 60% 52%;
+    --warning: 38 92% 58%;
+    --danger: 4 76% 60%;
+    --danger-solid: 4 76% 42%;
+    --focus: 217 100% 65%;
+
+    --glass-tint: var(--ink);
+    --shadow-color: 0 0% 0%;
 
     --background: var(--canvas);
     --foreground: var(--ink);
+  }
+
+  /* Light mode is fully supported, following the OS preference. These are
+     the original approved product-design-specification.md §7 tokens. */
+  @media (prefers-color-scheme: light) {
+    :root {
+      --canvas: 210 20% 98%;
+      --surface: 0 0% 100%;
+      --surface-2: 210 20% 96%;
+      --ink: 220 34% 13%;
+      --muted-foreground: 216 15% 40%;
+      --border: 216 21% 91%;
+
+      --brand: 227 92% 60%;
+
+      --success: 152 76% 27%;
+      --warning: 34 100% 32%;
+      --danger: 4 65% 47%;
+      --danger-solid: 4 65% 47%;
+      --focus: 220 100% 57%;
+
+      --shadow-color: 220 34% 13%;
+    }
   }
 
   body {
@@ -33,6 +70,10 @@
     font-feature-settings: 'tnum' 1;
   }
 
+  ::selection {
+    background: hsl(var(--brand) / 0.35);
+  }
+
   :focus-visible {
     outline: 2px solid hsl(var(--focus));
     outline-offset: 2px;
@@ -46,5 +87,37 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
+  }
+}
+
+@layer components {
+  /* Reserved for the small set of floating/overlay surfaces called out in
+     the design system: auth card, command palette, modal dialogs, dropdown
+     menus, popovers, toasts, onboarding overlays, floating profile menu and
+     nav sections. Never applied to page backgrounds, generic cards, tables,
+     forms, dashboards or lists. */
+  .glass-panel {
+    background: hsl(var(--glass-tint) / 0.05);
+    border: 1px solid hsl(var(--glass-tint) / 0.14);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    box-shadow:
+      inset 0 1px 0 hsl(var(--glass-tint) / 0.08),
+      0 24px 60px -24px hsl(var(--shadow-color) / 0.5);
+  }
+
+  @keyframes card-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-card-in {
+    animation: card-in 320ms ease-out;
   }
 }

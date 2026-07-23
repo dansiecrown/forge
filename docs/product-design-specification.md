@@ -183,21 +183,36 @@ Never hide essential workflow status at smaller sizes. Reorder by priority, coll
 
 ### Foundations
 
+Dark is the default theme; light mode is fully supported and follows the OS `prefers-color-scheme` setting. All tokens below are defined as CSS custom properties and re-themed per mode — see `docs/adr/0004-premium-dark-design-system.md`.
+
+| Token | Dark (default) | Light |
+| --- | --- | --- |
+| Type | Inter (UI) with system fallback; 400 regular, 500 medium, 600 semibold, 700 bold. Use tabular figures for scores/dates. | same |
+| Type scale | 12 caption, 14 small, 16 body, 18 body-large, 20 H5, 24 H4, 30 H3, 36 H2, 48 H1; line-height 1.5 body, 1.2 headings. | same |
+| Canvas / surface | canvas `#000000`; surface `#141414`; surface-2 (inputs, elevated) `#212121` | canvas `#F7F8FA`; surface `#FFFFFF`; surface-2 `#F2F4F7` |
+| Ink | ink `#F7F7F7`; muted ink `#A1A1A1` | ink `#172033`; muted ink `#5D687A` |
+| Border | `#333333` | `#E4E8EE` |
+| Brand (links, focus glow, decorative accents only — never a button fill) | `#5B85FF` | `#315EFB` |
+| Success / warning | `#4CC98A` / `#F2A93B` | `#14804A` / `#A15C00` |
+| Danger (text/icon use) | `#EB6354` | `#C2352B` |
+| Danger (solid fill, paired with white text) | `#B32B18` | `#C2352B` |
+| Focus | `#4D8DFF` | `#1C6BFF` |
+
+Danger carries two tones because a single lightness cannot pass AA contrast against both a near-black canvas (inline error text/icon use) and a white destructive-button label (solid-fill use) at once; light mode does not need the split since both roles sit against similarly light surfaces. Brand only ever appears as text/glow, so it needs one tone. Validate all foreground/background pairs at AA (4.5:1 normal text, 3:1 large text/UI components).
+
 | Token | Specification |
 | --- | --- |
-| Type | Inter (UI) with system fallback; 400 regular, 500 medium, 600 semibold, 700 bold. Use tabular figures for scores/dates. |
-| Type scale | 12 caption, 14 small, 16 body, 18 body-large, 20 H5, 24 H4, 30 H3, 36 H2, 48 H1; line-height 1.5 body, 1.2 headings. |
-| Colour | Ink `#172033`; muted ink `#5D687A`; canvas `#F7F8FA`; surface `#FFFFFF`; border `#E4E8EE`; brand `#315EFB`; brand-hover `#244AD3`; success `#14804A`; warning `#A15C00`; danger `#C2352B`; focus `#1C6BFF`. Validate all foreground/background pairs at AA. |
-| Spacing | 4px base: 4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96. Default page padding 24/32 desktop and 16 mobile. |
-| Shape/elevation | 8px input/button radius, 12px card radius, 16px modal radius; 1px borders preferred; soft level-1 shadow only for floating surfaces. |
+| Spacing | 4px base: 4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96. Default page padding 24/32 desktop and 16 mobile; generous internal card padding (32px) to keep layouts breathing. |
+| Shape/elevation | 10px input/button radius, 16px card radius, 20px modal radius; 1px borders preferred; shadows are extremely subtle and theme-tinted (near-black in dark mode, ink-tinted in light mode) — depth comes primarily from spacing, surface contrast and selective glass, not shadow. |
+| Glassmorphism | Reserved for a small set of floating/overlay surfaces: auth card, command palette, modal dialogs, dropdown menus, popovers, toast notifications, onboarding overlays, floating profile menu, floating nav sections. Low-opacity theme-tinted background, soft border, gentle backdrop blur — never applied to page backgrounds, generic cards, tables, forms, dashboards or lists. |
 | Iconography | Lucide-style 24px outline icons, 2px stroke; 16px inline; icons support labels/tooltips and never carry critical meaning alone. |
 
 ### Components
 
 | Component | Rules |
 | --- | --- |
-| Buttons | Primary is the single page CTA; secondary for alternatives; tertiary/text for low emphasis; destructive is explicit. Include loading state, disabled rationale, visible focus, and 44px mobile target. |
-| Cards | Purposeful grouping with title, key signal, concise action. Avoid card-within-card overload. Dashboard cards use stable heights only where scanning benefits. |
+| Buttons | Primary is monochrome (foreground-on-background fill) and is the single page CTA — brand blue is not used as a button fill, only for links/focus/decorative accents; secondary is a bordered subtle surface for alternatives; tertiary/text for low emphasis; destructive is the one button that keeps a colour fill (danger), explicit and unambiguous. Include loading state, disabled rationale, visible focus, subtle 150ms hover/active transitions, and 44px mobile target. |
+| Cards | Purposeful grouping with title, key signal, concise action. Solid surface by default; glass is opt-in and reserved for the approved floating surfaces above. Avoid card-within-card overload. Dashboard cards use stable heights only where scanning benefits. |
 | Forms | Label above control; helper text below; validate on blur and submit; error text describes repair; required status is text, not asterisk alone; preserve values after failure. |
 | Tables | sticky header where useful, clear sort state, row action menu, pagination/cursor loading, column preferences. Collapse to label-value cards on mobile. |
 | Status | Use icon + text + restrained colour: Draft, Scheduled, Submitted, Revision required, Approved, Rejected, At risk, Complete. |

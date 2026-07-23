@@ -5,6 +5,7 @@ import { AuditLogService } from '../../platform/audit-log.service';
 import { generateOpaqueToken, hashOpaqueToken } from '../../../shared/crypto/opaque-token';
 import { EMAIL_ADAPTER, type EmailAdapter } from '../../../shared/email/email-adapter';
 import { AppException } from '../../../shared/errors/app.exception';
+import { assertPasswordIsStrong } from '../../../shared/validation/password-strength';
 import { PasswordCredentialsRepository } from '../repositories/password-credentials.repository';
 import {
   EmailVerificationTokensRepository,
@@ -85,6 +86,7 @@ export class AuthService {
         entityId: user.id,
         outcome: 'failure',
         requestId,
+        sourceIpHash: device.ipHash,
         metadata: { reason: 'account_not_active' },
       });
       throw AppException.invalidCredentials();
@@ -99,6 +101,7 @@ export class AuthService {
         entityId: user.id,
         outcome: 'failure',
         requestId,
+        sourceIpHash: device.ipHash,
         metadata: { reason: 'invalid_password' },
       });
       throw AppException.invalidCredentials();
@@ -121,6 +124,7 @@ export class AuthService {
       entityId: user.id,
       outcome: 'success',
       requestId,
+      sourceIpHash: device.ipHash,
     });
 
     return this.issueSession(user, device);
@@ -233,9 +237,33 @@ export class AuthService {
       );
     }
 
+    assertPasswordIsStrong(newPassword);
+
+    const user = await this.usersRepository.findById(record.userId);
+    if (!user) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        'INVALID_TOKEN',
+        'This reset link is invalid or has expired.',
+      );
+    }
+
     const hash = await this.passwordService.hash(newPassword);
     await this.passwordCredentialsRepository.updateHash(record.userId, hash);
     await this.passwordResetTokensRepository.markUsed(record.id);
+
+    // Invited users have no credential until now; setting one is proof they
+    // control the invited inbox, so this is also where the invitation flow
+    // (see docs/adr/0003) completes: activate the account and, if unset,
+    // mark the email verified. Any other status (suspended/deactivated) is
+    // left untouched — a password reset must not silently reinstate access.
+    if (user.status === 'invited') {
+      await this.usersRepository.update(user.id, {
+        status: 'active',
+        emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+      });
+    }
+
     await this.refreshSessionService.revokeAllForUser(record.userId);
     await this.auditLog.record({
       action: 'auth.password_reset',
@@ -257,6 +285,8 @@ export class AuthService {
     ) {
       throw AppException.unauthenticated('Current password is incorrect.', 'REAUTH_REQUIRED');
     }
+
+    assertPasswordIsStrong(newPassword);
 
     const hash = await this.passwordService.hash(newPassword);
     await this.passwordCredentialsRepository.updateHash(userId, hash);
@@ -292,12 +322,15 @@ export class AuthService {
     const record = await this.emailVerificationTokensRepository.findByTokenHash(
       hashOpaqueToken(token),
     );
-    if (!record || record.usedAt || record.expiresAt.getTime() < Date.now()) {
+    if (!record || record.usedAt) {
       throw new AppException(
         HttpStatus.BAD_REQUEST,
         'INVALID_TOKEN',
-        'This verification link is invalid or has expired.',
+        'This verification link is invalid.',
       );
+    }
+    if (record.expiresAt.getTime() < Date.now()) {
+      throw AppException.gone('GONE', 'This verification link has expired.');
     }
 
     await this.usersRepository.update(record.userId, { emailVerifiedAt: new Date() });

@@ -8,8 +8,9 @@
     "start:dev": "nest start --watch",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "prisma:generate": "prisma generate",
-    "prisma:validate": "prisma validate",
+    "prisma:generate": "dotenv -e ../../.env -- prisma generate",
+    "prisma:validate": "dotenv -e ../../.env -- prisma validate",
+    "prisma:migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
     "prisma:seed": "ts-node --transpile-only prisma/seeds/identity.seed.ts"
   },
   "jest": {
@@ -56,6 +57,7 @@
     "@types/node": "^22.13.10",
     "@types/supertest": "^6.0.2",
     "dotenv": "^16.4.7",
+    "dotenv-cli": "^11.0.0",
     "jest": "^29.7.0",
     "prisma": "^6.5.0",
     "supertest": "^7.0.0",

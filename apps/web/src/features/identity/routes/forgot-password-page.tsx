@@ -18,7 +18,7 @@ export function ForgotPasswordPage() {
 
   if (forgotPassword.isSuccess) {
     return (
-      <Card>
+      <Card glass>
         <CardHeader>
           <CardTitle>Check your email</CardTitle>
         </CardHeader>
@@ -37,7 +37,7 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <Card>
+    <Card glass>
       <CardHeader>
         <CardTitle>Forgot your password?</CardTitle>
         <CardDescription>We&apos;ll send a reset link to your account email.</CardDescription>

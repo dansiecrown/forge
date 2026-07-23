@@ -14,9 +14,9 @@ export const Alert = forwardRef<HTMLDivElement, AlertProps>(
         ref={ref}
         role={variant === 'danger' ? 'alert' : 'status'}
         className={cn(
-          'flex items-start gap-2 rounded-control border px-3 py-2 text-sm',
-          variant === 'danger' && 'border-danger/30 bg-danger/5 text-danger',
-          variant === 'success' && 'border-success/30 bg-success/5 text-success',
+          'flex items-start gap-2 rounded-control border px-3 py-2.5 text-sm',
+          variant === 'danger' && 'border-danger/25 bg-danger/10 text-danger',
+          variant === 'success' && 'border-success/25 bg-success/10 text-success',
           className,
         )}
         {...props}

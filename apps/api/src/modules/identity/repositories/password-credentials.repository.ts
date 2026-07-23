@@ -14,10 +14,16 @@ export class PasswordCredentialsRepository {
     return this.prisma.passwordCredential.create({ data: { userId, passwordHash } });
   }
 
+  /** Upsert, not update: an invited user has no credential row yet when they
+   * set their initial password through the reset-password flow (see
+   * docs/adr/0003-identity-and-access-control-foundation.md — invitations
+   * reuse this endpoint rather than a dedicated accept-invitation route). A
+   * plain `update` would 500 with "record not found" for that case. */
   updateHash(userId: string, passwordHash: string): Promise<PasswordCredential> {
-    return this.prisma.passwordCredential.update({
+    return this.prisma.passwordCredential.upsert({
       where: { userId },
-      data: { passwordHash, changedAt: new Date(), failedAttempts: 0, lockedUntil: null },
+      create: { userId, passwordHash },
+      update: { passwordHash, changedAt: new Date(), failedAttempts: 0, lockedUntil: null },
     });
   }
 

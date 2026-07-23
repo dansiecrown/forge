@@ -4,7 +4,7 @@ import { buttonVariants } from '@/components/ui/button';
 
 export function UnauthorizedPage() {
   return (
-    <main className="grid min-h-screen place-items-center bg-canvas p-6">
+    <main className="grid min-h-screen place-items-center bg-canvas px-6 py-12">
       <div className="max-w-sm space-y-4 text-center">
         <ShieldAlert className="mx-auto size-10 text-warning" aria-hidden="true" />
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">

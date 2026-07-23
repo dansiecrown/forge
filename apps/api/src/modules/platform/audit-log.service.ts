@@ -10,6 +10,8 @@ export interface RecordAuditEventInput {
   organizationId?: string;
   actorUserId?: string;
   requestId?: string;
+  /** Hashed, never a raw IP — docs/database-design.md §7 "source IP hash/prefix policy". */
+  sourceIpHash?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -34,6 +36,7 @@ export class AuditLogService {
           organizationId: input.organizationId,
           actorUserId: input.actorUserId,
           requestId: input.requestId,
+          sourceIpHash: input.sourceIpHash,
           metadata: input.metadata as never,
         },
       });

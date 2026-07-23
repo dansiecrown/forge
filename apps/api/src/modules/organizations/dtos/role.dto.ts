@@ -1,4 +1,4 @@
-import { ArrayUnique, IsArray, IsInt, IsString, Length, Matches, Min } from 'class-validator';
+import { ArrayUnique, IsArray, IsString, Length, Matches } from 'class-validator';
 
 export class CreateRoleDto {
   @IsString()
@@ -15,13 +15,11 @@ export class CreateRoleDto {
   permissionIds!: string[];
 }
 
+// `version` is supplied via the `If-Match` header (docs/api-specification.md
+// §2), not the request body — see RolesController.update.
 export class UpdateRolePermissionsDto {
   @IsArray()
   @ArrayUnique()
   @IsString({ each: true })
   permissionIds!: string[];
-
-  @IsInt()
-  @Min(1)
-  version!: number;
 }

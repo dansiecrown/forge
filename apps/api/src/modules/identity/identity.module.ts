@@ -4,6 +4,7 @@ import { OrganizationsModule } from '../organizations/organizations.module';
 import { PlatformModule } from '../platform/platform.module';
 import { EMAIL_ADAPTER } from '../../shared/email/email-adapter';
 import { ConsoleEmailAdapter } from '../../shared/email/console-email.adapter';
+import { IdempotencyService } from '../../shared/idempotency/idempotency.service';
 import { AuthController } from './controllers/auth.controller';
 import { MeController } from './controllers/me.controller';
 import { UsersController } from './controllers/users.controller';
@@ -41,6 +42,7 @@ import { UsersService } from './services/users.service';
     MfaService,
     AuthService,
     UsersService,
+    IdempotencyService,
     { provide: EMAIL_ADAPTER, useClass: ConsoleEmailAdapter },
   ],
   exports: [AccessTokenService, UsersRepository, UsersService],

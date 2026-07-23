@@ -58,7 +58,7 @@ export function SignInPage() {
 
   if (mfaChallengeToken) {
     return (
-      <Card>
+      <Card glass>
         <CardHeader>
           <CardTitle>Enter your verification code</CardTitle>
           <CardDescription>
@@ -86,7 +86,7 @@ export function SignInPage() {
   }
 
   return (
-    <Card>
+    <Card glass>
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
         <CardDescription>Use your Project Forge account email and password.</CardDescription>

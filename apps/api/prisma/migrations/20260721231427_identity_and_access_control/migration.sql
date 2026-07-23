@@ -1,4 +1,4 @@
-﻿-- CreateSchema
+-- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
@@ -27,13 +27,13 @@ CREATE TABLE "users" (
     "given_name" TEXT,
     "family_name" TEXT,
     "status" "UserStatus" NOT NULL DEFAULT 'invited',
-    "email_verified_at" TIMESTAMP(3),
+    "email_verified_at" TIMESTAMPTZ(3),
     "locale" TEXT NOT NULL DEFAULT 'en-NG',
     "timezone" TEXT NOT NULL DEFAULT 'Africa/Lagos',
-    "last_login_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-    "deleted_at" TIMESTAMP(3),
+    "last_login_at" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
+    "deleted_at" TIMESTAMPTZ(3),
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
@@ -44,9 +44,9 @@ CREATE TABLE "external_identities" (
     "user_id" TEXT NOT NULL,
     "provider" "ExternalIdentityProvider" NOT NULL,
     "provider_subject" TEXT NOT NULL,
-    "verified_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "verified_at" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "external_identities_pkey" PRIMARY KEY ("id")
 );
@@ -56,11 +56,11 @@ CREATE TABLE "password_credentials" (
     "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "password_hash" TEXT NOT NULL,
-    "changed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "changed_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "failed_attempts" INTEGER NOT NULL DEFAULT 0,
-    "locked_until" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "locked_until" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "password_credentials_pkey" PRIMARY KEY ("id")
 );
@@ -73,12 +73,12 @@ CREATE TABLE "auth_sessions" (
     "refresh_token_hash" TEXT NOT NULL,
     "device_label" TEXT,
     "ip_hash" TEXT,
-    "mfa_verified_at" TIMESTAMP(3),
-    "issued_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "expires_at" TIMESTAMP(3) NOT NULL,
-    "revoked_at" TIMESTAMP(3),
+    "mfa_verified_at" TIMESTAMPTZ(3),
+    "issued_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expires_at" TIMESTAMPTZ(3) NOT NULL,
+    "revoked_at" TIMESTAMPTZ(3),
     "replaced_by_session_id" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "auth_sessions_pkey" PRIMARY KEY ("id")
 );
@@ -89,10 +89,10 @@ CREATE TABLE "mfa_factors" (
     "user_id" TEXT NOT NULL,
     "type" TEXT NOT NULL DEFAULT 'totp',
     "secret_encrypted" TEXT NOT NULL,
-    "verified_at" TIMESTAMP(3),
-    "disabled_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "verified_at" TIMESTAMPTZ(3),
+    "disabled_at" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "mfa_factors_pkey" PRIMARY KEY ("id")
 );
@@ -103,8 +103,8 @@ CREATE TABLE "recovery_codes" (
     "user_id" TEXT NOT NULL,
     "mfa_factor_id" TEXT,
     "code_hash" TEXT NOT NULL,
-    "used_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "used_at" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "recovery_codes_pkey" PRIMARY KEY ("id")
 );
@@ -114,9 +114,9 @@ CREATE TABLE "password_reset_tokens" (
     "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "token_hash" TEXT NOT NULL,
-    "expires_at" TIMESTAMP(3) NOT NULL,
-    "used_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expires_at" TIMESTAMPTZ(3) NOT NULL,
+    "used_at" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "password_reset_tokens_pkey" PRIMARY KEY ("id")
 );
@@ -126,9 +126,9 @@ CREATE TABLE "email_verification_tokens" (
     "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "token_hash" TEXT NOT NULL,
-    "expires_at" TIMESTAMP(3) NOT NULL,
-    "used_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expires_at" TIMESTAMPTZ(3) NOT NULL,
+    "used_at" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "email_verification_tokens_pkey" PRIMARY KEY ("id")
 );
@@ -139,8 +139,8 @@ CREATE TABLE "organizations" (
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "status" "OrganizationStatus" NOT NULL DEFAULT 'active',
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "organizations_pkey" PRIMARY KEY ("id")
 );
@@ -157,9 +157,9 @@ CREATE TABLE "roles" (
     "version" INTEGER NOT NULL DEFAULT 1,
     "description" TEXT,
     "hierarchy_rank" INTEGER,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-    "deleted_at" TIMESTAMP(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
+    "deleted_at" TIMESTAMPTZ(3),
 
     CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
 );
@@ -173,8 +173,8 @@ CREATE TABLE "permissions" (
     "scope_capability" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'active',
     "description" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "permissions_pkey" PRIMARY KEY ("id")
 );
@@ -184,7 +184,7 @@ CREATE TABLE "role_permissions" (
     "id" TEXT NOT NULL,
     "role_id" TEXT NOT NULL,
     "permission_id" TEXT NOT NULL,
-    "granted_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "granted_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "granted_by" TEXT,
 
     CONSTRAINT "role_permissions_pkey" PRIMARY KEY ("id")
@@ -196,11 +196,11 @@ CREATE TABLE "memberships" (
     "organization_id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "status" "MembershipStatus" NOT NULL DEFAULT 'invited',
-    "invited_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "joined_at" TIMESTAMP(3),
-    "ended_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "invited_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "joined_at" TIMESTAMPTZ(3),
+    "ended_at" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "memberships_pkey" PRIMARY KEY ("id")
 );
@@ -210,9 +210,9 @@ CREATE TABLE "membership_roles" (
     "id" TEXT NOT NULL,
     "membership_id" TEXT NOT NULL,
     "role_id" TEXT NOT NULL,
-    "granted_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "granted_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "granted_by" TEXT,
-    "revoked_at" TIMESTAMP(3),
+    "revoked_at" TIMESTAMPTZ(3),
 
     CONSTRAINT "membership_roles_pkey" PRIMARY KEY ("id")
 );
@@ -227,10 +227,25 @@ CREATE TABLE "audit_logs" (
     "entity_id" TEXT,
     "outcome" "AuditOutcome" NOT NULL,
     "request_id" TEXT,
+    "source_ip_hash" TEXT,
     "metadata" JSONB,
-    "occurred_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "occurred_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "idempotency_keys" (
+    "id" TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    "route" TEXT NOT NULL,
+    "request_hash" TEXT NOT NULL,
+    "response_status" INTEGER NOT NULL,
+    "response_body" JSONB NOT NULL,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expires_at" TIMESTAMPTZ(3) NOT NULL,
+
+    CONSTRAINT "idempotency_keys_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -305,6 +320,9 @@ CREATE INDEX "audit_logs_actor_user_id_occurred_at_idx" ON "audit_logs"("actor_u
 -- CreateIndex
 CREATE INDEX "audit_logs_entity_type_entity_id_occurred_at_idx" ON "audit_logs"("entity_type", "entity_id", "occurred_at" DESC);
 
+-- CreateIndex
+CREATE UNIQUE INDEX "idempotency_keys_key_route_key" ON "idempotency_keys"("key", "route");
+
 -- AddForeignKey
 ALTER TABLE "external_identities" ADD CONSTRAINT "external_identities_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -330,7 +348,7 @@ ALTER TABLE "password_reset_tokens" ADD CONSTRAINT "password_reset_tokens_user_i
 ALTER TABLE "email_verification_tokens" ADD CONSTRAINT "email_verification_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "roles" ADD CONSTRAINT "roles_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "roles" ADD CONSTRAINT "roles_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -349,4 +367,21 @@ ALTER TABLE "membership_roles" ADD CONSTRAINT "membership_roles_membership_id_fk
 
 -- AddForeignKey
 ALTER TABLE "membership_roles" ADD CONSTRAINT "membership_roles_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Partial unique indexes (docs/database-design.md §3 "Role" and
+-- "Membership and role join tables"). Prisma's schema DSL cannot express a
+-- WHERE clause on @@unique, so these are hand-written here instead of
+-- generated. Two indexes are needed for role key uniqueness rather than one
+-- composite (organization_id, key) index: standard btree unique indexes
+-- treat every NULL as distinct, so a single index would not stop two system
+-- roles (organization_id IS NULL) from sharing a key.
+
+-- CreateIndex: system role keys are unique globally.
+CREATE UNIQUE INDEX "roles_system_key_active_key" ON "roles" ("key") WHERE "deleted_at" IS NULL AND "organization_id" IS NULL;
+
+-- CreateIndex: custom role keys are unique per organization.
+CREATE UNIQUE INDEX "roles_org_key_active_key" ON "roles" ("organization_id", "key") WHERE "deleted_at" IS NULL AND "organization_id" IS NOT NULL;
+
+-- CreateIndex: a role can only be actively granted once per membership.
+CREATE UNIQUE INDEX "membership_roles_active_grant_key" ON "membership_roles" ("membership_id", "role_id") WHERE "revoked_at" IS NULL;
 

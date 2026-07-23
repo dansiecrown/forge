@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   Req,
   Res,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { Public } from '../../../decorators/public.decorator';
 import { hashOpaqueToken } from '../../../shared/crypto/opaque-token';
 import { AppException } from '../../../shared/errors/app.exception';
+import { CollectionResult } from '../../../shared/pagination/collection-result';
 import type { AuthenticatedRequest } from '../../../shared/http/authenticated-request';
 import {
   clearRefreshCookie,
@@ -57,6 +59,7 @@ export class AuthController {
 
   @Public()
   @Post('login')
+  @HttpCode(HttpStatus.OK)
   async login(
     @Body() dto: LoginDto,
     @Req() req: AuthenticatedRequest,
@@ -84,6 +87,7 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
+  @HttpCode(HttpStatus.OK)
   async refresh(@Req() req: AuthenticatedRequest, @Res({ passthrough: true }) res: Response) {
     const presented = req.cookies?.[REFRESH_COOKIE_NAME];
     if (!presented) {
@@ -155,16 +159,28 @@ export class AuthController {
   }
 
   @Get('sessions')
-  async listSessions(@CurrentUser() user: { id: string }, @Req() req: AuthenticatedRequest) {
-    const sessions = await this.authSessionsRepository.listActiveForUser(user.id);
+  async listSessions(
+    @CurrentUser() user: { id: string },
+    @Req() req: AuthenticatedRequest,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
+    const sessions = await this.authSessionsRepository.listActiveForUser(user.id, {
+      cursor,
+      limit: parsedLimit,
+    });
     const presented: string | undefined = req.cookies?.[REFRESH_COOKIE_NAME];
     const presentedHash = presented ? hashOpaqueToken(presented) : undefined;
-    return sessions.map((session) => ({
-      id: session.id,
-      device: session.deviceLabel ?? 'Unknown device',
-      current: session.refreshTokenHash === presentedHash,
-      lastUsedAt: session.issuedAt,
-    }));
+    return new CollectionResult(
+      sessions.items.map((session) => ({
+        id: session.id,
+        device: session.deviceLabel ?? 'Unknown device',
+        current: session.refreshTokenHash === presentedHash,
+        lastUsedAt: session.issuedAt,
+      })),
+      sessions.page,
+    );
   }
 
   @Delete('sessions/:sessionId')
@@ -186,6 +202,7 @@ export class AuthController {
 
   @Public()
   @Post('mfa/verify')
+  @HttpCode(HttpStatus.OK)
   async verifyMfa(
     @Body() dto: MfaVerifyDto,
     @Req() req: AuthenticatedRequest,

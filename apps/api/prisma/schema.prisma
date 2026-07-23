@@ -62,13 +62,13 @@ model User {
   givenName       String?    @map("given_name")
   familyName      String?    @map("family_name")
   status          UserStatus @default(invited)
-  emailVerifiedAt DateTime?  @map("email_verified_at")
+  emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz(3)
   locale          String     @default("en-NG")
   timezone        String     @default("Africa/Lagos")
-  lastLoginAt     DateTime?  @map("last_login_at")
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
-  deletedAt       DateTime?  @map("deleted_at")
+  lastLoginAt     DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(3)
 
   externalIdentities      ExternalIdentity[]
   passwordCredential      PasswordCredential?
@@ -88,9 +88,9 @@ model ExternalIdentity {
   userId          String                   @map("user_id")
   provider        ExternalIdentityProvider
   providerSubject String                   @map("provider_subject")
-  verifiedAt      DateTime?                @map("verified_at")
-  createdAt       DateTime                 @default(now()) @map("created_at")
-  updatedAt       DateTime                 @updatedAt @map("updated_at")
+  verifiedAt      DateTime?                @map("verified_at") @db.Timestamptz(3)
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id])
 
@@ -103,11 +103,11 @@ model PasswordCredential {
   id             String    @id @default(uuid())
   userId         String    @unique @map("user_id")
   passwordHash   String    @map("password_hash")
-  changedAt      DateTime  @default(now()) @map("changed_at")
+  changedAt      DateTime  @default(now()) @map("changed_at") @db.Timestamptz(3)
   failedAttempts Int       @default(0) @map("failed_attempts")
-  lockedUntil    DateTime? @map("locked_until")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  lockedUntil    DateTime? @map("locked_until") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id])
 
@@ -121,12 +121,12 @@ model AuthSession {
   refreshTokenHash    String    @map("refresh_token_hash")
   deviceLabel         String?   @map("device_label")
   ipHash              String?   @map("ip_hash")
-  mfaVerifiedAt       DateTime? @map("mfa_verified_at")
-  issuedAt            DateTime  @default(now()) @map("issued_at")
-  expiresAt           DateTime  @map("expires_at")
-  revokedAt           DateTime? @map("revoked_at")
+  mfaVerifiedAt       DateTime? @map("mfa_verified_at") @db.Timestamptz(3)
+  issuedAt            DateTime  @default(now()) @map("issued_at") @db.Timestamptz(3)
+  expiresAt           DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt           DateTime? @map("revoked_at") @db.Timestamptz(3)
   replacedBySessionId String?   @map("replaced_by_session_id")
-  createdAt           DateTime  @default(now()) @map("created_at")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id])
 
@@ -140,10 +140,10 @@ model MfaFactor {
   userId          String    @map("user_id")
   type            String    @default("totp")
   secretEncrypted String    @map("secret_encrypted")
-  verifiedAt      DateTime? @map("verified_at")
-  disabledAt      DateTime? @map("disabled_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  verifiedAt      DateTime? @map("verified_at") @db.Timestamptz(3)
+  disabledAt      DateTime? @map("disabled_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user          User           @relation(fields: [userId], references: [id])
   recoveryCodes RecoveryCode[]
@@ -157,8 +157,8 @@ model RecoveryCode {
   userId      String    @map("user_id")
   mfaFactorId String?   @map("mfa_factor_id")
   codeHash    String    @map("code_hash")
-  usedAt      DateTime? @map("used_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  usedAt      DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user      User       @relation(fields: [userId], references: [id])
   mfaFactor MfaFactor? @relation(fields: [mfaFactorId], references: [id])
@@ -171,9 +171,9 @@ model PasswordResetToken {
   id        String    @id @default(uuid())
   userId    String    @map("user_id")
   tokenHash String    @unique @map("token_hash")
-  expiresAt DateTime  @map("expires_at")
-  usedAt    DateTime? @map("used_at")
-  createdAt DateTime  @default(now()) @map("created_at")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id])
 
@@ -185,9 +185,9 @@ model EmailVerificationToken {
   id        String    @id @default(uuid())
   userId    String    @map("user_id")
   tokenHash String    @unique @map("token_hash")
-  expiresAt DateTime  @map("expires_at")
-  usedAt    DateTime? @map("used_at")
-  createdAt DateTime  @default(now()) @map("created_at")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id])
 
@@ -204,8 +204,8 @@ model Organization {
   name      String
   slug      String             @unique
   status    OrganizationStatus @default(active)
-  createdAt DateTime           @default(now()) @map("created_at")
-  updatedAt DateTime           @updatedAt @map("updated_at")
+  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   memberships Membership[]
   roles       Role[]
@@ -216,6 +216,11 @@ model Organization {
 // System roles (is_system = true) are global catalog entries with
 // organizationId = null, per docs/database-design.md ("unique system key
 // globally"). Tenant scope is carried by Membership, not by the Role row.
+//
+// Uniqueness: "(organization_id, key) WHERE deleted_at IS NULL" is a partial
+// index, which Prisma's schema DSL cannot express — it is added by hand in
+// the migration SQL (see migrations/.../migration.sql) and is intentionally
+// not mirrored here as an `@@unique`.
 model Role {
   id             String        @id @default(uuid())
   organizationId String?       @map("organization_id")
@@ -227,11 +232,11 @@ model Role {
   version        Int           @default(1)
   description    String?
   hierarchyRank  Int?          @map("hierarchy_rank")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
-  deletedAt      DateTime?     @map("deleted_at")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime?     @map("deleted_at") @db.Timestamptz(3)
 
-  organization    Organization?    @relation(fields: [organizationId], references: [id])
+  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   rolePermissions RolePermission[]
   membershipRoles MembershipRole[]
 
@@ -247,8 +252,8 @@ model Permission {
   scopeCapability String   @map("scope_capability")
   status          String   @default("active")
   description     String?
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   rolePermissions RolePermission[]
 
@@ -260,7 +265,7 @@ model RolePermission {
   id           String   @id @default(uuid())
   roleId       String   @map("role_id")
   permissionId String   @map("permission_id")
-  grantedAt    DateTime @default(now()) @map("granted_at")
+  grantedAt    DateTime @default(now()) @map("granted_at") @db.Timestamptz(3)
   grantedBy    String?  @map("granted_by")
 
   role       Role       @relation(fields: [roleId], references: [id])
@@ -275,11 +280,11 @@ model Membership {
   organizationId String           @map("organization_id")
   userId         String           @map("user_id")
   status         MembershipStatus @default(invited)
-  invitedAt      DateTime         @default(now()) @map("invited_at")
-  joinedAt       DateTime?        @map("joined_at")
-  endedAt        DateTime?        @map("ended_at")
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  invitedAt      DateTime         @default(now()) @map("invited_at") @db.Timestamptz(3)
+  joinedAt       DateTime?        @map("joined_at") @db.Timestamptz(3)
+  endedAt        DateTime?        @map("ended_at") @db.Timestamptz(3)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization    Organization     @relation(fields: [organizationId], references: [id])
   user            User             @relation(fields: [userId], references: [id])
@@ -290,13 +295,16 @@ model Membership {
   @@map("memberships")
 }
 
+// Uniqueness: "active (membership_id, role_id)" is a partial index
+// ("WHERE revoked_at IS NULL"), added by hand in the migration SQL for the
+// same reason as Role above.
 model MembershipRole {
   id           String    @id @default(uuid())
   membershipId String    @map("membership_id")
   roleId       String    @map("role_id")
-  grantedAt    DateTime  @default(now()) @map("granted_at")
+  grantedAt    DateTime  @default(now()) @map("granted_at") @db.Timestamptz(3)
   grantedBy    String?   @map("granted_by")
-  revokedAt    DateTime? @map("revoked_at")
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(3)
 
   membership Membership @relation(fields: [membershipId], references: [id])
   role       Role       @relation(fields: [roleId], references: [id])
@@ -316,11 +324,31 @@ model AuditLog {
   entityId       String?      @map("entity_id")
   outcome        AuditOutcome
   requestId      String?      @map("request_id")
+  /// Hashed/truncated per docs/database-design.md §7 ("source IP hash/prefix
+  /// policy"); never a raw IP address.
+  sourceIpHash   String?      @map("source_ip_hash")
   metadata       Json?
-  occurredAt     DateTime     @default(now()) @map("occurred_at")
+  occurredAt     DateTime     @default(now()) @map("occurred_at") @db.Timestamptz(3)
 
   @@index([organizationId, occurredAt(sort: Desc)])
   @@index([actorUserId, occurredAt(sort: Desc)])
   @@index([entityType, entityId, occurredAt(sort: Desc)])
   @@map("audit_logs")
+}
+
+// Backs `Idempotency-Key` handling for POST /users/invitations per
+// docs/api-specification.md §2. Scoped to this one retry-sensitive endpoint
+// rather than a generic framework — see docs/adr/0003.
+model IdempotencyKey {
+  id             String   @id @default(uuid())
+  key            String   @map("key")
+  route          String
+  requestHash    String   @map("request_hash")
+  responseStatus Int      @map("response_status")
+  responseBody   Json     @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@unique([key, route])
+  @@map("idempotency_keys")
 }
