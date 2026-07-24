@@ -13,6 +13,7 @@ import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { RequirePermissions } from '../../../decorators/require-permissions.decorator';
 import { AppException } from '../../../shared/errors/app.exception';
 import { IdempotencyService } from '../../../shared/idempotency/idempotency.service';
+import { parseLimit } from '../../../shared/pagination/collection-result';
 import { MembershipsService } from '../../organizations/services/memberships.service';
 import { PermissionResolverService } from '../../organizations/services/permission-resolver.service';
 import { InviteUserDto } from '../dtos/users.dto';
@@ -32,8 +33,7 @@ export class UsersController {
   @Get()
   @RequirePermissions('user.read')
   list(@Query('cursor') cursor?: string, @Query('limit') limit?: string, @Query('q') q?: string) {
-    const parsedLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
-    return this.usersService.list(cursor, parsedLimit, q);
+    return this.usersService.list(cursor, parseLimit(limit), q);
   }
 
   @Get(':userId')
@@ -83,11 +83,14 @@ export class UsersController {
     const invited = await this.usersService.invite(dto.email, dto.displayName, user.id);
     await this.membershipsService.inviteIntoOrganization(
       { organizationId },
-      invited.id,
+      invited.user.id,
       dto.roles ?? [],
       user.id,
     );
-    const response = { invitationId: invited.id, status: 'sent' };
+    const response = {
+      invitationId: invited.user.id,
+      status: invited.isNewUser ? 'sent' : 'added',
+    };
 
     if (idempotencyKey) {
       await this.idempotencyService.record(

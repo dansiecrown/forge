@@ -15,6 +15,14 @@ export interface UpdateMeInput {
   locale?: string;
 }
 
+export interface InviteResult {
+  user: User;
+  /** False when an existing platform identity was reused for a second
+   * organization's invitation — no new credential/email is issued for
+   * that case. See docs/adr/0003 Part A addendum. */
+  isNewUser: boolean;
+}
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -47,11 +55,20 @@ export class UsersService {
 
   /** Creates the invited user record and issues a set-password link reusing
    * the password-reset token flow (no separate accept-invitation endpoint
-   * exists in this milestone's scope — see Milestone 2 report). */
-  async invite(email: string, displayName: string, invitedBy?: string): Promise<User> {
+   * exists in this milestone's scope — see Milestone 2 report).
+   *
+   * Identity is global and Membership is per-organization (docs/database-
+   * design.md: "one user can be a student in several organizations"), so an
+   * email that already exists anywhere on the platform is not an error here
+   * — that identity is reused for the new organization's membership instead
+   * of being rejected or duplicated. The caller (UsersController) still
+   * creates the membership itself via MembershipsService either way; no new
+   * credential or "set your password" email is issued for an existing
+   * identity, since one already exists. See docs/adr/0003 Part A addendum. */
+  async invite(email: string, displayName: string, invitedBy?: string): Promise<InviteResult> {
     const existing = await this.usersRepository.findByEmail(email);
     if (existing) {
-      throw AppException.conflict('DUPLICATE', 'A user with this email already exists.');
+      return { user: existing, isNewUser: false };
     }
 
     const user = await this.usersRepository.create({ emailCanonical: email, displayName });
@@ -74,6 +91,6 @@ export class UsersService {
       actorUserId: invitedBy,
     });
 
-    return user;
+    return { user, isNewUser: true };
   }
 }

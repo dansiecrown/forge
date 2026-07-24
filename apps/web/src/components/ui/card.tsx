@@ -1,6 +1,13 @@
 import { type HTMLAttributes, forwardRef } from 'react';
 import { cn } from '@/utils';
 
+export interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
+  /** Defaults to h1 — every current page renders exactly one Card. Set
+   * explicitly once a page renders more than one Card (e.g. a dashboard)
+   * so the page keeps a single h1 in its heading hierarchy. */
+  as?: 'h1' | 'h2' | 'h3';
+}
+
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /** Reserved for the auth card and other approved floating surfaces —
    * never the default for generic content cards. */
@@ -27,9 +34,9 @@ export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
 );
 CardHeader.displayName = 'CardHeader';
 
-export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...props }, ref) => (
-    <h1
+export const CardTitle = forwardRef<HTMLHeadingElement, CardTitleProps>(
+  ({ className, as: Heading = 'h1', ...props }, ref) => (
+    <Heading
       ref={ref}
       className={cn(
         'text-2xl font-semibold leading-tight tracking-tight text-foreground',

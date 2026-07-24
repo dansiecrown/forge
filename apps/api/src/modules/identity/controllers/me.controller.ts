@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Patch } from '@nestjs/common';
 import { CurrentUser } from '../../../decorators/current-user.decorator';
-import { MembershipsRepository } from '../../organizations/repositories/memberships.repository';
+import { MembershipsService } from '../../organizations/services/memberships.service';
 import { UpdateMeDto } from '../dtos/users.dto';
 import { UsersService } from '../services/users.service';
 
@@ -8,13 +8,13 @@ import { UsersService } from '../services/users.service';
 export class MeController {
   constructor(
     private readonly usersService: UsersService,
-    private readonly membershipsRepository: MembershipsRepository,
+    private readonly membershipsService: MembershipsService,
   ) {}
 
   @Get()
   async getMe(@CurrentUser() user: { id: string }) {
     const current = await this.usersService.getById(user.id);
-    const memberships = await this.membershipsRepository.listForUser(user.id);
+    const memberships = await this.membershipsService.listForUser(user.id);
     return {
       id: current.id,
       displayName: current.displayName,

@@ -16,7 +16,7 @@ import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { Public } from '../../../decorators/public.decorator';
 import { hashOpaqueToken } from '../../../shared/crypto/opaque-token';
 import { AppException } from '../../../shared/errors/app.exception';
-import { CollectionResult } from '../../../shared/pagination/collection-result';
+import { CollectionResult, parseLimit } from '../../../shared/pagination/collection-result';
 import type { AuthenticatedRequest } from '../../../shared/http/authenticated-request';
 import {
   clearRefreshCookie,
@@ -89,7 +89,7 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Req() req: AuthenticatedRequest, @Res({ passthrough: true }) res: Response) {
-    const presented = req.cookies?.[REFRESH_COOKIE_NAME];
+    const presented = req.signedCookies?.[REFRESH_COOKIE_NAME];
     if (!presented) {
       throw AppException.unauthenticated('No active session.', 'SESSION_REVOKED');
     }
@@ -107,7 +107,7 @@ export class AuthController {
     @Req() req: AuthenticatedRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const presented: string | undefined = req.cookies?.[REFRESH_COOKIE_NAME];
+    const presented: string | undefined = req.signedCookies?.[REFRESH_COOKIE_NAME];
     const bearer = req.header('Authorization');
     let userId: string | undefined;
     if (bearer?.startsWith('Bearer ')) {
@@ -165,12 +165,11 @@ export class AuthController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
-    const parsedLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
     const sessions = await this.authSessionsRepository.listActiveForUser(user.id, {
       cursor,
-      limit: parsedLimit,
+      limit: parseLimit(limit),
     });
-    const presented: string | undefined = req.cookies?.[REFRESH_COOKIE_NAME];
+    const presented: string | undefined = req.signedCookies?.[REFRESH_COOKIE_NAME];
     const presentedHash = presented ? hashOpaqueToken(presented) : undefined;
     return new CollectionResult(
       sessions.items.map((session) => ({

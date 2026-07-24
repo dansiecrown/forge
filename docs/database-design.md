@@ -8,7 +8,9 @@
 
 Project Forge is a multi-tenant fellowship platform. An **organization** is the hard tenant boundary; an **academy** is a division within an organization; a **fellowship** is a reusable learning programme; a **cohort** is a time-bounded delivery of a fellowship. All tenant-owned records carry `organization_id`, even when it can be inferred through a parent. This deliberate redundancy enables safe scope enforcement, indexing, partitioning, and auditability.
 
-Use singular, `snake_case` PostgreSQL table names; UUID primary keys named `id`; foreign keys named `<entity>_id`; enum/check-constrained workflow states; `jsonb` only for genuinely flexible, versioned or provider-specific data—not core relational facts. The application must set an approved tenant scope before every data access. Database constraints defend invariants; application policy supplies contextual authorization.
+Use plural, `snake_case` PostgreSQL table names (`users`, `roles`, `memberships`, …); UUID primary keys named `id`; foreign keys named `<entity>_id`; enum/check-constrained workflow states; `jsonb` only for genuinely flexible, versioned or provider-specific data—not core relational facts. The application must set an approved tenant scope before every data access. Database constraints defend invariants; application policy supplies contextual authorization.
+
+> **Naming convention note (2026-07-24):** this was originally written as "singular" table names, but the Identity & Access Control implementation used plural names throughout (`users`, `roles`, `memberships`, `permissions`, …) — including, inconsistently, in this very document's own `created_by`/`updated_by` FK reference below (`users.id`). Per the Architecture Lock milestone's review, plural is adopted as the approved standard rather than renaming 15 live, migrated tables for a cosmetic convention with no functional impact — see `docs/adr/0003-identity-and-access-control-foundation.md`.
 
 ### Standard columns
 

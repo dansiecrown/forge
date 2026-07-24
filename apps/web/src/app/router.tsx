@@ -2,6 +2,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { ForgotPasswordPage, ResetPasswordPage, SignInPage } from '@/features/identity';
 import { AuthLayout } from '@/layouts/auth-layout';
 import { HomePage } from '@/pages/home-page';
+import { NotFoundPage } from '@/pages/not-found-page';
 import { UnauthorizedPage } from '@/pages/unauthorized-page';
 import { ProtectedRoute } from './protected-route';
 
@@ -35,6 +36,7 @@ const router = createBrowserRouter([
     ),
   },
   { path: '/unauthorized', element: <UnauthorizedPage /> },
+  { path: '*', element: <NotFoundPage /> },
 ]);
 
 export function AppRouter() {

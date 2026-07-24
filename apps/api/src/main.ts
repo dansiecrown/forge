@@ -1,4 +1,5 @@
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
@@ -10,6 +11,7 @@ async function bootstrap() {
   const config = app.get(AppConfigService);
 
   app.setGlobalPrefix('api/v1');
+  app.use(helmet());
   app.enableCors({ origin: config.app.webOrigin, credentials: true });
   app.use(cookieParser(config.auth.cookieSecret));
   app.useGlobalPipes(

@@ -66,7 +66,7 @@ Mutation success is `200 OK` with resource, `201 Created` with `Location`, or `2
 | 401 | `UNAUTHENTICATED`, `TOKEN_EXPIRED`, `MFA_REQUIRED` | missing/invalid credentials |
 | 403 | `FORBIDDEN`, `TENANT_SCOPE_DENIED`, `PERMISSION_DENIED` | authenticated but policy denies action |
 | 404 | `NOT_FOUND` | resource is absent or deliberately not disclosed |
-| 409 | `CONFLICT`, `VERSION_CONFLICT`, `DUPLICATE`, `CAPACITY_REACHED` | incompatible concurrent/existing state |
+| 409 | `CONFLICT`, `VERSION_CONFLICT`, `DUPLICATE`, `ALREADY_MEMBER`, `CAPACITY_REACHED` | incompatible concurrent/existing state |
 | 410 | `GONE`, `INVITATION_EXPIRED` | expired/revoked resource |
 | 413/415 | `PAYLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE` | upload/content issue |
 | 422 | `VALIDATION_ERROR`, `ELIGIBILITY_NOT_MET` | syntactically valid but domain-invalid input |
@@ -120,7 +120,7 @@ Each endpoint line supplies description, authentication/authorization, body sche
 | `GET /auth/sessions` | list caller sessions; authenticated | no body | `200 {data:[{id:"uuid",device:"Chrome",current:true,lastUsedAt:"…"}]}`; cursor pagination |
 | `DELETE /auth/sessions/:sessionId` | revoke own session; authenticated | no body; must own session | `204`; `404` |
 | `POST /auth/mfa/enroll` | begin TOTP factor enrolment; authenticated | `{ "type":"totp" }` | `201 {data:{factorId:"uuid",otpauthUri:"…",recoveryCodes:["…"]}}`; `409 MFA_ALREADY_ENABLED` |
-| `POST /auth/mfa/verify` | verify MFA challenge or enrollment; authenticated/challenge token | `{ "factorId":"uuid","code":"123456" }`; 6–8 numeric chars | `200 {data:{accessToken:"jwt",mfaVerified:true}}`; `401 INVALID_MFA_CODE` |
+| `POST /auth/mfa/verify` | verify MFA challenge or enrollment; authenticated/challenge token | `{ "factorId":"uuid","code":"123456" }`; 6–8 chars, either a numeric TOTP code or an alphanumeric single-use recovery code | Completing enrolment (bearer is a full access token + `factorId`): `200 {data:{accessToken:"jwt",expiresIn:900,mfaVerified:true}}`. Completing a login challenge (bearer is the short-lived MFA challenge token from `POST /auth/login`, no `factorId`): `200 {data:{accessToken:"jwt",expiresIn:900,user:{…},mfaRequired:false}}` — the same shape `POST /auth/login` returns on a non-MFA success, since this *is* the login completing. Both: `401 INVALID_MFA_CODE` |
 | `GET /me` / `PATCH /me` | read/update caller profile; authenticated | PATCH `{ "displayName":"Ada", "timezone":"Africa/Lagos", "locale":"en-NG" }`; bounded/sanitized fields | `200 {data:{id:"uuid",displayName:"Ada",memberships:[…]}}`; `422`, `409` |
 
 ### 4.2 Users, roles and permissions
@@ -129,7 +129,7 @@ Each endpoint line supplies description, authentication/authorization, body sche
 | --- | --- | --- | --- |
 | `GET /users` | scoped people directory; Admin, `user.read` | filters `role,status,academyId,q,sort`; only allowed fields returned | `200 {data:[{id:"uuid",displayName:"Ada",roles:["STUDENT"]}],meta:{page:{…}}}`; `403` |
 | `GET /users/:userId` | user profile in active tenant; self or `user.read` | none | `200 {data:{user:{…},membership:{…},capabilities:{…}}}`; `403/404` |
-| `POST /users/invitations` | invite a person; Admin, `membership.invite` | `{ "email":"new@example.com","roles":["MENTOR"],"academyId":"uuid" }`; valid role/scope, invite expiry | `202 {data:{invitationId:"uuid",status:"sent"}}`; `409 DUPLICATE`, `422` |
+| `POST /users/invitations` | invite a person; Admin, `membership.invite` | `{ "email":"new@example.com","roles":["MENTOR"],"academyId":"uuid" }`; valid role/scope, invite expiry | `202 {data:{invitationId:"uuid",status:"sent"}}` — identity is global, membership is per-organization: an email already registered elsewhere on the platform is reused (no duplicate account, no new credential email) and just gets a membership in this organization, returning `status:"added"` instead; `409 ALREADY_MEMBER` if already a member of this organization, `422` |
 | `PATCH /users/:userId/status` | suspend/reactivate scoped membership; Admin, `membership.manage` | `{ "status":"suspended","reason":"…" }`; cannot remove last required admin | `200 {data:{membership:{status:"suspended"}}}`; `403`, `409` |
 | `GET /roles` / `POST /roles` | list/create tenant custom roles; Admin, `role.read/create` | POST `{ "name":"Coordinator","key":"coordinator","permissionIds":["uuid"] }`; unique key, permitted permission set | `200` list / `201 {data:{id:"uuid",…}}`; `409`, `422` |
 | `GET /roles/:roleId` / `PATCH /roles/:roleId` | role detail/update; Admin, `role.read/update` | PATCH `{ "name":"…","permissionIds":["uuid"],"version":2 }`; `If-Match`, system role restrictions | `200 {data:{id:"uuid",permissions:[…],version:3}}`; `409 VERSION_CONFLICT` |

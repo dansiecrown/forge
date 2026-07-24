@@ -16,8 +16,4 @@ export class PermissionsRepository {
   findByIds(ids: string[]): Promise<Permission[]> {
     return this.prisma.permission.findMany({ where: { id: { in: ids } } });
   }
-
-  findByKeys(keys: string[]): Promise<Permission[]> {
-    return this.prisma.permission.findMany({ where: { key: { in: keys } } });
-  }
 }

@@ -42,8 +42,8 @@ export class PermissionsGuard implements CanActivate {
 
     if (!organizationId) {
       throw new AppException(
-        HttpStatus.BAD_REQUEST,
-        'TENANT_SCOPE_REQUIRED',
+        HttpStatus.FORBIDDEN,
+        'TENANT_SCOPE_DENIED',
         'X-Organization-Id is required for this endpoint.',
       );
     }

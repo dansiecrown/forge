@@ -32,4 +32,4 @@ pnpm --filter @forge/api prisma:seed             # loads permissions, system rol
 ## Identity & Access Control (Milestone 2)
 
 - Run `pnpm --filter @forge/api prisma:seed` to load the permission catalogue, the five system roles, and (if `SEED_SUPER_ADMIN_EMAIL`/`SEED_SUPER_ADMIN_PASSWORD` are set) a bootstrap platform super-admin.
-- Sign in at `/sign-in`; `/forgot-password` and `/reset-password` complete the password-recovery loop. User invitations (`POST /users/invitations`) reuse the reset-password flow to set an initial password — see the ADR for why.
+- Sign in at `/sign-in`; `/forgot-password` and `/reset-password` complete the password-recovery loop. User invitations (`POST /users/invitations`) reuse the reset-password flow to set an initial password for a brand-new identity — see the ADR for why. Inviting an email that already has an account elsewhere on the platform reuses that identity and just adds a membership in the target organization, since identity is global and membership is per-organization (see the ADR's 2026-07-24 addendum).

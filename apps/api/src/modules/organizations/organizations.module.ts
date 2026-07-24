@@ -4,7 +4,6 @@ import { MembershipsController } from './controllers/memberships.controller';
 import { PermissionsController } from './controllers/permissions.controller';
 import { RolesController } from './controllers/roles.controller';
 import { MembershipsRepository } from './repositories/memberships.repository';
-import { OrganizationsRepository } from './repositories/organizations.repository';
 import { PermissionsRepository } from './repositories/permissions.repository';
 import { RolesRepository } from './repositories/roles.repository';
 import { MembershipsService } from './services/memberships.service';
@@ -12,11 +11,14 @@ import { PermissionResolverService } from './services/permission-resolver.servic
 import { PermissionsService } from './services/permissions.service';
 import { RolesService } from './services/roles.service';
 
+/** Only services are exported — repositories stay module-private per
+ * docs/project-structure.md §6. Other modules must go through
+ * MembershipsService/PermissionResolverService, never the repositories
+ * directly. */
 @Module({
   imports: [PlatformModule],
   controllers: [RolesController, PermissionsController, MembershipsController],
   providers: [
-    OrganizationsRepository,
     RolesRepository,
     PermissionsRepository,
     MembershipsRepository,
@@ -25,12 +27,6 @@ import { RolesService } from './services/roles.service';
     MembershipsService,
     PermissionResolverService,
   ],
-  exports: [
-    MembershipsRepository,
-    MembershipsService,
-    PermissionResolverService,
-    RolesRepository,
-    OrganizationsRepository,
-  ],
+  exports: [MembershipsService, PermissionResolverService],
 })
 export class OrganizationsModule {}

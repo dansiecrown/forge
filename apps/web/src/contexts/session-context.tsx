@@ -16,7 +16,7 @@ import {
   logout as logoutRequest,
   refreshSession,
   verifyMfa,
-} from '@/features/identity/api/auth-api';
+} from '@/features/identity';
 
 type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
 

@@ -27,9 +27,17 @@ export class RolesService {
     return this.rolesRepository.listForOrganization(scope.organizationId);
   }
 
-  async get(id: string): Promise<RoleWithPermissions> {
+  /** `organizationId` is the caller's active scope (undefined only for a
+   * platform SUPER_ADMIN acting without one). A defined, non-matching scope
+   * is treated as not-found rather than forbidden, so a role UUID from
+   * another organization can't be confirmed to exist by probing this
+   * endpoint. System roles (organizationId null) are always visible. */
+  async get(id: string, organizationId?: string): Promise<RoleWithPermissions> {
     const role = await this.rolesRepository.findById(id);
-    if (!role) {
+    if (
+      !role ||
+      (role.organizationId && organizationId && role.organizationId !== organizationId)
+    ) {
       throw AppException.notFound('Role not found.');
     }
     return role;
@@ -67,7 +75,7 @@ export class RolesService {
     organizationId?: string,
     actorUserId?: string,
   ): Promise<RoleWithPermissions> {
-    const existing = await this.get(roleId);
+    const existing = await this.get(roleId, organizationId);
     if (existing.isSystem) {
       throw AppException.forbidden('System role definitions cannot be edited.');
     }
@@ -100,8 +108,8 @@ export class RolesService {
     }
   }
 
-  async retire(roleId: string, actorUserId?: string): Promise<void> {
-    const role = await this.get(roleId);
+  async retire(roleId: string, organizationId?: string, actorUserId?: string): Promise<void> {
+    const role = await this.get(roleId, organizationId);
     if (role.isSystem) {
       throw AppException.forbidden('System roles cannot be retired.');
     }
@@ -120,6 +128,7 @@ export class RolesService {
       entityType: 'role',
       entityId: roleId,
       outcome: 'success',
+      organizationId,
       actorUserId,
     });
   }

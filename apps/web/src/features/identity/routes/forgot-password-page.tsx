@@ -5,6 +5,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/form-field';
+import { ApiError } from '@/api/client';
 import { useForgotPassword } from '../hooks/use-forgot-password';
 import { forgotPasswordSchema, type ForgotPasswordFormValues } from '../schemas/auth-schemas';
 
@@ -13,8 +14,19 @@ export function ForgotPasswordPage() {
   const form = useForm<ForgotPasswordFormValues>({ resolver: zodResolver(forgotPasswordSchema) });
 
   async function onSubmit(values: ForgotPasswordFormValues) {
-    await forgotPassword.mutateAsync(values);
+    try {
+      await forgotPassword.mutateAsync(values);
+    } catch {
+      // handled below via forgotPassword.error
+    }
   }
+
+  const apiErrorMessage =
+    forgotPassword.error instanceof ApiError
+      ? forgotPassword.error.message
+      : forgotPassword.error
+        ? 'Something went wrong. Please try again.'
+        : null;
 
   if (forgotPassword.isSuccess) {
     return (
@@ -44,6 +56,7 @@ export function ForgotPasswordPage() {
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          {apiErrorMessage ? <Alert variant="danger">{apiErrorMessage}</Alert> : null}
           <FormField
             label="Email"
             type="email"

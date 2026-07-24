@@ -11,6 +11,7 @@ export function setRefreshCookie(res: Response, token: string, expiresAt: Date):
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
+    signed: true,
     expires: expiresAt,
     path: '/api/v1/auth',
   });

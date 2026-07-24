@@ -33,6 +33,16 @@ export class MembershipsRepository {
     });
   }
 
+  /** Any membership row for this (organization, user) pair, regardless of
+   * status — used to decide whether an invitation should create a new
+   * membership or reject as already-a-member, before hitting the unique
+   * constraint on (organization_id, user_id). */
+  findByOrganizationAndUser(organizationId: string, userId: string): Promise<Membership | null> {
+    return this.prisma.membership.findUnique({
+      where: { organizationId_userId: { organizationId, userId } },
+    });
+  }
+
   /** Union of permission keys granted by every active role on the caller's
    * active membership within `scope`. */
   async findPermissionKeys(scope: TenantScope, userId: string): Promise<Set<string>> {

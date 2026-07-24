@@ -64,8 +64,8 @@ export class RolesController {
 
   @Get('roles/:roleId')
   @RequirePermissions('role.read')
-  get(@Param('roleId') roleId: string) {
-    return this.rolesService.get(roleId);
+  get(@Param('roleId') roleId: string, @ActiveOrganizationId() organizationId?: string) {
+    return this.rolesService.get(roleId, organizationId);
   }
 
   @Patch('roles/:roleId')

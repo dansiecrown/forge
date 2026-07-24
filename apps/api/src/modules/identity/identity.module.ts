@@ -45,6 +45,6 @@ import { UsersService } from './services/users.service';
     IdempotencyService,
     { provide: EMAIL_ADAPTER, useClass: ConsoleEmailAdapter },
   ],
-  exports: [AccessTokenService, UsersRepository, UsersService],
+  exports: [AccessTokenService, UsersService],
 })
 export class IdentityModule {}

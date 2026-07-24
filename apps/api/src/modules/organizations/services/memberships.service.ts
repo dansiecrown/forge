@@ -17,14 +17,27 @@ export class MembershipsService {
     return this.membershipsRepository.listForUser(userId);
   }
 
-  /** Creates the membership for a newly invited user and grants the
-   * requested system roles, all within the inviter's active organization. */
+  /** Creates the membership for a newly invited user — who may be a brand
+   * new identity or an existing one joining an additional organization,
+   * see docs/adr/0003 Part A addendum — and grants the requested system
+   * roles, all within the inviter's active organization. */
   async inviteIntoOrganization(
     scope: TenantScope,
     userId: string,
     roleKeys: string[],
     invitedBy?: string,
   ): Promise<void> {
+    const existingMembership = await this.membershipsRepository.findByOrganizationAndUser(
+      scope.organizationId,
+      userId,
+    );
+    if (existingMembership) {
+      throw AppException.conflict(
+        'ALREADY_MEMBER',
+        'This person is already a member of this organization.',
+      );
+    }
+
     const membership = await this.membershipsRepository.create(scope, userId);
 
     for (const roleKey of roleKeys) {
