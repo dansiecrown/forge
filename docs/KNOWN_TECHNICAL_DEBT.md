@@ -35,6 +35,7 @@ Format: **ID** — Title, then Description / Priority / Reason for deferral / Pl
 - **Priority:** Low-Medium (maintainability, not correctness)
 - **Reason for deferral:** Introducing a domain-entity/mapping layer for a single module (identity) now, with no second module to validate the pattern against, risks building the wrong abstraction. Better proven once Organizations/Catalog exist.
 - **Planned milestone:** Milestone 3 or 4, once a second module's domain rules can validate the pattern.
+- **Status (2026-07-25):** Resolved for the three modules Milestone 3 added to (`organizations`'s Organization/Academy additions, `catalog`, `cohorts`) — each has an `entities/` layer with a `to<Name>Entity()` mapper; controllers return entities, never raw Prisma rows. The original identity/roles modules are unchanged; retrofitting them remains open, separate debt.
 
 **DEBT-006 — Role rename not implemented**
 - **Description:** `docs/api-specification.md` documents `PATCH /roles/:roleId` accepting a `name` field (role rename); `UpdateRolePermissionsDto` only accepts `permissionIds`. A spec-conforming request that includes `name` is rejected outright by the global `forbidNonWhitelisted` validation pipe.
@@ -89,3 +90,27 @@ Format: **ID** — Title, then Description / Priority / Reason for deferral / Pl
 - **Priority:** Low-Medium
 - **Reason for deferral:** Works correctly today (covered by existing tests); refactoring authorization code carries real regression risk that isn't worth taking without dedicated test coverage written specifically for the refactor.
 - **Planned milestone:** Alongside DEBT-005/DEBT-007, when the module gets broader attention.
+
+**DEBT-015 — Academy-scoped permission enforcement is anchored but not deep**
+- **Description:** Milestone 3 added `Membership.academyId` (per ADR-0003's deferral) so an academy-scoped membership (e.g. `ACADEMY_ADMIN`) can point at a specific `Academy` row. `PermissionResolverService` was not extended to actually use it — resolved permissions are still purely organization-scoped; nothing currently checks that an `ACADEMY_ADMIN`'s actions stay within their own academy.
+- **Priority:** Medium
+- **Reason for deferral:** Building real academy-level authorization (layer 3, "resource policy," per `docs/system-architecture.md` §7) is a meaningfully sized change to the shared permission resolver, not a mechanical fix, and no academy-scoped role is exercised by any UI yet (admin UI in this milestone is organization-scoped).
+- **Planned milestone:** When an Academy Admin-facing surface is built (roadmap Phase 4/6 territory).
+
+**DEBT-016 — Academy archive / Fellowship retire do not block on active descendants**
+- **Description:** `docs/database-design.md` documents Academy as "cannot delete while active fellowship/cohort records exist" and Fellowship as "never delete with cohorts." Neither is enforced — archiving an Academy with active Fellowships/Cohorts beneath it, or retiring a Fellowship with active Cohorts, currently succeeds.
+- **Priority:** Medium
+- **Reason for deferral:** Enforcing it cleanly requires the owning module (`organizations`, `catalog`) to query its descendant module (`cohorts`), inverting the one-directional dependency chain (`organizations → catalog → cohorts`) `docs/project-structure.md`'s module-boundary rule establishes. Needs a deliberate cross-module invariant pattern (e.g. a read-model or domain event), not an ad hoc reverse import.
+- **Planned milestone:** Alongside whichever milestone first needs cross-module aggregate invariants generally, not just for this one case.
+
+**DEBT-017 — Admin UI ships ahead of the Phase-5 web application shell**
+- **Description:** `apps/web/src/layouts/admin-layout.tsx` is a minimal, purpose-built shell (sidebar nav + org switcher) for the four Milestone 3 admin sections. `docs/development-roadmap.md` Phase 5 describes a fuller "web application shell and shared experience foundation" (route/cache conventions, shared session/tenant/theme context patterns) that doesn't exist yet.
+- **Priority:** Low
+- **Reason for deferral:** Building the full Phase-5 shell was out of scope for this milestone's brief; the minimal layout unblocks the four required admin sections without pre-building unrequested infrastructure.
+- **Planned milestone:** Phase 5, when the admin layout should be reconciled with (likely absorbed into) the real web shell.
+
+**DEBT-018 — Super Admin has no UI path into an organization they just provisioned but aren't a member of**
+- **Description:** The admin UI's organization switcher lists only organizations the signed-in user has a `Membership` row in. A platform Super Admin can provision any organization (`POST /organizations`) without automatically becoming a member of it, so after creating one they have no way, in the UI, to switch into it and manage its Academies/Fellowships/Cohorts — only its Organizations-section profile/lifecycle, which don't require the org-switcher.
+- **Priority:** Medium
+- **Reason for deferral:** Found live during UI verification. Fixing it well requires a product decision (auto-grant the provisioning Super Admin a membership? add a separate "any organization" picker for platform admins?) rather than a mechanical patch.
+- **Planned milestone:** Alongside Phase 4's fuller platform-governance UI, when Super Admin's day-to-day tenant-management workflow gets dedicated design attention.

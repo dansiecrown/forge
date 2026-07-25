@@ -20,9 +20,15 @@ import {
 
 type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
+export type SessionMembership = MeResponse['memberships'][number];
+
 interface SessionContextValue {
   status: SessionStatus;
   user: PublicUser | null;
+  /** Retained from `GET /me` for the organization switcher — see
+   * contexts/organization-context.tsx, which derives the caller's active
+   * organization from this list. */
+  memberships: SessionMembership[];
   login: (email: string, password: string) => Promise<LoginResponse>;
   completeMfaLogin: (challengeToken: string, code: string) => Promise<LoginResponse>;
   logout: () => Promise<void>;
@@ -38,12 +44,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const accessTokenRef = useRef<string | null>(null);
   const [status, setStatus] = useState<SessionStatus>('loading');
   const [user, setUser] = useState<PublicUser | null>(null);
+  const [memberships, setMemberships] = useState<SessionMembership[]>([]);
 
   const applySuccessfulLogin = useCallback(
     (response: Extract<LoginResponse, { mfaRequired: false }>) => {
       accessTokenRef.current = response.accessToken;
       setUser(response.user);
       setStatus('authenticated');
+      // The login response doesn't carry memberships (docs/api-specification.md
+      // §4.1) — fetch them once so the organization switcher has data.
+      void fetchMe()
+        .then((me) => setMemberships(me.memberships))
+        .catch(() => setMemberships([]));
     },
     [],
   );
@@ -51,6 +63,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const clearSession = useCallback(() => {
     accessTokenRef.current = null;
     setUser(null);
+    setMemberships([]);
     setStatus('unauthenticated');
   }, []);
 
@@ -79,6 +92,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         const me = await fetchMe();
         if (!cancelled) {
           setUser(toPublicUser(me));
+          setMemberships(me.memberships);
           setStatus('authenticated');
         }
       } catch {
@@ -124,8 +138,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [clearSession]);
 
   const value = useMemo<SessionContextValue>(
-    () => ({ status, user, login, completeMfaLogin, logout }),
-    [status, user, login, completeMfaLogin, logout],
+    () => ({ status, user, memberships, login, completeMfaLogin, logout }),
+    [status, user, memberships, login, completeMfaLogin, logout],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

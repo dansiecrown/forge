@@ -37,6 +37,27 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
 - **Glassmorphism is used sparingly**, restricted by design-token convention (the `Card` component's opt-in `glass` prop) to a small, explicit set of floating/overlay surfaces (auth card, and — when built — modals, dropdowns, popovers, toasts). It is never the default for page backgrounds, generic content cards, tables, forms, or dashboards.
 - **Primary actions are monochrome, not brand-colored.** Accent color (brand blue) is reserved for links, focus states, and semantic status (success/warning/danger) — not decorative use on primary CTAs (`docs/adr/0004-premium-dark-design-system.md` addendum, 2026-07-22).
 
+## Multi-tenant foundation (2026-07-25, Milestone 3)
+
+- **Roadmap sequencing was explicitly overridden for Milestone 3, with the conflict disclosed and a
+  decision recorded before implementation — see `docs/adr/0005-multi-tenant-foundation.md`.**
+  `docs/development-roadmap.md` splits Organizations/Academies (Phase 4) from Fellowships/Cohorts/
+  Enrollment (Phase 6), gated on a transactional-outbox convention that was never built. The product
+  owner chose to build all five entities together as briefed rather than defer to that sequencing.
+  This is a one-time, disclosed exception — not a precedent that later milestones may skip ahead of
+  the roadmap without the same disclosure-and-decision step.
+- **Organization stays status-driven (no `deleted_at`); Academy/Fellowship/Cohort get real soft
+  delete.** Matches `docs/database-design.md`'s original, differing lifecycle designs for these
+  entities — see ADR-0005 Decision 2.
+- **A platform Super Admin's own active-organization header must never cause a false "not found" on a
+  different organization.** Found via a live browser walkthrough of the new admin UI (not just API
+  testing), fixed in `OrganizationsService.get`, and covered by a regression test. This is the kind of
+  cross-tenant-adjacent defect this document's security-first principle treats as a release blocker —
+  see ADR-0005 Decision 9.
+- **The domain-entity layer DEBT-005 named (`docs/KNOWN_TECHNICAL_DEBT.md`) is now established**, for
+  the three new modules only (`organizations`'s Academy/Organization additions, `catalog`, `cohorts`).
+  Existing identity/roles modules are unchanged.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

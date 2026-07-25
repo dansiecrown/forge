@@ -17,6 +17,20 @@ export class MembershipsService {
     return this.membershipsRepository.listForUser(userId);
   }
 
+  /** Existence + org-scope check for other modules (cohorts) validating a
+   * caller-supplied membershipId — e.g. confirming a mentor assignment
+   * target is actually a member of this organization. */
+  findById(scope: TenantScope, id: string) {
+    return this.membershipsRepository.findById(scope, id);
+  }
+
+  /** Used by the cohorts module to confirm an enrollment's target user is
+   * actually a member of the organization before enrolling them. */
+  async hasActiveMembership(scope: TenantScope, userId: string): Promise<boolean> {
+    const membership = await this.membershipsRepository.findActive(scope, userId);
+    return membership !== null;
+  }
+
   /** Creates the membership for a newly invited user — who may be a brand
    * new identity or an existing one joining an additional organization,
    * see docs/adr/0003 Part A addendum — and grants the requested system

@@ -56,19 +56,38 @@ export interface RequestOptions {
    * for the MFA login-challenge step, which authenticates with a
    * short-lived challenge token rather than a full session. */
   bearerTokenOverride?: string;
+  /** Optimistic-concurrency version for `PATCH` requests
+   * (docs/api-specification.md §2 `If-Match`). */
+  ifMatch?: number;
 }
 
-export async function apiRequest<T>(
+export interface PageMeta {
+  nextCursor: string | null;
+  previousCursor: string | null;
+  limit: number;
+  hasMore: boolean;
+}
+
+export interface Page<T> {
+  items: T[];
+  page: PageMeta;
+}
+
+/** Shared HTTP mechanics (auth header, tenant header, 401 refresh-and-retry,
+ * error envelope unwrapping) for both `apiRequest` (single resource) and
+ * `apiRequestPage` (cursor-paginated collection) below. */
+async function performRequest(
   path: string,
-  options: RequestOptions = {},
+  options: RequestOptions,
   isRetry = false,
-): Promise<T> {
+): Promise<{ status: number; payload: ApiSuccessEnvelope<unknown> | null }> {
   const {
     method = 'GET',
     body,
     authenticated = true,
     organizationId,
     bearerTokenOverride,
+    ifMatch,
   } = options;
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -79,6 +98,7 @@ export async function apiRequest<T>(
     if (token) headers.Authorization = `Bearer ${token}`;
   }
   if (organizationId) headers['X-Organization-Id'] = organizationId;
+  if (ifMatch !== undefined) headers['If-Match'] = String(ifMatch);
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
@@ -90,17 +110,17 @@ export async function apiRequest<T>(
   if (response.status === 401 && authenticated && !isRetry) {
     const newToken = await refreshOnce();
     if (newToken) {
-      return apiRequest<T>(path, options, true);
+      return performRequest(path, options, true);
     }
     hooks.onSessionExpired();
   }
 
   if (response.status === 204) {
-    return undefined as T;
+    return { status: response.status, payload: null };
   }
 
   const payload = (await response.json().catch(() => null)) as
-    ApiSuccessEnvelope<T> | ApiErrorEnvelope | null;
+    ApiSuccessEnvelope<unknown> | ApiErrorEnvelope | null;
 
   if (!response.ok) {
     const errorPayload = (payload as ApiErrorEnvelope | null)?.error;
@@ -113,5 +133,22 @@ export async function apiRequest<T>(
     );
   }
 
+  return { status: response.status, payload: payload as ApiSuccessEnvelope<unknown> };
+}
+
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { status, payload } = await performRequest(path, options);
+  if (status === 204) return undefined as T;
   return (payload as ApiSuccessEnvelope<T>).data;
+}
+
+/** Same as `apiRequest`, but also surfaces `meta.page` for cursor-paginated
+ * list endpoints (docs/api-specification.md §2 "Collections"). */
+export async function apiRequestPage<T>(
+  path: string,
+  options: RequestOptions = {},
+): Promise<Page<T>> {
+  const { payload } = await performRequest(path, options);
+  const success = payload as ApiSuccessEnvelope<T[]> & { meta: { page: PageMeta } };
+  return { items: success.data, page: success.meta.page };
 }

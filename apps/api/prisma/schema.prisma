@@ -8,12 +8,9 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
-// Milestone 2 — Identity & Access Control Foundation
-//
-// Organization is a minimal stub: id/name/slug/status only. It exists solely
-// as the FK anchor that Membership requires per docs/database-design.md.
-// Organization administration (provisioning, settings, academies) is out of
-// scope for this milestone and lands with the Organizations/Academies work.
+// Milestone 3 — Multi-Tenant Foundation (Organizations, Academies,
+// Fellowships, Cohorts, Enrollment). See docs/adr/0005-multi-tenant-foundation.md
+// for the reconciliations between docs/database-design.md and this schema.
 // ---------------------------------------------------------------------------
 
 enum UserStatus {
@@ -55,6 +52,34 @@ enum OrganizationStatus {
   archived
 }
 
+enum AcademyStatus {
+  active
+  archived
+}
+
+enum FellowshipStatus {
+  draft
+  published
+  retired
+}
+
+enum CohortStatus {
+  draft
+  enrolling
+  active
+  paused
+  completed
+  archived
+}
+
+enum EnrollmentStatus {
+  invited
+  active
+  paused
+  completed
+  withdrawn
+}
+
 model User {
   id              String     @id @default(uuid())
   emailCanonical  String     @unique @map("email_canonical")
@@ -78,6 +103,7 @@ model User {
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
   memberships             Membership[]
+  enrollments             Enrollment[]
 
   @@index([status, lastLoginAt])
   @@map("users")
@@ -197,20 +223,46 @@ model EmailVerificationToken {
 }
 
 // ---------------------------------------------------------------------------
-// Minimal organization stub — FK anchor only, no administration in this
-// milestone.
+// Organization: top-level tenant. Lifecycle is status-driven, not
+// deleted_at-based — docs/database-design.md is explicit that Organization
+// never soft-deletes via deleted_at ("no cascading deletion of tenant data
+// ... deleted_at is normally unused; use status"). "Soft delete"/"restore"
+// from the Milestone 3 brief are implemented as archived <-> active status
+// transitions instead — see docs/adr/0005-multi-tenant-foundation.md.
 // ---------------------------------------------------------------------------
 model Organization {
-  id        String             @id @default(uuid())
-  name      String
-  slug      String             @unique
-  status    OrganizationStatus @default(active)
-  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id              String             @id @default(uuid())
+  name            String
+  slug            String             @unique
+  status          OrganizationStatus @default(active)
+  legalName       String?            @map("legal_name")
+  defaultTimezone String             @default("Africa/Lagos") @map("default_timezone")
+  /// ISO 3166-1 alpha-2. Not in docs/database-design.md's original field list;
+  /// added per the Milestone 3 brief and documented as an addendum.
+  country         String?
+  /// Single-region constant today — no multi-region infrastructure exists.
+  /// Column matches docs/database-design.md's required "data_region" field
+  /// without implementing regional routing.
+  dataRegion      String             @default("africa-west") @map("data_region")
+  supportEmail    String?            @map("support_email")
+  customDomain    String?            @unique @map("custom_domain")
+  /// Metadata-only reference (no file upload pipeline in this milestone).
+  logoAssetId     String?            @map("logo_asset_id")
+  branding        Json?
+  settings        Json?
+  settingsVersion Int                @default(1) @map("settings_version")
+  version         Int                @default(1)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   memberships Membership[]
   roles       Role[]
+  academies   Academy[]
+  fellowships Fellowship[]
+  cohorts     Cohort[]
+  enrollments Enrollment[]
 
+  @@index([status, createdAt])
   @@map("organizations")
 }
 
@@ -281,6 +333,12 @@ model Membership {
   id             String           @id @default(uuid())
   organizationId String           @map("organization_id")
   userId         String           @map("user_id")
+  /// Anchors an academy-scoped membership (e.g. ACADEMY_ADMIN, a mentor or
+  /// student's home academy) to one specific Academy row. Null for
+  /// organization-wide memberships (e.g. ORG_ADMIN). Deferred by ADR-0003
+  /// until Academy existed ("added as a real, populated column when
+  /// Academies are built") — see docs/adr/0005-multi-tenant-foundation.md.
+  academyId      String?          @map("academy_id")
   status         MembershipStatus @default(invited)
   invitedAt      DateTime         @default(now()) @map("invited_at") @db.Timestamptz(3)
   joinedAt       DateTime?        @map("joined_at") @db.Timestamptz(3)
@@ -290,10 +348,13 @@ model Membership {
 
   organization    Organization     @relation(fields: [organizationId], references: [id])
   user            User             @relation(fields: [userId], references: [id])
+  academy         Academy?         @relation(fields: [academyId], references: [id])
   membershipRoles MembershipRole[]
+  cohortMentorships CohortMentor[]
 
   @@unique([organizationId, userId])
   @@index([userId])
+  @@index([academyId])
   @@map("memberships")
 }
 
@@ -355,4 +416,158 @@ model IdempotencyKey {
 
   @@unique([key, route])
   @@map("idempotency_keys")
+}
+
+// ---------------------------------------------------------------------------
+// Milestone 3 — Multi-Tenant Foundation: Academy, Fellowship, Cohort,
+// CohortMentor, Enrollment. Field/index decisions are reconciled against
+// docs/database-design.md in docs/adr/0005-multi-tenant-foundation.md.
+//
+// Uniqueness: every "(scope, slug) WHERE deleted_at IS NULL" constraint below
+// is a partial index, which Prisma's schema DSL cannot express — each is
+// hand-written in the migration SQL, the same pattern already used for
+// `roles` (see the comment above the Role model).
+// ---------------------------------------------------------------------------
+
+model Academy {
+  id             String        @id @default(uuid())
+  organizationId String        @map("organization_id")
+  name           String
+  slug           String
+  status         AcademyStatus @default(active)
+  description    String?
+  timezone       String        @default("Africa/Lagos")
+  branding       Json?
+  contactEmail   String?       @map("contact_email")
+  /// "Visibility" from the Milestone 3 brief — whether this academy appears
+  /// in any future public catalogue. No public catalogue exists yet.
+  isPublic       Boolean       @default(false) @map("is_public")
+  version        Int           @default(1)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime?     @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships  Membership[]
+  fellowships  Fellowship[]
+  cohorts      Cohort[]
+
+  @@index([organizationId, status])
+  @@map("academies")
+}
+
+model Fellowship {
+  id                    String           @id @default(uuid())
+  organizationId        String           @map("organization_id")
+  academyId             String           @map("academy_id")
+  title                 String
+  slug                  String
+  status                FellowshipStatus @default(draft)
+  durationWeeks         Int              @map("duration_weeks")
+  description           String?
+  summary               String?
+  /// Programme-level default; a Cohort's own `capacity` is the value that
+  /// actually governs a specific delivery run.
+  defaultCapacity       Int?             @map("default_capacity")
+  isPublic              Boolean          @default(false) @map("is_public")
+  /// Programme-level application window (distinct from a Cohort's own
+  /// `enrollmentDeadline`). Not in docs/database-design.md's original field
+  /// list — added per the Milestone 3 brief's "Registration window" and
+  /// documented as an addendum.
+  registrationOpensAt   DateTime?        @map("registration_opens_at") @db.Timestamptz(3)
+  registrationClosesAt  DateTime?        @map("registration_closes_at") @db.Timestamptz(3)
+  eligibilityMetadata   Json?            @map("eligibility_metadata")
+  version               Int              @default(1)
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt              DateTime?        @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  academy      Academy      @relation(fields: [academyId], references: [id], onDelete: Restrict)
+  cohorts      Cohort[]
+  enrollments  Enrollment[]
+
+  @@index([academyId, status])
+  @@map("fellowships")
+}
+
+model Cohort {
+  id                 String       @id @default(uuid())
+  organizationId     String       @map("organization_id")
+  /// Denormalized from `fellowship.academyId` for tenant/academy-scoped
+  /// query patterns, per docs/database-design.md's documented Cohort FK list.
+  academyId          String       @map("academy_id")
+  fellowshipId       String       @map("fellowship_id")
+  name               String
+  slug               String
+  status             CohortStatus @default(draft)
+  startsAt           DateTime     @map("starts_at") @db.Timestamptz(3)
+  endsAt             DateTime     @map("ends_at") @db.Timestamptz(3)
+  timezone           String
+  capacity           Int
+  description        String?
+  enrollmentDeadline DateTime?    @map("enrollment_deadline") @db.Timestamptz(3)
+  version            Int          @default(1)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt          DateTime?    @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  academy      Academy        @relation(fields: [academyId], references: [id], onDelete: Restrict)
+  fellowship   Fellowship     @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  mentors      CohortMentor[]
+  enrollments  Enrollment[]
+
+  @@index([organizationId, status, startsAt])
+  @@index([fellowshipId, status])
+  @@map("cohorts")
+}
+
+// Uniqueness: "active (cohort_id, membership_id)" is a partial index
+// ("WHERE unassigned_at IS NULL"), hand-written in the migration SQL for the
+// same reason as Role/MembershipRole above.
+model CohortMentor {
+  id           String    @id @default(uuid())
+  cohortId     String    @map("cohort_id")
+  membershipId String    @map("membership_id")
+  assignedAt   DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(3)
+  unassignedAt DateTime? @map("unassigned_at") @db.Timestamptz(3)
+
+  cohort     Cohort     @relation(fields: [cohortId], references: [id], onDelete: Restrict)
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+
+  @@index([membershipId])
+  @@map("cohort_mentors")
+}
+
+// Uniqueness: "(cohort_id, user_id)" is a standard unique index (below).
+// "one active/pending enrollment per fellowship" is a partial index on
+// "(fellowship_id, user_id) WHERE status IN ('invited','active','paused')",
+// hand-written in the migration SQL — Prisma's schema DSL cannot express a
+// WHERE clause on @@unique. This is what makes "only one active Enrollment
+// per Fellowship" (Milestone 3 brief, Part E) a database-enforced
+// constraint, not just an application-level check.
+model Enrollment {
+  id             String           @id @default(uuid())
+  organizationId String           @map("organization_id")
+  academyId      String           @map("academy_id")
+  fellowshipId   String           @map("fellowship_id")
+  cohortId       String           @map("cohort_id")
+  userId         String           @map("user_id")
+  status         EnrollmentStatus @default(invited)
+  invitedAt      DateTime         @default(now()) @map("invited_at") @db.Timestamptz(3)
+  joinedAt       DateTime?        @map("joined_at") @db.Timestamptz(3)
+  endedAt        DateTime?        @map("ended_at") @db.Timestamptz(3)
+  version        Int              @default(1)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  fellowship   Fellowship   @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  cohort       Cohort       @relation(fields: [cohortId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([cohortId, userId])
+  @@index([userId])
+  @@map("enrollments")
 }
