@@ -57,6 +57,54 @@
     }
   }
 
+  /* Manual theme toggle (Milestone 5 — Student Experience, Settings ->
+     Appearance). Supersedes ADR-0004's original "no manual toggle" stance —
+     that ADR's own text anticipated this exact case: "a UI feature decision
+     for a future milestone, not assumed now." See
+     docs/adr/0007-student-experience.md. An explicit `data-theme` attribute
+     on <html> (set by ThemeProvider, apps/web/src/contexts/theme-context.tsx)
+     overrides the OS preference; no attribute means "system" (the two
+     blocks above keep governing). Verbatim copies of the dark-default
+     :root block and the light @media block above, just re-scored by an
+     attribute selector so they win regardless of source order. */
+  :root[data-theme='dark'] {
+    --canvas: 0 0% 0%;
+    --surface: 0 0% 8%;
+    --surface-2: 0 0% 13%;
+    --ink: 0 0% 97%;
+    --muted-foreground: 0 0% 63%;
+    --border: 0 0% 20%;
+
+    --brand: 227 92% 66%;
+
+    --success: 152 60% 52%;
+    --warning: 38 92% 58%;
+    --danger: 4 76% 60%;
+    --danger-solid: 4 76% 42%;
+    --focus: 217 100% 65%;
+
+    --shadow-color: 0 0% 0%;
+  }
+
+  :root[data-theme='light'] {
+    --canvas: 210 20% 98%;
+    --surface: 0 0% 100%;
+    --surface-2: 210 20% 96%;
+    --ink: 220 34% 13%;
+    --muted-foreground: 216 15% 40%;
+    --border: 216 21% 91%;
+
+    --brand: 227 92% 60%;
+
+    --success: 152 76% 27%;
+    --warning: 34 100% 32%;
+    --danger: 4 65% 47%;
+    --danger-solid: 4 65% 47%;
+    --focus: 220 100% 57%;
+
+    --shadow-color: 220 34% 13%;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-family:

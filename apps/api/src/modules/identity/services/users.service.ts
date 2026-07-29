@@ -41,6 +41,10 @@ export class UsersService {
     return user;
   }
 
+  listByIds(ids: string[]): Promise<User[]> {
+    return this.usersRepository.findByIds(ids);
+  }
+
   async updateMe(userId: string, input: UpdateMeInput): Promise<User> {
     return this.usersRepository.update(userId, input);
   }

@@ -8,6 +8,9 @@ export interface EnrollmentEntity {
   cohortId: string;
   userId: string;
   status: string;
+  /** The learner's single active Learning Track within this Fellowship —
+   * see docs/adr/0006-curriculum-learning-engine.md. */
+  currentLearningTrackId: string | null;
   invitedAt: Date;
   joinedAt: Date | null;
   endedAt: Date | null;
@@ -25,6 +28,7 @@ export function toEnrollmentEntity(row: Enrollment): EnrollmentEntity {
     cohortId: row.cohortId,
     userId: row.userId,
     status: row.status,
+    currentLearningTrackId: row.currentLearningTrackId,
     invitedAt: row.invitedAt,
     joinedAt: row.joinedAt,
     endedAt: row.endedAt,

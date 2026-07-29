@@ -16,6 +16,9 @@ export interface Cohort {
   capacity: number;
   description: string | null;
   enrollmentDeadline: string | null;
+  /** Frozen curriculum read-model — see docs/adr/0006-curriculum-learning-engine.md. */
+  curriculumSnapshot: unknown;
+  curriculumSnapshotAt: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -68,6 +71,8 @@ export interface Enrollment {
   cohortId: string;
   userId: string;
   status: 'invited' | 'active' | 'paused' | 'completed' | 'withdrawn';
+  /** The learner's single active Learning Track within this Fellowship. */
+  currentLearningTrackId: string | null;
   invitedAt: string;
   joinedAt: string | null;
   endedAt: string | null;
@@ -80,7 +85,10 @@ export interface CreateEnrollmentRequest {
   studentUserId: string;
 }
 
+// `status` is optional so a PATCH can change just `currentLearningTrackId`
+// without also transitioning lifecycle status.
 export interface UpdateEnrollmentRequest {
-  status: 'invited' | 'active' | 'paused' | 'completed' | 'withdrawn';
+  status?: 'invited' | 'active' | 'paused' | 'completed' | 'withdrawn';
+  currentLearningTrackId?: string;
   reason?: string;
 }

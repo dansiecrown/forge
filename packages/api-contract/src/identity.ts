@@ -99,5 +99,15 @@ export interface MeResponse {
   timezone: string;
   locale: string;
   emailVerified: boolean;
+  mfaEnabled: boolean;
   memberships: { organizationId: string; status: string; roles: string[] }[];
+}
+
+export interface ConfirmMfaEnrollmentRequest {
+  factorId: string;
+  code: string;
+}
+
+export interface DisableMfaRequest {
+  code: string;
 }

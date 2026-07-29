@@ -41,6 +41,27 @@ export class EnrollmentsController {
     );
   }
 
+  /** Self-lookup, not the generic staff-facing `enrollment.read` — ownership
+   * is inherent (filtered to the caller's own userId). Reuses
+   * `enrollment.progress.read` (already granted to every role including
+   * STUDENT) purely so `PermissionsGuard` resolves `request.organizationId`
+   * from `X-Organization-Id`; it grants no broader access. Must be declared
+   * before `enrollments/:id` so `me` isn't swallowed by the `:id` param. */
+  @Get('enrollments/me')
+  @RequirePermissions('enrollment.progress.read')
+  listMine(
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.enrollmentsService.listMine(
+      { organizationId: requireOrganizationId(organizationId) },
+      user.id,
+      { cursor, limit },
+    );
+  }
+
   @Get('enrollments/:id')
   @RequirePermissions('enrollment.read')
   get(@Param('id') id: string, @ActiveOrganizationId() organizationId: string | undefined) {
@@ -59,7 +80,7 @@ export class EnrollmentsController {
     @ActiveOrganizationId() organizationId: string | undefined,
     @CurrentUser() user: { id: string },
   ) {
-    return this.enrollmentsService.updateStatus(
+    return this.enrollmentsService.update(
       { organizationId: requireOrganizationId(organizationId) },
       id,
       dto,

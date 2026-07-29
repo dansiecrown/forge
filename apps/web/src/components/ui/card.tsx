@@ -18,7 +18,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(({ className, glass, .
   <div
     ref={ref}
     className={cn(
-      'rounded-card p-8',
+      'animate-card-in rounded-card p-8',
       glass ? 'glass-panel' : 'border border-border bg-surface shadow-subtle',
       className,
     )}

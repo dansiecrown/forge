@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { Select } from '@/components/ui/select';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { useSession } from '@/contexts/session-context';
+import { useSignOut } from '@/hooks/use-sign-out';
 import { cn } from '@/utils';
 
 const NAV_ITEMS = [
@@ -18,13 +19,14 @@ const NAV_ITEMS = [
  * untouched. No `glass` here — ADR-0004 reserves glassmorphism for floating
  * surfaces, never page chrome/navigation. */
 export function AdminLayout() {
-  const { user, memberships, logout } = useSession();
+  const { user, memberships } = useSession();
+  const signOut = useSignOut();
   const { activeOrganizationId, setActiveOrganizationId } = useActiveOrganization();
   const activeMemberships = memberships.filter((membership) => membership.status === 'active');
 
   return (
-    <div className="flex min-h-screen bg-canvas">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface px-4 py-6">
+    <div className="flex h-screen overflow-hidden bg-canvas">
+      <aside className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface px-4 py-6">
         <p className="mb-8 px-2 text-sm font-semibold tracking-tight text-foreground">
           Project Forge
         </p>
@@ -69,7 +71,7 @@ export function AdminLayout() {
           <p className="truncate px-2 text-sm text-muted-foreground">{user?.displayName}</p>
           <button
             type="button"
-            onClick={() => void logout()}
+            onClick={() => void signOut()}
             className="flex w-full items-center gap-2.5 rounded-control px-3 py-2 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-surface-2 hover:text-foreground"
           >
             <LogOut className="size-4" aria-hidden="true" />
@@ -78,7 +80,7 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      <main className="flex-1 px-8 py-8">
+      <main className="flex-1 overflow-y-auto px-8 py-8">
         <div className="mx-auto max-w-6xl">
           <Outlet />
         </div>

@@ -42,6 +42,11 @@ function fakeMfaFactorsRepository() {
       factor.verifiedAt = new Date();
       return factor;
     }),
+    disable: jest.fn(async (id) => {
+      const factor = factors.get(id)!;
+      factor.disabledAt = new Date();
+      return factor;
+    }),
   };
 
   return repo as MfaFactorsRepository;
@@ -131,5 +136,47 @@ describe('MfaService', () => {
     const [recoveryCode] = enrollment.recoveryCodes;
     await expect(service.verifyChallenge('user-1', recoveryCode)).resolves.toBe(true);
     await expect(service.verifyChallenge('user-1', recoveryCode)).resolves.toBe(false);
+  });
+
+  describe('disable', () => {
+    async function enrollAndVerify(service: MfaService) {
+      const enrollment = await service.enroll('user-1', 'user@example.com');
+      const secret = new URL(
+        enrollment.otpauthUri.replace('otpauth://totp/', 'https://x/'),
+      ).searchParams.get('secret')!;
+      await service.verifyEnrollment('user-1', enrollment.factorId, authenticator.generate(secret));
+      return { enrollment, secret };
+    }
+
+    it('disables an enabled factor given a valid current TOTP code', async () => {
+      const service = build();
+      const { secret } = await enrollAndVerify(service);
+
+      await expect(
+        service.disable('user-1', authenticator.generate(secret)),
+      ).resolves.toBeUndefined();
+      expect(await service.isEnabled('user-1')).toBe(false);
+    });
+
+    it('disables using an unused recovery code', async () => {
+      const service = build();
+      const { enrollment } = await enrollAndVerify(service);
+
+      await expect(service.disable('user-1', enrollment.recoveryCodes[0])).resolves.toBeUndefined();
+      expect(await service.isEnabled('user-1')).toBe(false);
+    });
+
+    it('rejects an invalid code and leaves the factor enabled', async () => {
+      const service = build();
+      await enrollAndVerify(service);
+
+      await expect(service.disable('user-1', '000000')).rejects.toThrow(AppException);
+      expect(await service.isEnabled('user-1')).toBe(true);
+    });
+
+    it('rejects disabling when no MFA factor is enabled', async () => {
+      const service = build();
+      await expect(service.disable('user-1', '000000')).rejects.toThrow(AppException);
+    });
   });
 });

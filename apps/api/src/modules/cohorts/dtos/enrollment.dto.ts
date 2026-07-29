@@ -5,10 +5,17 @@ export class CreateEnrollmentDto {
   studentUserId!: string;
 }
 
-// `version` is supplied via the `If-Match` header.
+// `version` is supplied via the `If-Match` header. `status` is optional so a
+// PATCH can change just `currentLearningTrackId` (track selection) without
+// also transitioning lifecycle status.
 export class UpdateEnrollmentDto {
+  @IsOptional()
   @IsIn(['invited', 'active', 'paused', 'completed', 'withdrawn'])
-  status!: 'invited' | 'active' | 'paused' | 'completed' | 'withdrawn';
+  status?: 'invited' | 'active' | 'paused' | 'completed' | 'withdrawn';
+
+  @IsOptional()
+  @IsUUID()
+  currentLearningTrackId?: string;
 
   @IsOptional()
   @IsString()

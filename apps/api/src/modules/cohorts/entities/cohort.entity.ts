@@ -14,6 +14,11 @@ export interface CohortEntity {
   capacity: number;
   description: string | null;
   enrollmentDeadline: Date | null;
+  /** Frozen curriculum read-model — see docs/adr/0006-curriculum-learning-engine.md
+   * Decision 1. Null until the fellowship's curriculum has been snapshotted
+   * (always populated at creation once Learning Tracks exist). */
+  curriculumSnapshot: unknown;
+  curriculumSnapshotAt: Date | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;
@@ -34,6 +39,8 @@ export function toCohortEntity(row: Cohort): CohortEntity {
     capacity: row.capacity,
     description: row.description,
     enrollmentDeadline: row.enrollmentDeadline,
+    curriculumSnapshot: row.curriculumSnapshot,
+    curriculumSnapshotAt: row.curriculumSnapshotAt,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

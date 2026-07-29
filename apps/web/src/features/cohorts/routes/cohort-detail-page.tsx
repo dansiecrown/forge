@@ -57,7 +57,7 @@ export function CohortDetailPage() {
   const { cohortId } = useParams<{ cohortId: string }>();
   const { data: cohort, isLoading, error } = useCohort(cohortId);
   const updateCohort = useUpdateCohort(cohortId ?? '');
-  const { activate, pause, complete } = useCohortLifecycleActions(cohortId ?? '');
+  const { activate, pause, complete, syncCurriculum } = useCohortLifecycleActions(cohortId ?? '');
   const mentors = useCohortMentors(cohortId);
   const { assign, unassign } = useMentorAssignment(cohortId ?? '');
   const enrollments = useCohortEnrollments(cohortId);
@@ -261,6 +261,29 @@ export function CohortDetailPage() {
               <p className="text-sm text-muted-foreground">This cohort is archived.</p>
             ) : null}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle as="h2">Curriculum</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {cohort.curriculumSnapshotAt
+              ? `Last synced ${new Date(cohort.curriculumSnapshotAt).toLocaleString()}. Editing curriculum since then has not changed what this cohort's learners see.`
+              : 'No curriculum snapshot yet.'}
+          </p>
+          <Button
+            variant="secondary"
+            loading={syncCurriculum.isPending}
+            onClick={() => syncCurriculum.mutate(cohort.version)}
+          >
+            Sync curriculum now
+          </Button>
+          {syncCurriculum.error instanceof ApiError ? (
+            <Alert variant="danger">{syncCurriculum.error.message}</Alert>
+          ) : null}
         </CardContent>
       </Card>
 

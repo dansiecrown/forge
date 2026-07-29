@@ -65,6 +65,8 @@ export class CohortsRepository {
       capacity: number;
       description?: string;
       enrollmentDeadline?: Date;
+      curriculumSnapshot?: Prisma.InputJsonValue;
+      curriculumSnapshotAt?: Date;
     },
   ): Promise<Cohort> {
     return this.prisma.cohort.create({
@@ -99,6 +101,20 @@ export class CohortsRepository {
     });
   }
 
+  /** Regenerates a cohort's frozen curriculum read-model — the version
+   * check happens in the service (mirrors `updateStatus`'s pattern, whose
+   * caller (`transition`) also checks version before calling). */
+  updateCurriculumSnapshot(id: string, snapshot: Prisma.InputJsonValue): Promise<Cohort> {
+    return this.prisma.cohort.update({
+      where: { id },
+      data: {
+        curriculumSnapshot: snapshot,
+        curriculumSnapshotAt: new Date(),
+        version: { increment: 1 },
+      },
+    });
+  }
+
   countActiveEnrollments(cohortId: string): Promise<number> {
     return this.prisma.enrollment.count({
       where: { cohortId, status: { in: ['invited', 'active', 'paused'] } },
@@ -118,6 +134,18 @@ export class CohortsRepository {
     return this.prisma.cohortMentor.findFirst({
       where: { cohortId, membershipId, unassignedAt: null },
     });
+  }
+
+  /** Reverse lookup of `findActiveMentorAssignment` — "which cohorts is this
+   * mentor assigned to," needed by the Mentor Portal's own cohort list and
+   * every mentor-cohort-scope check below. */
+  async listActiveForMentor(membershipId: string): Promise<Cohort[]> {
+    const assignments = await this.prisma.cohortMentor.findMany({
+      where: { membershipId, unassignedAt: null },
+      include: { cohort: true },
+      orderBy: { assignedAt: 'asc' },
+    });
+    return assignments.map((a) => a.cohort).filter((c) => c.deletedAt === null);
   }
 
   assignMentor(cohortId: string, membershipId: string): Promise<CohortMentor> {

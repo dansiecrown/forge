@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
@@ -29,6 +29,7 @@ const STATUS_TONE: Record<string, BadgeProps['tone']> = {
 
 export function FellowshipDetailPage() {
   const { fellowshipId } = useParams<{ fellowshipId: string }>();
+  const navigate = useNavigate();
   const { data: fellowship, isLoading, error } = useFellowship(fellowshipId);
   const updateFellowship = useUpdateFellowship(fellowshipId ?? '');
   const { publish, retire } = useFellowshipLifecycleActions(fellowshipId ?? '');
@@ -211,6 +212,24 @@ export function FellowshipDetailPage() {
           {fellowship.status === 'retired' ? (
             <p className="text-sm text-muted-foreground">This fellowship is retired.</p>
           ) : null}
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle as="h2">Curriculum</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Learning Tracks structure this fellowship into courses, weekly modules, lessons,
+            resources and practical tasks.
+          </p>
+          <Button
+            variant="secondary"
+            onClick={() => navigate(`/admin/fellowships/${fellowship.id}/tracks`)}
+          >
+            Manage Learning Tracks
+          </Button>
         </CardContent>
       </Card>
     </div>

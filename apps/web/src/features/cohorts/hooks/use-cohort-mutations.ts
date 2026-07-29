@@ -13,6 +13,7 @@ import {
   createCohort,
   createEnrollment,
   pauseCohort,
+  syncCohortCurriculum,
   unassignCohortMentor,
   updateCohort,
   updateEnrollment,
@@ -60,8 +61,12 @@ export function useCohortLifecycleActions(id: string) {
     mutationFn: (version: number) => completeCohort(id, version, activeOrganizationId),
     onSuccess,
   });
+  const syncCurriculum = useMutation({
+    mutationFn: (version: number) => syncCohortCurriculum(id, version, activeOrganizationId),
+    onSuccess,
+  });
 
-  return { activate, pause, complete };
+  return { activate, pause, complete, syncCurriculum };
 }
 
 export function useMentorAssignment(cohortId: string) {

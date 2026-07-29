@@ -130,6 +130,22 @@ export class CohortsController {
     );
   }
 
+  @Post('cohorts/:id/actions/sync-curriculum')
+  @RequirePermissions('cohort.curriculum.sync')
+  syncCurriculum(
+    @Param('id') id: string,
+    @Body() dto: CohortTransitionDto,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.cohortsService.syncCurriculum(
+      { organizationId: requireOrganizationId(organizationId) },
+      id,
+      dto.version,
+      user.id,
+    );
+  }
+
   @Get('cohorts/:id/mentors')
   @RequirePermissions('cohort.read')
   listMentors(@Param('id') id: string, @ActiveOrganizationId() organizationId: string | undefined) {

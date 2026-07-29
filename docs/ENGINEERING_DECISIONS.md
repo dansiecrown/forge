@@ -58,6 +58,82 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   the three new modules only (`organizations`'s Academy/Organization additions, `catalog`, `cohorts`).
   Existing identity/roles modules are unchanged.
 
+## Curriculum & Learning Engine (2026-07-26, Milestone 4)
+
+- **Curriculum versioning is a Cohort-level JSON snapshot with an explicit sync action, not the
+  documented `curriculum_version`/fork/`cohort_week_release` system** — see
+  `docs/adr/0006-curriculum-learning-engine.md` Decision 1. Curriculum entities are always edited in
+  place; a Cohort's frozen `curriculumSnapshot` only changes via an explicit
+  `POST /cohorts/:id/actions/sync-curriculum` call. This was an explicit product-owner request
+  (edit-in-place, with a per-edit choice of "apply to running cohorts now" vs. "future cohorts
+  only"), lighter than the documented design because certificates/assessments — the actual reason
+  the doc wants strict published-curriculum immutability — remain out of scope.
+- **`Module` and `Week` (two documented levels) are collapsed into one `WeeklyModule`** (one row per
+  week) — the brief's explicit, repeated ask, not a deferred simplification. See ADR-0006 Decision 2.
+- **A live-verified session bug was found and fixed**: React 18/19 StrictMode double-invoking
+  `SessionProvider`'s session-restore effect fired two concurrent refresh-token calls, tripping the
+  server's reuse-detection and silently logging users out on the next navigation. Fixed in
+  `apps/web/src/contexts/session-context.tsx` by caching the in-flight refresh promise across the
+  double-invocation rather than skipping the second invocation outright (a naive "run once" guard
+  caused a *different* bug — the app hanging on the loading spinner forever). This is
+  Milestone-2-era code, fixed here because it broke basic usability of this milestone's own admin UI
+  — see ADR-0006 Decision 10 and Consequences.
+- **`Assignment`/`Submission` is replaced by a lighter, ungraded `PracticalTask`/
+  `PracticalTaskSubmission`** for this milestone, per the brief's explicit "Do NOT build grading
+  yet." The full documented Assignment system remains future (roadmap Phase 9) work — see ADR-0006
+  Decision 4.
+
+## Student Experience (2026-07-27, Milestone 5)
+
+- **Curriculum snapshot versioning resolution (ADR-0006 Decision 1) is now complete, not just
+  gating.** `CurriculumSnapshotService`'s stored shape was extended with the display fields
+  (description, resourceUrl, dueOffsetDays, etc.) a lesson reader / task detail page needs, so that
+  *every* student-facing read — not only the progression gate — sources exclusively from
+  `cohort.curriculumSnapshot`. Reading live catalog tables for display content would have silently
+  defeated the whole versioning mechanism (an in-place curriculum edit would reach running cohorts
+  immediately regardless of `sync-curriculum`). See `docs/adr/0007-student-experience.md` Decision 11.
+- **Design system change: a manual dark/light/system theme toggle now exists**, superseding
+  ADR-0004's "no manual toggle" stance. That stance explicitly reserved the decision for "a future
+  milestone" — this milestone's brief is that future milestone, asking for one directly (Settings ->
+  Appearance). See ADR-0007 Decision 2.
+- **`PracticalTaskSubmission` gained a `status` lifecycle and a required Progression Engine gate
+  fix**: a `draft` (saved-but-unsubmitted) row must not satisfy the `requiresPracticalWork` unlock
+  gate — only `submittedAt !== null` rows count. This is a behavior change from Milestone 4, shipped
+  with a regression test. See ADR-0007 Decision 6.
+- **File uploads for Practical Task submissions were explicitly deferred** (GitHub repo URL + live
+  demo URL only) — a disclosed product-owner decision, since no object-storage infrastructure exists
+  and building one is Phase 2 kernel-sized, security-sensitive work. See ADR-0007 Decision 1.
+- **A live-verified UI gap was found and fixed**: the Weekly Module detail page showed required
+  Learning Resources with no inline way to acknowledge them. The underlying endpoint and progression
+  gate were independently proven correct via a direct API reproduction first; the fix was a missing
+  frontend affordance, not a backend defect. See ADR-0007 Decision 13.
+
+## Mentor Experience (2026-07-29, Milestone 6)
+
+- **Mentor cohort-scoping is a standing authorization-model tightening, not just a new check on new
+  endpoints.** `ProgressionService.assertCanRead` — the sole choke point every read of a learner's
+  progress flows through — was tightened from a bare self-or-org-wide-`enrollment.read` check to
+  self-or-`enrollment.manage`-or-cohort-assigned-mentor. Every future milestone that adds a new
+  staff-facing progress read inherits correct cohort-scoping automatically by going through
+  `buildContext`, rather than needing to remember to add the check itself. This closes
+  `docs/development-roadmap.md` Phase 8's "mentors only see assigned cohorts/learners/submissions"
+  acceptance criterion, previously unenforced. See `docs/adr/0008-mentor-experience.md` Decision 3.
+- **`StudentProfile` is renamed to `UserProfile`.** The Milestone 5 entity was already functionally
+  generic (no student-only fields); Mentor Profile needed the same shape plus one field
+  (`availability`), so the table/repository/service/entity were renamed rather than duplicated. The
+  route stays `/me/profile`. See ADR-0008 Decision 4.
+- **Submission Review lifecycle reuses the existing `PracticalTaskSubmissionStatus` enum** (no schema
+  rename) with a required gate re-lock fix: a mentor's `revision_requested` decision clears the
+  submission's `submittedAt`, which is what makes the existing Progression Engine gate re-lock the
+  module with zero duplicated logic — the same "single source of truth" principle ADR-0007 Decision 6
+  established for the draft-vs-submitted gate fix. See ADR-0008 Decision 2.
+- **Weekly Huddles and at-risk/inactive heuristics are deliberately lighter than their fuller
+  documented counterparts** (`docs/database-design.md` §5's scheduled-huddle system;
+  `docs/development-roadmap.md`'s still-pending "approved risk/at-risk definitions"), per the brief's
+  explicit "no scheduling system" instruction and the roadmap's own acknowledgment that risk criteria
+  are not yet product-approved. At-risk flags are always paired with a plain-language reason string,
+  never a bare score. See ADR-0008 Decisions 1 and 6.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

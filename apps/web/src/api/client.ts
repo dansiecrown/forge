@@ -48,7 +48,7 @@ function refreshOnce(): Promise<string | null> {
 }
 
 export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
   authenticated?: boolean;
   organizationId?: string;

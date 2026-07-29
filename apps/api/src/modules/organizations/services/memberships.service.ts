@@ -31,6 +31,14 @@ export class MembershipsService {
     return membership !== null;
   }
 
+  /** Resolves the caller's own active membership within `scope` — used by
+   * `assertMentorAssignedToCohort` and the Mentor Portal to translate a
+   * userId into the membershipId that `CohortMentor`/`SubmissionReview`/
+   * `HuddleSession`/`MentorNote` all key off. */
+  getActiveMembership(scope: TenantScope, userId: string) {
+    return this.membershipsRepository.findActive(scope, userId);
+  }
+
   /** Creates the membership for a newly invited user — who may be a brand
    * new identity or an existing one joining an additional organization,
    * see docs/adr/0003 Part A addendum — and grants the requested system

@@ -1,3 +1,4 @@
+import { lazy, Suspense, type ComponentType } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { AcademiesListPage, AcademyCreatePage, AcademyDetailPage } from '@/features/academies';
 import { CohortCreatePage, CohortDetailPage, CohortsListPage } from '@/features/cohorts';
@@ -12,12 +13,108 @@ import {
   OrganizationDetailPage,
   OrganizationsListPage,
 } from '@/features/organizations';
+import {
+  LearningTrackCreatePage,
+  LearningTrackDetailPage,
+  LearningTracksListPage,
+} from '@/features/learning-tracks';
+import { CourseCreatePage, CourseDetailPage } from '@/features/courses';
+import { WeeklyModuleCreatePage, WeeklyModuleDetailPage } from '@/features/weekly-modules';
+import { LessonCreatePage, LessonDetailPage } from '@/features/lessons';
+import {
+  LearningResourceCreatePage,
+  LearningResourceDetailPage,
+} from '@/features/learning-resources';
+import { PracticalTaskCreatePage, PracticalTaskDetailPage } from '@/features/practical-tasks';
 import { AdminLayout } from '@/layouts/admin-layout';
 import { AuthLayout } from '@/layouts/auth-layout';
+import { MentorLayout } from '@/layouts/mentor-layout';
+import { PortalLayout } from '@/layouts/portal-layout';
+import { PortalRouteSkeleton } from '@/components/portal/portal-route-skeleton';
 import { HomePage } from '@/pages/home-page';
 import { NotFoundPage } from '@/pages/not-found-page';
 import { UnauthorizedPage } from '@/pages/unauthorized-page';
 import { ProtectedRoute } from './protected-route';
+
+/** Named-export equivalent of `React.lazy` — every feature barrel exports
+ * named components (matching the rest of this file's imports), not a
+ * default. Used only for the `/portal` route tree (Milestone 5's explicit
+ * "lazy-loaded routes" ask) — `/admin` stays eager and untouched. */
+function lazyNamed<P extends object>(
+  factory: () => Promise<Record<string, ComponentType<P>>>,
+  name: string,
+) {
+  return lazy(() => factory().then((module) => ({ default: module[name] as ComponentType<P> })));
+}
+
+const PortalDashboardPage = lazyNamed(
+  () => import('@/features/portal-dashboard'),
+  'PortalDashboardPage',
+);
+const WeeklyLearningPage = lazyNamed(
+  () => import('@/features/weekly-learning'),
+  'WeeklyLearningPage',
+);
+const WeeklyModulePage = lazyNamed(() => import('@/features/weekly-learning'), 'WeeklyModulePage');
+const LessonReaderPage = lazyNamed(() => import('@/features/weekly-learning'), 'LessonReaderPage');
+const LearningResourcesPortalPage = lazyNamed(
+  () => import('@/features/learning-resources-portal'),
+  'LearningResourcesPortalPage',
+);
+const PracticalTasksPortalPage = lazyNamed(
+  () => import('@/features/practical-tasks-portal'),
+  'PracticalTasksPortalPage',
+);
+const PracticalTaskPortalDetailPage = lazyNamed(
+  () => import('@/features/practical-tasks-portal'),
+  'PracticalTaskPortalDetailPage',
+);
+const ProgressCenterPage = lazyNamed(
+  () => import('@/features/progress-center'),
+  'ProgressCenterPage',
+);
+const PortfolioPage = lazyNamed(() => import('@/features/portfolio'), 'PortfolioPage');
+const PortfolioProjectCreatePage = lazyNamed(
+  () => import('@/features/portfolio'),
+  'PortfolioProjectCreatePage',
+);
+const PortfolioProjectEditPage = lazyNamed(
+  () => import('@/features/portfolio'),
+  'PortfolioProjectEditPage',
+);
+const ProfilePage = lazyNamed(() => import('@/features/profile'), 'ProfilePage');
+const SettingsPage = lazyNamed<{ variant?: 'student' | 'mentor' }>(
+  () => import('@/features/settings'),
+  'SettingsPage',
+);
+const NotificationsPage = lazyNamed(() => import('@/features/notifications'), 'NotificationsPage');
+
+const MentorDashboardPage = lazyNamed(
+  () => import('@/features/mentor-dashboard'),
+  'MentorDashboardPage',
+);
+const MentorCohortsListPage = lazyNamed(
+  () => import('@/features/mentor-workspace'),
+  'MentorCohortsListPage',
+);
+const CohortWorkspacePage = lazyNamed(
+  () => import('@/features/mentor-workspace'),
+  'CohortWorkspacePage',
+);
+const StudentWorkspacePage = lazyNamed(
+  () => import('@/features/mentor-workspace'),
+  'StudentWorkspacePage',
+);
+const ReviewQueuePage = lazyNamed(() => import('@/features/submission-review'), 'ReviewQueuePage');
+const SubmissionReviewPage = lazyNamed(
+  () => import('@/features/submission-review'),
+  'SubmissionReviewPage',
+);
+const MentorHuddlesPage = lazyNamed(() => import('@/features/mentor-huddles'), 'MentorHuddlesPage');
+
+function suspended(element: React.ReactNode) {
+  return <Suspense fallback={<PortalRouteSkeleton />}>{element}</Suspense>;
+}
 
 const router = createBrowserRouter([
   {
@@ -37,9 +134,59 @@ const router = createBrowserRouter([
           { path: 'fellowships', element: <FellowshipsListPage /> },
           { path: 'fellowships/new', element: <FellowshipCreatePage /> },
           { path: 'fellowships/:fellowshipId', element: <FellowshipDetailPage /> },
+          { path: 'fellowships/:fellowshipId/tracks', element: <LearningTracksListPage /> },
+          { path: 'fellowships/:fellowshipId/tracks/new', element: <LearningTrackCreatePage /> },
+          { path: 'tracks/:trackId', element: <LearningTrackDetailPage /> },
+          { path: 'tracks/:trackId/courses/new', element: <CourseCreatePage /> },
+          { path: 'courses/:courseId', element: <CourseDetailPage /> },
+          { path: 'courses/:courseId/modules/new', element: <WeeklyModuleCreatePage /> },
+          { path: 'modules/:moduleId', element: <WeeklyModuleDetailPage /> },
+          { path: 'modules/:moduleId/lessons/new', element: <LessonCreatePage /> },
+          { path: 'lessons/:lessonId', element: <LessonDetailPage /> },
+          { path: 'modules/:moduleId/resources/new', element: <LearningResourceCreatePage /> },
+          { path: 'learning-resources/:resourceId', element: <LearningResourceDetailPage /> },
+          { path: 'modules/:moduleId/tasks/new', element: <PracticalTaskCreatePage /> },
+          { path: 'practical-tasks/:taskId', element: <PracticalTaskDetailPage /> },
           { path: 'cohorts', element: <CohortsListPage /> },
           { path: 'cohorts/new', element: <CohortCreatePage /> },
           { path: 'cohorts/:cohortId', element: <CohortDetailPage /> },
+        ],
+      },
+      {
+        path: '/portal',
+        element: <PortalLayout />,
+        children: [
+          { index: true, element: suspended(<PortalDashboardPage />) },
+          { path: 'weekly-learning', element: suspended(<WeeklyLearningPage />) },
+          { path: 'weekly-learning/:moduleId', element: suspended(<WeeklyModulePage />) },
+          { path: 'lessons/:lessonId', element: suspended(<LessonReaderPage />) },
+          { path: 'resources', element: suspended(<LearningResourcesPortalPage />) },
+          { path: 'practical-tasks', element: suspended(<PracticalTasksPortalPage />) },
+          {
+            path: 'practical-tasks/:taskId',
+            element: suspended(<PracticalTaskPortalDetailPage />),
+          },
+          { path: 'progress', element: suspended(<ProgressCenterPage />) },
+          { path: 'portfolio', element: suspended(<PortfolioPage />) },
+          { path: 'portfolio/new', element: suspended(<PortfolioProjectCreatePage />) },
+          { path: 'portfolio/:id', element: suspended(<PortfolioProjectEditPage />) },
+          { path: 'profile', element: suspended(<ProfilePage />) },
+          { path: 'settings', element: suspended(<SettingsPage />) },
+          { path: 'notifications', element: suspended(<NotificationsPage />) },
+        ],
+      },
+      {
+        path: '/mentor',
+        element: <MentorLayout />,
+        children: [
+          { index: true, element: suspended(<MentorDashboardPage />) },
+          { path: 'cohorts', element: suspended(<MentorCohortsListPage />) },
+          { path: 'cohorts/:cohortId', element: suspended(<CohortWorkspacePage />) },
+          { path: 'students/:enrollmentId', element: suspended(<StudentWorkspacePage />) },
+          { path: 'review-queue', element: suspended(<ReviewQueuePage />) },
+          { path: 'submissions/:submissionId', element: suspended(<SubmissionReviewPage />) },
+          { path: 'huddles', element: suspended(<MentorHuddlesPage />) },
+          { path: 'settings', element: suspended(<SettingsPage variant="mentor" />) },
         ],
       },
     ],

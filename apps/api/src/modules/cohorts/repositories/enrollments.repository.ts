@@ -47,6 +47,25 @@ export class EnrollmentsRepository {
     });
   }
 
+  /** Self-lookup for `GET /enrollments/me` — a Student discovering their own
+   * enrollment(s) in the active organization, since STUDENT does not hold
+   * the generic `enrollment.read` permission (by design, Milestone 4). */
+  async findByUserId(
+    scope: TenantScope,
+    userId: string,
+    options: { cursor?: string; limit: number },
+  ): Promise<{ rows: Enrollment[]; hasMore: boolean }> {
+    const rows = await this.prisma.enrollment.findMany({
+      where: { organizationId: scope.organizationId, userId },
+      take: options.limit + 1,
+      ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const hasMore = rows.length > options.limit;
+    return { rows: hasMore ? rows.slice(0, options.limit) : rows, hasMore };
+  }
+
   countActiveForCohort(cohortId: string): Promise<number> {
     return this.prisma.enrollment.count({
       where: { cohortId, status: { in: ['invited', 'active', 'paused'] } },
@@ -80,9 +99,12 @@ export class EnrollmentsRepository {
     }
   }
 
-  async updateStatus(
+  /** Handles both a lifecycle status transition and/or a
+   * `currentLearningTrackId` change in one PATCH — either field may be
+   * omitted. */
+  async update(
     id: string,
-    status: EnrollmentStatus,
+    data: { status?: EnrollmentStatus; currentLearningTrackId?: string },
     expectedVersion: number,
   ): Promise<Enrollment> {
     return this.prisma.$transaction(async (tx) => {
@@ -93,10 +115,15 @@ export class EnrollmentsRepository {
       return tx.enrollment.update({
         where: { id },
         data: {
-          status,
+          ...(data.status ? { status: data.status } : {}),
+          ...(data.currentLearningTrackId !== undefined
+            ? { currentLearningTrackId: data.currentLearningTrackId }
+            : {}),
           version: { increment: 1 },
-          ...(status === 'active' && !current.joinedAt ? { joinedAt: new Date() } : {}),
-          ...(status === 'completed' || status === 'withdrawn' ? { endedAt: new Date() } : {}),
+          ...(data.status === 'active' && !current.joinedAt ? { joinedAt: new Date() } : {}),
+          ...(data.status === 'completed' || data.status === 'withdrawn'
+            ? { endedAt: new Date() }
+            : {}),
         },
       });
     });

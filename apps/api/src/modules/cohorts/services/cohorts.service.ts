@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
+import { CurriculumSnapshotService } from '../../catalog/services/curriculum-snapshot.service';
 import { FellowshipsService } from '../../catalog/services/fellowships.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
 import { AuditLogService } from '../../platform/audit-log.service';
@@ -25,6 +27,7 @@ export class CohortsService {
     private readonly cohortsRepository: CohortsRepository,
     private readonly fellowshipsService: FellowshipsService,
     private readonly membershipsService: MembershipsService,
+    private readonly curriculumSnapshotService: CurriculumSnapshotService,
     private readonly auditLog: AuditLogService,
   ) {}
 
@@ -100,6 +103,13 @@ export class CohortsService {
       );
     }
 
+    // Every new cohort starts with a fresh snapshot of its fellowship's
+    // current curriculum — see docs/adr/0006-curriculum-learning-engine.md
+    // Decision 1. This is the "future cohorts only" half of the versioning
+    // resolution: no sync call is needed for a cohort that never existed
+    // before the edit.
+    const snapshot = await this.curriculumSnapshotService.build(scope, input.fellowshipId);
+
     const cohort = await this.cohortsRepository.create(scope, {
       academyId: fellowship.academyId,
       fellowshipId: input.fellowshipId,
@@ -111,6 +121,8 @@ export class CohortsService {
       capacity: input.capacity,
       description: input.description,
       enrollmentDeadline: input.enrollmentDeadline ? new Date(input.enrollmentDeadline) : undefined,
+      curriculumSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+      curriculumSnapshotAt: new Date(),
     });
 
     await this.auditLog.record({
@@ -242,6 +254,39 @@ export class CohortsService {
     return this.transition(scope, id, 'completed', expectedVersion, actorUserId);
   }
 
+  /** Regenerates this cohort's frozen curriculum snapshot from current live
+   * curriculum state — the explicit, admin-triggered "apply to this
+   * already-running cohort now" action. See
+   * docs/adr/0006-curriculum-learning-engine.md Decision 1. */
+  async syncCurriculum(
+    scope: TenantScope,
+    id: string,
+    expectedVersion: number,
+    actorUserId?: string,
+  ): Promise<CohortEntity> {
+    const existing = await this.get(scope, id);
+    if (existing.version !== expectedVersion) {
+      throw AppException.conflict(
+        'VERSION_CONFLICT',
+        `Cohort has moved to version ${existing.version}.`,
+      );
+    }
+    const snapshot = await this.curriculumSnapshotService.build(scope, existing.fellowshipId);
+    const updated = await this.cohortsRepository.updateCurriculumSnapshot(
+      id,
+      snapshot as unknown as Prisma.InputJsonValue,
+    );
+    await this.auditLog.record({
+      action: 'cohort.curriculum_synced',
+      entityType: 'cohort',
+      entityId: id,
+      outcome: 'success',
+      organizationId: scope.organizationId,
+      actorUserId,
+    });
+    return toCohortEntity(updated);
+  }
+
   // --- Mentor assignment -----------------------------------------------
 
   async listMentors(scope: TenantScope, cohortId: string): Promise<CohortMentorEntity[]> {
@@ -311,5 +356,23 @@ export class CohortsService {
       actorUserId,
       metadata: { membershipId },
     });
+  }
+
+  /** Thin wrapper over the existing `findActiveMentorAssignment` repository
+   * method — the per-cohort half of mentor-cohort-scope authorization (see
+   * `support/mentor-cohort-scope.ts` in the `learning` module). */
+  async hasActiveMentorAssignment(cohortId: string, membershipId: string): Promise<boolean> {
+    const assignment = await this.cohortsRepository.findActiveMentorAssignment(
+      cohortId,
+      membershipId,
+    );
+    return assignment !== null;
+  }
+
+  /** The Mentor Portal's own "my cohorts" list — the reverse of
+   * `listMentors`. */
+  async listMyCohorts(membershipId: string): Promise<CohortEntity[]> {
+    const rows = await this.cohortsRepository.listActiveForMentor(membershipId);
+    return rows.map(toCohortEntity);
   }
 }

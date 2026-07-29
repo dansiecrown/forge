@@ -83,11 +83,36 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
   }, [clearSession]);
 
+  // Caches the in-flight `refreshSession()` call across React 18/19
+  // StrictMode's intentional double-invocation of effects in development.
+  // Without this, two concurrent `refreshSession()` calls fire on mount,
+  // both carrying the same refresh-token cookie: the first rotates it
+  // successfully, the second then presents an already-rotated token, which
+  // the server's reuse detection correctly (but here, falsely) flags as
+  // theft and revokes the whole session. A plain "only run once" boolean
+  // guard does NOT work here: StrictMode's first invocation is cleaned up
+  // (its own `cancelled` flag flips true) before the second invocation
+  // runs, so skipping the second invocation's call entirely would leave the
+  // successful result applied only by the already-cancelled first instance
+  // — permanently stuck on `status: 'loading'`. Sharing the promise instead
+  // lets both invocations await the same network call while each still
+  // independently — and correctly — governs whether it applies the result.
+  const restoreSessionPromiseRef = useRef<ReturnType<typeof refreshSession> | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     async function restoreSession() {
       try {
-        const result = await refreshSession();
+        if (!restoreSessionPromiseRef.current) {
+          const promise = refreshSession();
+          restoreSessionPromiseRef.current = promise;
+          void promise.finally(() => {
+            if (restoreSessionPromiseRef.current === promise) {
+              restoreSessionPromiseRef.current = null;
+            }
+          });
+        }
+        const result = await restoreSessionPromiseRef.current;
         accessTokenRef.current = result.accessToken;
         const me = await fetchMe();
         if (!cancelled) {

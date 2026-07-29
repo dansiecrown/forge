@@ -255,6 +255,122 @@ const PERMISSIONS: PermissionSeed[] = [
     scopeCapability: 'organization',
     description: 'Enroll a learner or change an enrollment state.',
   },
+  // --- Milestone 4: Curriculum & Learning Engine -------------------------
+  // One shared namespace covers Learning Track/Course/WeeklyModule/Lesson/
+  // LearningResource/PracticalTask — all six are authored by the same roles
+  // with no differing permission profile, unlike Academy/Fellowship/Cohort.
+  // See docs/adr/0006-curriculum-learning-engine.md.
+  {
+    key: 'curriculum.read',
+    resource: 'curriculum',
+    action: 'read',
+    scopeCapability: 'organization',
+    description: 'View learning tracks, courses, weekly modules, lessons, resources and tasks.',
+  },
+  {
+    key: 'curriculum.create',
+    resource: 'curriculum',
+    action: 'create',
+    scopeCapability: 'organization',
+    description: 'Create curriculum entities.',
+  },
+  {
+    key: 'curriculum.update',
+    resource: 'curriculum',
+    action: 'update',
+    scopeCapability: 'organization',
+    description: 'Edit curriculum entities, including reordering.',
+  },
+  {
+    key: 'curriculum.publish',
+    resource: 'curriculum',
+    action: 'publish',
+    scopeCapability: 'organization',
+    description: 'Publish a curriculum entity.',
+  },
+  {
+    key: 'curriculum.archive',
+    resource: 'curriculum',
+    action: 'archive',
+    scopeCapability: 'organization',
+    description: 'Archive (soft-delete) a curriculum entity.',
+  },
+  {
+    key: 'curriculum.restore',
+    resource: 'curriculum',
+    action: 'restore',
+    scopeCapability: 'organization',
+    description: 'Restore an archived curriculum entity.',
+  },
+  {
+    key: 'cohort.curriculum.sync',
+    resource: 'cohort',
+    action: 'curriculum.sync',
+    scopeCapability: 'organization',
+    description: "Refresh a cohort's curriculum snapshot from current live curriculum state.",
+  },
+  {
+    key: 'enrollment.progress.read',
+    resource: 'enrollment',
+    action: 'progress.read',
+    scopeCapability: 'organization',
+    description: "View a learner's progression summary.",
+  },
+  {
+    key: 'learning.progress.record',
+    resource: 'learning',
+    action: 'progress.record',
+    scopeCapability: 'organization',
+    description:
+      'Record lesson completion, resource acknowledgment or practical task submission for your own enrollment.',
+  },
+  {
+    key: 'learning.bookmark.manage',
+    resource: 'learning',
+    action: 'bookmark.manage',
+    scopeCapability: 'organization',
+    description: 'Bookmark or un-bookmark a learning resource for your own enrollment.',
+  },
+  {
+    key: 'learning.portfolio.manage',
+    resource: 'learning',
+    action: 'portfolio.manage',
+    scopeCapability: 'organization',
+    description: 'Create, edit, publish, or delete your own portfolio projects.',
+  },
+  // --- Milestone 6: Mentor Experience -------------------------------------
+  // The coarse controller-level gate for every mentor-portal read; the
+  // fine-grained "which cohorts" check is a resource-policy concern
+  // enforced by assertMentorAssignedToCohort in each service, not by this
+  // permission — see docs/adr/0008-mentor-experience.md Decision 3.
+  {
+    key: 'mentor.workspace.read',
+    resource: 'mentor',
+    action: 'workspace.read',
+    scopeCapability: 'organization',
+    description: "View the Mentor Portal's dashboard, cohort roster, and student workspace.",
+  },
+  {
+    key: 'learning.review.manage',
+    resource: 'learning',
+    action: 'review.manage',
+    scopeCapability: 'organization',
+    description: 'Approve a practical task submission or request a revision.',
+  },
+  {
+    key: 'learning.huddle.manage',
+    resource: 'learning',
+    action: 'huddle.manage',
+    scopeCapability: 'organization',
+    description: 'Record a weekly huddle session and its attendance.',
+  },
+  {
+    key: 'learning.note.manage',
+    resource: 'learning',
+    action: 'note.manage',
+    scopeCapability: 'organization',
+    description: 'Create, edit, or delete a mentor note about a student.',
+  },
 ];
 
 interface RoleSeed {
@@ -305,6 +421,18 @@ const ROLES: RoleSeed[] = [
       'cohort.mentor.manage',
       'enrollment.read',
       'enrollment.manage',
+      'curriculum.read',
+      'curriculum.create',
+      'curriculum.update',
+      'curriculum.publish',
+      'curriculum.archive',
+      'curriculum.restore',
+      'cohort.curriculum.sync',
+      'enrollment.progress.read',
+      'mentor.workspace.read',
+      'learning.review.manage',
+      'learning.huddle.manage',
+      'learning.note.manage',
     ],
   },
   {
@@ -332,19 +460,51 @@ const ROLES: RoleSeed[] = [
       'cohort.mentor.manage',
       'enrollment.read',
       'enrollment.manage',
+      'curriculum.read',
+      'curriculum.create',
+      'curriculum.update',
+      'curriculum.publish',
+      'curriculum.archive',
+      'curriculum.restore',
+      'cohort.curriculum.sync',
+      'enrollment.progress.read',
+      'mentor.workspace.read',
+      'learning.review.manage',
+      'learning.huddle.manage',
+      'learning.note.manage',
     ],
   },
   {
     key: 'MENTOR',
     name: 'Mentor',
     scopeType: 'organization',
-    permissionKeys: ['academy.read', 'fellowship.read', 'cohort.read', 'enrollment.read'],
+    permissionKeys: [
+      'academy.read',
+      'fellowship.read',
+      'cohort.read',
+      'enrollment.read',
+      'curriculum.read',
+      'enrollment.progress.read',
+      'mentor.workspace.read',
+      'learning.review.manage',
+      'learning.huddle.manage',
+      'learning.note.manage',
+    ],
   },
   {
     key: 'STUDENT',
     name: 'Student',
     scopeType: 'organization',
-    permissionKeys: ['academy.read', 'fellowship.read', 'cohort.read'],
+    permissionKeys: [
+      'academy.read',
+      'fellowship.read',
+      'cohort.read',
+      'curriculum.read',
+      'enrollment.progress.read',
+      'learning.progress.record',
+      'learning.bookmark.manage',
+      'learning.portfolio.manage',
+    ],
   },
 ];
 

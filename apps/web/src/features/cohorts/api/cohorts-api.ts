@@ -64,6 +64,11 @@ export const pauseCohort = (id: string, version: number, organizationId?: string
   transitionCohort(id, 'pause', version, organizationId);
 export const completeCohort = (id: string, version: number, organizationId?: string) =>
   transitionCohort(id, 'complete', version, organizationId);
+/** Regenerates this cohort's frozen curriculum snapshot from current live
+ * curriculum state — the explicit "apply to this already-running cohort
+ * now" action (docs/adr/0006-curriculum-learning-engine.md). */
+export const syncCohortCurriculum = (id: string, version: number, organizationId?: string) =>
+  transitionCohort(id, 'sync-curriculum', version, organizationId);
 
 export function listCohortMentors(
   cohortId: string,

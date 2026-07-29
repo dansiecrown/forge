@@ -1,13 +1,18 @@
 import type {
+  ChangePasswordRequest,
+  ConfirmMfaEnrollmentRequest,
+  DisableMfaRequest,
   ForgotPasswordRequest,
   LoginRequest,
   LoginResponse,
   MeResponse,
+  MfaEnrollResponse,
   MfaVerifyRequest,
   RefreshResponse,
   ResetPasswordRequest,
+  SessionSummary,
 } from '@forge/api-contract';
-import { apiRequest } from '@/api/client';
+import { apiRequest, apiRequestPage, type Page } from '@/api/client';
 
 export function login(body: LoginRequest): Promise<LoginResponse> {
   return apiRequest<LoginResponse>('/auth/login', { method: 'POST', body, authenticated: false });
@@ -40,4 +45,38 @@ export function resetPassword(body: ResetPasswordRequest): Promise<void> {
 
 export function fetchMe(): Promise<MeResponse> {
   return apiRequest<MeResponse>('/me');
+}
+
+export function updateMe(body: { displayName?: string; timezone?: string; locale?: string }) {
+  return apiRequest<{ id: string; displayName: string; timezone: string; locale: string }>('/me', {
+    method: 'PATCH',
+    body,
+  });
+}
+
+export function changePassword(body: ChangePasswordRequest): Promise<void> {
+  return apiRequest<void>('/auth/change-password', { method: 'POST', body });
+}
+
+export function listSessions(): Promise<Page<SessionSummary>> {
+  return apiRequestPage<SessionSummary>('/auth/sessions');
+}
+
+export function revokeSession(sessionId: string): Promise<void> {
+  return apiRequest<void>(`/auth/sessions/${sessionId}`, { method: 'DELETE' });
+}
+
+export function enrollMfa(): Promise<MfaEnrollResponse> {
+  return apiRequest<MfaEnrollResponse>('/auth/mfa/enroll', {
+    method: 'POST',
+    body: { type: 'totp' },
+  });
+}
+
+export function confirmMfaEnrollment(body: ConfirmMfaEnrollmentRequest): Promise<void> {
+  return apiRequest<void>('/auth/mfa/confirm-enrollment', { method: 'POST', body });
+}
+
+export function disableMfa(body: DisableMfaRequest): Promise<void> {
+  return apiRequest<void>('/auth/mfa/disable', { method: 'POST', body });
 }

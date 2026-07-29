@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { LearningTracksService } from '../../catalog/services/learning-tracks.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
 import { AuditLogService } from '../../platform/audit-log.service';
 import { AppException } from '../../../shared/errors/app.exception';
@@ -27,6 +28,7 @@ export class EnrollmentsService {
     private readonly enrollmentsRepository: EnrollmentsRepository,
     private readonly cohortsService: CohortsService,
     private readonly membershipsService: MembershipsService,
+    private readonly learningTracksService: LearningTracksService,
     private readonly auditLog: AuditLogService,
   ) {}
 
@@ -38,6 +40,26 @@ export class EnrollmentsService {
     const { rows, hasMore } = await this.enrollmentsRepository.list(scope, {
       cohortId: options.cohortId,
       status: options.status as never,
+      cursor: options.cursor,
+      limit,
+    });
+    return new CollectionResult(rows.map(toEnrollmentEntity), {
+      nextCursor: hasMore ? rows[rows.length - 1].id : null,
+      previousCursor: options.cursor ?? null,
+      limit,
+      hasMore,
+    });
+  }
+
+  /** Self-lookup for a Student discovering their own enrollment(s) — see
+   * EnrollmentsRepository.findByUserId. */
+  async listMine(
+    scope: TenantScope,
+    callerId: string,
+    options: { cursor?: string; limit?: string },
+  ): Promise<CollectionResult<EnrollmentEntity>> {
+    const limit = parseLimit(options.limit);
+    const { rows, hasMore } = await this.enrollmentsRepository.findByUserId(scope, callerId, {
       cursor: options.cursor,
       limit,
     });
@@ -110,7 +132,12 @@ export class EnrollmentsService {
     }
   }
 
-  async updateStatus(
+  /** Handles a lifecycle status transition and/or a `currentLearningTrackId`
+   * change — either may be present, matching `UpdateEnrollmentDto`'s
+   * optional `status` (docs/adr/0006-curriculum-learning-engine.md: track
+   * selection is a plain field edit via the existing PATCH endpoint, not a
+   * new one). */
+  async update(
     scope: TenantScope,
     id: string,
     input: UpdateEnrollmentDto,
@@ -118,27 +145,45 @@ export class EnrollmentsService {
     actorUserId?: string,
   ): Promise<EnrollmentEntity> {
     const existing = await this.get(scope, id);
-    if (!ALLOWED_TRANSITIONS[existing.status]?.includes(input.status)) {
+
+    if (input.status && !ALLOWED_TRANSITIONS[existing.status]?.includes(input.status)) {
       throw AppException.conflict(
         'INVALID_STATE_TRANSITION',
         `Enrollment cannot move from ${existing.status} to ${input.status}.`,
       );
     }
 
+    if (input.currentLearningTrackId) {
+      const track = await this.learningTracksService.get(scope, input.currentLearningTrackId);
+      if (track.fellowshipId !== existing.fellowshipId) {
+        throw AppException.validation([
+          {
+            field: 'currentLearningTrackId',
+            code: 'TRACK_NOT_IN_FELLOWSHIP',
+            message: "This learning track does not belong to the enrollment's fellowship.",
+          },
+        ]);
+      }
+    }
+
     try {
-      const updated = await this.enrollmentsRepository.updateStatus(
+      const updated = await this.enrollmentsRepository.update(
         id,
-        input.status,
+        { status: input.status, currentLearningTrackId: input.currentLearningTrackId },
         expectedVersion,
       );
       await this.auditLog.record({
-        action: 'enrollment.status_changed',
+        action: input.status ? 'enrollment.status_changed' : 'enrollment.updated',
         entityType: 'enrollment',
         entityId: id,
         outcome: 'success',
         organizationId: scope.organizationId,
         actorUserId,
-        metadata: { status: input.status, reason: input.reason },
+        metadata: {
+          status: input.status,
+          currentLearningTrackId: input.currentLearningTrackId,
+          reason: input.reason,
+        },
       });
       return toEnrollmentEntity(updated);
     } catch (error) {
