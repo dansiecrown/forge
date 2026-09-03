@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus } from 'lucide-react';
+import { CalendarDays, Loader2, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
+import { ActionsMenu } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { buildPublishLifecycleItems } from '@/components/admin/publish-lifecycle-items';
 import { SortableList } from '@/components/admin/sortable-list';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
 import { TextareaField } from '@/components/textarea-field';
@@ -120,6 +123,25 @@ export function WeeklyModuleDetailPage() {
   const updateErrorMessage =
     updateModule.error instanceof ApiError ? updateModule.error.message : null;
 
+  async function onConfirmArchive() {
+    if (!module_) return;
+    try {
+      await archive.mutateAsync(module_.version);
+      setConfirmingArchive(false);
+    } catch {
+      // surfaced below via archive.error
+    }
+  }
+
+  const lifecycleItems = buildPublishLifecycleItems({
+    status: module_.status,
+    publishing: publish.isPending,
+    restoring: restore.isPending,
+    onPublish: () => publish.mutate(module_.version),
+    onArchiveRequest: () => setConfirmingArchive(true),
+    onRestore: () => restore.mutate(module_.version),
+  });
+
   return (
     <div className="space-y-6">
       <AdminPageHeader
@@ -129,12 +151,20 @@ export function WeeklyModuleDetailPage() {
             Back to course
           </Link>
         }
-        action={<Badge tone={STATUS_TONE[module_.status]}>{module_.status}</Badge>}
+        action={
+          <div className="flex items-center gap-3">
+            <Badge tone={STATUS_TONE[module_.status]}>{module_.status}</Badge>
+            <ActionsMenu items={lifecycleItems} />
+          </div>
+        }
       />
 
       <Card className="max-w-xl">
         <CardHeader>
-          <CardTitle as="h2">Week details</CardTitle>
+          <CardTitle as="h2" className="flex items-center gap-2">
+            <CalendarDays className="size-5 text-muted-foreground" aria-hidden="true" />
+            Week details
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
@@ -214,171 +244,135 @@ export function WeeklyModuleDetailPage() {
         </CardContent>
       </Card>
 
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle as="h2">Lifecycle</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {confirmingArchive ? (
-            <div className="flex justify-end gap-3">
-              <Button type="button" variant="secondary" onClick={() => setConfirmingArchive(false)}>
-                Cancel
-              </Button>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle as="h2">Lessons</CardTitle>
+            <Badge tone="neutral">{lessons.rows.length}</Badge>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-end">
               <Button
-                type="button"
-                variant="destructive"
-                loading={archive.isPending}
-                onClick={async () => {
-                  await archive.mutateAsync(module_.version);
-                  setConfirmingArchive(false);
-                }}
+                variant="secondary"
+                onClick={() => navigate(`/admin/modules/${module_.id}/lessons/new`)}
               >
-                Confirm archive
+                <Plus className="size-4" aria-hidden="true" />
+                Add lesson
               </Button>
             </div>
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              {module_.status === 'draft' ? (
-                <Button
-                  variant="secondary"
-                  loading={publish.isPending}
-                  onClick={() => publish.mutate(module_.version)}
-                >
-                  Publish
-                </Button>
-              ) : null}
-              {module_.status !== 'archived' ? (
-                <Button variant="destructive" onClick={() => setConfirmingArchive(true)}>
-                  Archive
-                </Button>
-              ) : null}
-              {module_.status === 'archived' ? (
-                <Button
-                  variant="secondary"
-                  loading={restore.isPending}
-                  onClick={() => restore.mutate(module_.version)}
-                >
-                  Restore
-                </Button>
-              ) : null}
+            {lessons.rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No lessons yet.</p>
+            ) : (
+              <SortableList
+                items={lessons.rows}
+                getId={(row) => row.id}
+                onReorder={(items) => reorderLessons.mutate(items)}
+                renderItem={(row) => (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/admin/lessons/${row.id}`)}
+                    className="flex flex-1 items-center gap-2 text-left text-sm text-foreground hover:underline"
+                  >
+                    {row.title}
+                    <Badge tone={STATUS_TONE[row.status]}>{row.status}</Badge>
+                    {row.completionRequired ? (
+                      <span className="text-xs text-muted-foreground">Required</span>
+                    ) : null}
+                  </button>
+                )}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle as="h2">Learning Resources</CardTitle>
+            <Badge tone="neutral">{resources.rows.length}</Badge>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-end">
+              <Button
+                variant="secondary"
+                onClick={() => navigate(`/admin/modules/${module_.id}/resources/new`)}
+              >
+                <Plus className="size-4" aria-hidden="true" />
+                Add resource
+              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            {resources.rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No resources yet.</p>
+            ) : (
+              <SortableList
+                items={resources.rows}
+                getId={(row) => row.id}
+                onReorder={(items) => reorderResources.mutate(items)}
+                renderItem={(row) => (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/admin/learning-resources/${row.id}`)}
+                    className="flex flex-1 items-center gap-2 text-left text-sm text-foreground hover:underline"
+                  >
+                    {row.title}
+                    <Badge tone={STATUS_TONE[row.status]}>{row.status}</Badge>
+                    {row.isRequired ? (
+                      <span className="text-xs text-muted-foreground">Required</span>
+                    ) : null}
+                  </button>
+                )}
+              />
+            )}
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle as="h2">Lessons</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex justify-end">
-            <Button
-              variant="secondary"
-              onClick={() => navigate(`/admin/modules/${module_.id}/lessons/new`)}
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              Add lesson
-            </Button>
-          </div>
-          {lessons.rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No lessons yet.</p>
-          ) : (
-            <SortableList
-              items={lessons.rows}
-              getId={(row) => row.id}
-              onReorder={(items) => reorderLessons.mutate(items)}
-              renderItem={(row) => (
-                <button
-                  type="button"
-                  onClick={() => navigate(`/admin/lessons/${row.id}`)}
-                  className="flex flex-1 items-center gap-2 text-left text-sm text-foreground hover:underline"
-                >
-                  {row.title}
-                  <Badge tone={STATUS_TONE[row.status]}>{row.status}</Badge>
-                  {row.completionRequired ? (
-                    <span className="text-xs text-muted-foreground">Required</span>
-                  ) : null}
-                </button>
-              )}
-            />
-          )}
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle as="h2">Practical Tasks</CardTitle>
+            <Badge tone="neutral">{tasks.rows.length}</Badge>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-end">
+              <Button
+                variant="secondary"
+                onClick={() => navigate(`/admin/modules/${module_.id}/tasks/new`)}
+              >
+                <Plus className="size-4" aria-hidden="true" />
+                Add task
+              </Button>
+            </div>
+            {tasks.rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No practical tasks yet.</p>
+            ) : (
+              <SortableList
+                items={tasks.rows}
+                getId={(row) => row.id}
+                onReorder={(items) => reorderTasks.mutate(items)}
+                renderItem={(row) => (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/admin/practical-tasks/${row.id}`)}
+                    className="flex flex-1 items-center gap-2 text-left text-sm text-foreground hover:underline"
+                  >
+                    {row.title}
+                    <Badge tone={STATUS_TONE[row.status]}>{row.status}</Badge>
+                  </button>
+                )}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle as="h2">Learning Resources</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex justify-end">
-            <Button
-              variant="secondary"
-              onClick={() => navigate(`/admin/modules/${module_.id}/resources/new`)}
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              Add resource
-            </Button>
-          </div>
-          {resources.rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No resources yet.</p>
-          ) : (
-            <SortableList
-              items={resources.rows}
-              getId={(row) => row.id}
-              onReorder={(items) => reorderResources.mutate(items)}
-              renderItem={(row) => (
-                <button
-                  type="button"
-                  onClick={() => navigate(`/admin/learning-resources/${row.id}`)}
-                  className="flex flex-1 items-center gap-2 text-left text-sm text-foreground hover:underline"
-                >
-                  {row.title}
-                  <Badge tone={STATUS_TONE[row.status]}>{row.status}</Badge>
-                  {row.isRequired ? (
-                    <span className="text-xs text-muted-foreground">Required</span>
-                  ) : null}
-                </button>
-              )}
-            />
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle as="h2">Practical Tasks</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex justify-end">
-            <Button
-              variant="secondary"
-              onClick={() => navigate(`/admin/modules/${module_.id}/tasks/new`)}
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              Add task
-            </Button>
-          </div>
-          {tasks.rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No practical tasks yet.</p>
-          ) : (
-            <SortableList
-              items={tasks.rows}
-              getId={(row) => row.id}
-              onReorder={(items) => reorderTasks.mutate(items)}
-              renderItem={(row) => (
-                <button
-                  type="button"
-                  onClick={() => navigate(`/admin/practical-tasks/${row.id}`)}
-                  className="flex flex-1 items-center gap-2 text-left text-sm text-foreground hover:underline"
-                >
-                  {row.title}
-                  <Badge tone={STATUS_TONE[row.status]}>{row.status}</Badge>
-                </button>
-              )}
-            />
-          )}
-        </CardContent>
-      </Card>
+      <ConfirmDialog
+        open={confirmingArchive}
+        onClose={() => setConfirmingArchive(false)}
+        onConfirm={onConfirmArchive}
+        loading={archive.isPending}
+        error={archive.error instanceof ApiError ? archive.error.message : null}
+        title="Archive this weekly module?"
+        description="You can restore it back to draft later if needed."
+        confirmLabel="Archive"
+      />
     </div>
   );
 }

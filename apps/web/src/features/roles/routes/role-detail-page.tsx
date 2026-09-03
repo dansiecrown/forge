@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
+import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { usePermissions } from '@/hooks/use-permissions';
 import { PermissionCheckboxList } from '../components/permission-checkbox-list';
@@ -31,6 +33,7 @@ export function RoleDetailPage() {
   const [cloning, setCloning] = useState(false);
   const [cloneName, setCloneName] = useState('');
   const [cloneKey, setCloneKey] = useState('');
+  const [confirmingRetire, setConfirmingRetire] = useState(false);
 
   useEffect(() => {
     if (role) {
@@ -74,9 +77,18 @@ export function RoleDetailPage() {
 
   async function onRetire() {
     if (!roleId) return;
-    await retireRole.mutateAsync(roleId);
-    navigate('/admin/roles');
+    try {
+      await retireRole.mutateAsync(roleId);
+      navigate('/admin/roles');
+    } catch {
+      // surfaced below via retireRole.error
+    }
   }
+
+  const actionItems: ActionsMenuItem[] =
+    !role.isSystem && permissions.has('role.delete')
+      ? [{ label: 'Retire role', tone: 'danger', onSelect: () => setConfirmingRetire(true) }]
+      : [];
 
   return (
     <div className="space-y-6">
@@ -91,9 +103,12 @@ export function RoleDetailPage() {
           </>
         }
         action={
-          <Badge tone={role.isSystem ? 'brand' : 'neutral'}>
-            {role.isSystem ? 'System' : 'Custom'}
-          </Badge>
+          <div className="flex items-center gap-3">
+            <Badge tone={role.isSystem ? 'brand' : 'neutral'}>
+              {role.isSystem ? 'System' : 'Custom'}
+            </Badge>
+            <ActionsMenu items={actionItems} />
+          </div>
         }
       />
 
@@ -166,18 +181,16 @@ export function RoleDetailPage() {
         </Card>
       ) : null}
 
-      {!role.isSystem && permissions.has('role.delete') ? (
-        <Card className="max-w-2xl">
-          <CardHeader>
-            <CardTitle as="h2">Retire role</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Button variant="destructive" loading={retireRole.isPending} onClick={onRetire}>
-              Retire this role
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
+      <ConfirmDialog
+        open={confirmingRetire}
+        onClose={() => setConfirmingRetire(false)}
+        onConfirm={onRetire}
+        loading={retireRole.isPending}
+        error={retireRole.error instanceof ApiError ? retireRole.error.message : null}
+        title="Retire this role?"
+        description="It will no longer be assignable. This only succeeds if no one currently holds it."
+        confirmLabel="Retire role"
+      />
     </div>
   );
 }

@@ -25,8 +25,3 @@ export const updateOrganizationSchema = z.object({
   supportEmail: z.string().email('Enter a valid email address.').optional().or(z.literal('')),
 });
 export type UpdateOrganizationFormValues = z.infer<typeof updateOrganizationSchema>;
-
-export const actionReasonSchema = z.object({
-  reason: z.string().min(1, 'Enter a reason for this action.').max(500),
-});
-export type ActionReasonFormValues = z.infer<typeof actionReasonSchema>;

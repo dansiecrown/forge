@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Bell } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 
@@ -59,9 +60,12 @@ export function NotificationsTab() {
   }
 
   return (
-    <Card>
+    <Card className="max-w-xl">
       <CardHeader>
-        <CardTitle as="h2">Notification preferences</CardTitle>
+        <CardTitle as="h2" className="flex items-center gap-2">
+          <Bell className="size-5 text-muted-foreground" aria-hidden="true" />
+          Notification preferences
+        </CardTitle>
         <CardDescription>
           Choose which notifications appear in your notification center.
         </CardDescription>

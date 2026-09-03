@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/portal/empty-state';
 import { CatalogPicker, type CatalogSelection, usePublicCatalog } from '@/features/apply';
 import {
@@ -34,6 +35,7 @@ export function StudentRegisterPage() {
     cohortId: undefined,
     requestedLearningTrackId: undefined,
   });
+  const [withdrawing, setWithdrawing] = useState<{ id: string; version: number } | null>(null);
 
   return (
     <div className="space-y-6">
@@ -113,9 +115,8 @@ export function StudentRegisterPage() {
                     {application.status === 'pending' ? (
                       <Button
                         variant="secondary"
-                        loading={withdraw.isPending && withdraw.variables?.id === application.id}
                         onClick={() =>
-                          withdraw.mutate({ id: application.id, version: application.version })
+                          setWithdrawing({ id: application.id, version: application.version })
                         }
                       >
                         Withdraw
@@ -128,6 +129,24 @@ export function StudentRegisterPage() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={withdrawing !== null}
+        onClose={() => setWithdrawing(null)}
+        onConfirm={async () => {
+          if (!withdrawing) return;
+          try {
+            await withdraw.mutateAsync(withdrawing);
+            setWithdrawing(null);
+          } catch {
+            // surfaced above via withdraw.error
+          }
+        }}
+        loading={withdraw.isPending}
+        title="Withdraw this application?"
+        description="You can apply again later if you change your mind."
+        confirmLabel="Withdraw"
+      />
     </div>
   );
 }

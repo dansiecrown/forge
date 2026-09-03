@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react';
+import { Check, SunMoon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme, type ThemePreference } from '@/contexts/theme-context';
 import { cn } from '@/utils';
@@ -13,9 +13,12 @@ export function AppearanceTab() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <Card>
+    <Card className="max-w-xl">
       <CardHeader>
-        <CardTitle as="h2">Theme</CardTitle>
+        <CardTitle as="h2" className="flex items-center gap-2">
+          <SunMoon className="size-5 text-muted-foreground" aria-hidden="true" />
+          Theme
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid gap-3 sm:grid-cols-3">

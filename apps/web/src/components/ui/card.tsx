@@ -1,4 +1,5 @@
 import { type HTMLAttributes, forwardRef } from 'react';
+import { useScrollReveal } from '@/hooks/use-scroll-reveal';
 import { cn } from '@/utils';
 
 export interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
@@ -12,19 +13,40 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /** Reserved for the auth card and other approved floating surfaces —
    * never the default for generic content cards. */
   glass?: boolean;
+  /** Stagger, in ms, for cards that reveal together (e.g. a same-row grid) —
+   * so they don't all fade in in perfect unison. Purely cosmetic; omit for
+   * cards that reveal on their own. */
+  revealDelayMs?: number;
 }
 
-export const Card = forwardRef<HTMLDivElement, CardProps>(({ className, glass, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      'animate-card-in rounded-card p-8',
-      glass ? 'glass-panel' : 'border border-border bg-surface shadow-subtle',
-      className,
-    )}
-    {...props}
-  />
-));
+/** Fades and lifts into place each time it's actually scrolled into view —
+ * see `useScrollReveal` — rather than once at mount, so a card scrolled
+ * past and back into view replays the reveal instead of just sitting there
+ * already-visible. Respects `prefers-reduced-motion` via the existing
+ * global transition-duration override in globals.css. */
+export const Card = forwardRef<HTMLDivElement, CardProps>(
+  ({ className, glass, revealDelayMs = 0, style, ...props }, forwardedRef) => {
+    const { ref: revealRef, visible } = useScrollReveal<HTMLDivElement>();
+
+    return (
+      <div
+        ref={(node) => {
+          revealRef.current = node;
+          if (typeof forwardedRef === 'function') forwardedRef(node);
+          else if (forwardedRef) forwardedRef.current = node;
+        }}
+        style={{ transitionDelay: visible ? `${revealDelayMs}ms` : '0ms', ...style }}
+        className={cn(
+          'rounded-card p-8 transition-all duration-500 ease-out',
+          visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
+          glass ? 'glass-panel' : 'border border-border bg-surface shadow-subtle',
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
+);
 Card.displayName = 'Card';
 
 export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(

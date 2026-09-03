@@ -5,23 +5,20 @@ import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { apiRequest, ApiError } from '@/api/client';
+import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useAcademy } from '../hooks/use-academies';
 import { useAcademyLifecycleActions, useUpdateAcademy } from '../hooks/use-academy-mutations';
-import {
-  actionReasonSchema,
-  updateAcademySchema,
-  type ActionReasonFormValues,
-  type UpdateAcademyFormValues,
-} from '../schemas/academy-schemas';
+import { updateAcademySchema, type UpdateAcademyFormValues } from '../schemas/academy-schemas';
 
 const STATUS_TONE: Record<string, BadgeProps['tone']> = { active: 'success', archived: 'danger' };
 
@@ -47,7 +44,6 @@ export function AcademyDetailPage() {
   });
 
   const form = useForm<UpdateAcademyFormValues>({ resolver: zodResolver(updateAcademySchema) });
-  const reasonForm = useForm<ActionReasonFormValues>({ resolver: zodResolver(actionReasonSchema) });
 
   useEffect(() => {
     if (academy) {
@@ -95,14 +91,33 @@ export function AcademyDetailPage() {
     }
   }
 
-  async function onConfirmArchive(values: ActionReasonFormValues) {
-    await archive.mutateAsync(values.reason);
-    setConfirmingArchive(false);
-    reasonForm.reset();
+  async function onConfirmArchive(reason?: string) {
+    try {
+      await archive.mutateAsync(reason ?? '');
+      setConfirmingArchive(false);
+    } catch {
+      // surfaced below via archive.error
+    }
   }
 
   const updateErrorMessage =
     updateAcademy.error instanceof ApiError ? updateAcademy.error.message : null;
+
+  const lifecycleItems: ActionsMenuItem[] = [];
+  if (academy.status === 'active' && permissions.has('academy.archive')) {
+    lifecycleItems.push({
+      label: 'Archive',
+      tone: 'danger',
+      onSelect: () => setConfirmingArchive(true),
+    });
+  }
+  if (academy.status === 'archived' && permissions.has('academy.restore')) {
+    lifecycleItems.push({
+      label: 'Restore',
+      loading: restore.isPending,
+      onSelect: () => restore.mutate(),
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -116,8 +131,18 @@ export function AcademyDetailPage() {
             / {academy.slug}
           </>
         }
-        action={<Badge tone={STATUS_TONE[academy.status]}>{academy.status}</Badge>}
+        action={
+          <div className="flex items-center gap-3">
+            <Badge tone={STATUS_TONE[academy.status]}>{academy.status}</Badge>
+            <ActionsMenu items={lifecycleItems} />
+          </div>
+        }
       />
+      {!permissions.has('academy.archive') && !permissions.has('academy.restore') ? (
+        <p className="text-sm text-muted-foreground">
+          Your role can view this academy but not change its lifecycle status.
+        </p>
+      ) : null}
 
       <Card className="max-w-xl">
         <CardHeader>
@@ -167,62 +192,6 @@ export function AcademyDetailPage() {
 
       <Card className="max-w-xl">
         <CardHeader>
-          <CardTitle as="h2">Lifecycle</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {confirmingArchive ? (
-            <form
-              className="space-y-3"
-              onSubmit={reasonForm.handleSubmit(onConfirmArchive)}
-              noValidate
-            >
-              <FormField
-                label="Reason to archive this academy"
-                autoFocus
-                error={reasonForm.formState.errors.reason?.message}
-                {...reasonForm.register('reason')}
-              />
-              <div className="flex justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setConfirmingArchive(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" variant="destructive" loading={archive.isPending}>
-                  Confirm archive
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              {academy.status === 'active' && permissions.has('academy.archive') ? (
-                <Button variant="destructive" onClick={() => setConfirmingArchive(true)}>
-                  Archive
-                </Button>
-              ) : null}
-              {academy.status === 'archived' && permissions.has('academy.restore') ? (
-                <Button
-                  variant="secondary"
-                  loading={restore.isPending}
-                  onClick={() => restore.mutate()}
-                >
-                  Restore
-                </Button>
-              ) : null}
-              {!permissions.has('academy.archive') && !permissions.has('academy.restore') ? (
-                <p className="text-sm text-muted-foreground">
-                  Your role can view this academy but not change its lifecycle status.
-                </p>
-              ) : null}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="max-w-xl">
-        <CardHeader>
           <CardTitle as="h2">Statistics</CardTitle>
         </CardHeader>
         <CardContent>
@@ -260,6 +229,18 @@ export function AcademyDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={confirmingArchive}
+        onClose={() => setConfirmingArchive(false)}
+        onConfirm={onConfirmArchive}
+        loading={archive.isPending}
+        error={archive.error instanceof ApiError ? archive.error.message : null}
+        title="Archive this academy?"
+        description="This affects every fellowship, cohort, and person in it. State why for the audit trail."
+        reasonLabel="Reason to archive this academy"
+        confirmLabel="Archive"
+      />
     </div>
   );
 }

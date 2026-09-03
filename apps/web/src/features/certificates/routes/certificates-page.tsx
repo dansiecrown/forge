@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -68,6 +69,7 @@ export function CertificatesPage() {
       revokeCertificate(id, version, 'Revoked by administrator', orgId),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['certificates'] }),
   });
+  const [revokeTarget, setRevokeTarget] = useState<{ id: string; version: number } | null>(null);
 
   return (
     <div className="space-y-6">
@@ -205,9 +207,8 @@ export function CertificatesPage() {
                   {certificate.status === 'issued' ? (
                     <Button
                       variant="destructive"
-                      loading={revoke.isPending}
                       onClick={() =>
-                        revoke.mutate({ id: certificate.id, version: certificate.version })
+                        setRevokeTarget({ id: certificate.id, version: certificate.version })
                       }
                     >
                       Revoke
@@ -221,6 +222,25 @@ export function CertificatesPage() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={revokeTarget !== null}
+        onClose={() => setRevokeTarget(null)}
+        onConfirm={async () => {
+          if (!revokeTarget) return;
+          try {
+            await revoke.mutateAsync(revokeTarget);
+            setRevokeTarget(null);
+          } catch {
+            // surfaced below via revoke.error
+          }
+        }}
+        loading={revoke.isPending}
+        error={revoke.error instanceof ApiError ? revoke.error.message : null}
+        title="Revoke this certificate?"
+        description="Its verification code will no longer verify."
+        confirmLabel="Revoke"
+      />
     </div>
   );
 }

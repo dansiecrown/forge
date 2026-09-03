@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { Link2, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
+import { ActionsMenu } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { buildPublishLifecycleItems } from '@/components/admin/publish-lifecycle-items';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -97,6 +100,25 @@ export function LearningResourceDetailPage() {
   const updateErrorMessage =
     updateResource.error instanceof ApiError ? updateResource.error.message : null;
 
+  async function onConfirmArchive() {
+    if (!resource) return;
+    try {
+      await archive.mutateAsync(resource.version);
+      setConfirmingArchive(false);
+    } catch {
+      // surfaced below via archive.error
+    }
+  }
+
+  const lifecycleItems = buildPublishLifecycleItems({
+    status: resource.status,
+    publishing: publish.isPending,
+    restoring: restore.isPending,
+    onPublish: () => publish.mutate(resource.version),
+    onArchiveRequest: () => setConfirmingArchive(true),
+    onRestore: () => restore.mutate(resource.version),
+  });
+
   return (
     <div className="space-y-6">
       <AdminPageHeader
@@ -109,12 +131,20 @@ export function LearningResourceDetailPage() {
             Back to weekly module
           </Link>
         }
-        action={<Badge tone={STATUS_TONE[resource.status]}>{resource.status}</Badge>}
+        action={
+          <div className="flex items-center gap-3">
+            <Badge tone={STATUS_TONE[resource.status]}>{resource.status}</Badge>
+            <ActionsMenu items={lifecycleItems} />
+          </div>
+        }
       />
 
       <Card className="max-w-xl">
         <CardHeader>
-          <CardTitle as="h2">Resource details</CardTitle>
+          <CardTitle as="h2" className="flex items-center gap-2">
+            <Link2 className="size-5 text-muted-foreground" aria-hidden="true" />
+            Resource details
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
@@ -183,57 +213,16 @@ export function LearningResourceDetailPage() {
         </CardContent>
       </Card>
 
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle as="h2">Lifecycle</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {confirmingArchive ? (
-            <div className="flex justify-end gap-3">
-              <Button type="button" variant="secondary" onClick={() => setConfirmingArchive(false)}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                loading={archive.isPending}
-                onClick={async () => {
-                  await archive.mutateAsync(resource.version);
-                  setConfirmingArchive(false);
-                }}
-              >
-                Confirm archive
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              {resource.status === 'draft' ? (
-                <Button
-                  variant="secondary"
-                  loading={publish.isPending}
-                  onClick={() => publish.mutate(resource.version)}
-                >
-                  Publish
-                </Button>
-              ) : null}
-              {resource.status !== 'archived' ? (
-                <Button variant="destructive" onClick={() => setConfirmingArchive(true)}>
-                  Archive
-                </Button>
-              ) : null}
-              {resource.status === 'archived' ? (
-                <Button
-                  variant="secondary"
-                  loading={restore.isPending}
-                  onClick={() => restore.mutate(resource.version)}
-                >
-                  Restore
-                </Button>
-              ) : null}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <ConfirmDialog
+        open={confirmingArchive}
+        onClose={() => setConfirmingArchive(false)}
+        onConfirm={onConfirmArchive}
+        loading={archive.isPending}
+        error={archive.error instanceof ApiError ? archive.error.message : null}
+        title="Archive this resource?"
+        description="You can restore it back to draft later if needed."
+        confirmLabel="Archive"
+      />
     </div>
   );
 }

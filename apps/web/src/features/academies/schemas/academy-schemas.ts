@@ -25,8 +25,3 @@ export const updateAcademySchema = z.object({
   isPublic: z.boolean().optional(),
 });
 export type UpdateAcademyFormValues = z.infer<typeof updateAcademySchema>;
-
-export const actionReasonSchema = z.object({
-  reason: z.string().min(1, 'Enter a reason for this action.').max(500),
-});
-export type ActionReasonFormValues = z.infer<typeof actionReasonSchema>;

@@ -5,11 +5,13 @@ import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { apiRequest, ApiError } from '@/api/client';
+import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -19,9 +21,7 @@ import {
 } from '../hooks/use-organization-mutations';
 import { useOrganization } from '../hooks/use-organizations';
 import {
-  actionReasonSchema,
   updateOrganizationSchema,
-  type ActionReasonFormValues,
   type UpdateOrganizationFormValues,
 } from '../schemas/organization-schemas';
 
@@ -64,7 +64,6 @@ export function OrganizationDetailPage() {
   const form = useForm<UpdateOrganizationFormValues>({
     resolver: zodResolver(updateOrganizationSchema),
   });
-  const reasonForm = useForm<ActionReasonFormValues>({ resolver: zodResolver(actionReasonSchema) });
 
   useEffect(() => {
     if (organization) {
@@ -112,15 +111,44 @@ export function OrganizationDetailPage() {
     }
   }
 
-  async function onConfirmAction(values: ActionReasonFormValues) {
-    if (pendingAction === 'suspend') await suspend.mutateAsync(values.reason);
-    if (pendingAction === 'archive') await archive.mutateAsync(values.reason);
-    setPendingAction(null);
-    reasonForm.reset();
+  async function onConfirmAction(reason?: string) {
+    try {
+      if (pendingAction === 'suspend') await suspend.mutateAsync(reason ?? '');
+      if (pendingAction === 'archive') await archive.mutateAsync(reason ?? '');
+      setPendingAction(null);
+    } catch {
+      // surfaced below via suspend.error / archive.error
+    }
   }
 
   const updateErrorMessage =
     updateOrganization.error instanceof ApiError ? updateOrganization.error.message : null;
+
+  const lifecycleItems: ActionsMenuItem[] = [];
+  if (organization.status === 'active' && permissions.has('organization.suspend')) {
+    lifecycleItems.push({ label: 'Suspend', onSelect: () => setPendingAction('suspend') });
+  }
+  if (organization.status !== 'archived' && permissions.has('organization.archive')) {
+    lifecycleItems.push({
+      label: 'Archive',
+      tone: 'danger',
+      onSelect: () => setPendingAction('archive'),
+    });
+  }
+  if (organization.status === 'archived' && permissions.has('organization.restore')) {
+    lifecycleItems.push({
+      label: 'Restore',
+      loading: restore.isPending,
+      onSelect: () => restore.mutate(),
+    });
+  }
+  if (organization.status === 'suspended' && permissions.has('organization.restore')) {
+    lifecycleItems.push({
+      label: 'Reactivate',
+      loading: restore.isPending,
+      onSelect: () => restore.mutate(),
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -134,8 +162,18 @@ export function OrganizationDetailPage() {
             / {organization.slug}
           </>
         }
-        action={<Badge tone={STATUS_TONE[organization.status]}>{organization.status}</Badge>}
+        action={
+          <div className="flex items-center gap-3">
+            <Badge tone={STATUS_TONE[organization.status]}>{organization.status}</Badge>
+            <ActionsMenu items={lifecycleItems} />
+          </div>
+        }
       />
+      {!permissions.has('organization.suspend') && !permissions.has('organization.archive') ? (
+        <p className="text-sm text-muted-foreground">
+          Your role can view this organization but not change its lifecycle status.
+        </p>
+      ) : null}
 
       <Card className="max-w-xl">
         <CardHeader>
@@ -182,135 +220,90 @@ export function OrganizationDetailPage() {
         </CardContent>
       </Card>
 
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle as="h2">Lifecycle</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {pendingAction ? (
-            <form
-              className="space-y-3"
-              onSubmit={reasonForm.handleSubmit(onConfirmAction)}
-              noValidate
-            >
-              <FormField
-                label={`Reason to ${pendingAction} this organization`}
-                autoFocus
-                error={reasonForm.formState.errors.reason?.message}
-                {...reasonForm.register('reason')}
-              />
-              <div className="flex justify-end gap-3">
-                <Button type="button" variant="secondary" onClick={() => setPendingAction(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="destructive"
-                  loading={suspend.isPending || archive.isPending}
-                >
-                  Confirm {pendingAction}
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              {organization.status === 'active' && permissions.has('organization.suspend') ? (
-                <Button variant="secondary" onClick={() => setPendingAction('suspend')}>
-                  Suspend
-                </Button>
-              ) : null}
-              {organization.status !== 'archived' && permissions.has('organization.archive') ? (
-                <Button variant="destructive" onClick={() => setPendingAction('archive')}>
-                  Archive
-                </Button>
-              ) : null}
-              {organization.status === 'archived' && permissions.has('organization.restore') ? (
-                <Button
-                  variant="secondary"
-                  loading={restore.isPending}
-                  onClick={() => restore.mutate()}
-                >
-                  Restore
-                </Button>
-              ) : null}
-              {organization.status === 'suspended' && permissions.has('organization.restore') ? (
-                <Button
-                  variant="secondary"
-                  loading={restore.isPending}
-                  onClick={() => restore.mutate()}
-                >
-                  Reactivate
-                </Button>
-              ) : null}
-              {!permissions.has('organization.suspend') &&
-              !permissions.has('organization.archive') ? (
-                <p className="text-sm text-muted-foreground">
-                  Your role can view this organization but not change its lifecycle status.
-                </p>
-              ) : null}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle as="h2">Statistics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.data ? (
+              <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
+                <div>
+                  <dt className="text-muted-foreground">Academies</dt>
+                  <dd className="text-lg font-semibold text-foreground">
+                    {stats.data.academyCount}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Fellowships</dt>
+                  <dd className="text-lg font-semibold text-foreground">
+                    {stats.data.fellowshipCount}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Cohorts</dt>
+                  <dd className="text-lg font-semibold text-foreground">
+                    {stats.data.cohortCount}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Enrollments</dt>
+                  <dd className="text-lg font-semibold text-foreground">
+                    {stats.data.enrollmentCount}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Certificates issued</dt>
+                  <dd className="text-lg font-semibold text-foreground">
+                    {stats.data.certificatesIssued}
+                  </dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-sm text-muted-foreground">Loading statistics…</p>
+            )}
+          </CardContent>
+        </Card>
 
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle as="h2">Statistics</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {stats.data ? (
-            <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
-              <div>
-                <dt className="text-muted-foreground">Academies</dt>
-                <dd className="text-lg font-semibold text-foreground">{stats.data.academyCount}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Fellowships</dt>
-                <dd className="text-lg font-semibold text-foreground">
-                  {stats.data.fellowshipCount}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Cohorts</dt>
-                <dd className="text-lg font-semibold text-foreground">{stats.data.cohortCount}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Enrollments</dt>
-                <dd className="text-lg font-semibold text-foreground">
-                  {stats.data.enrollmentCount}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Certificates issued</dt>
-                <dd className="text-lg font-semibold text-foreground">
-                  {stats.data.certificatesIssued}
-                </dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="text-sm text-muted-foreground">Loading statistics…</p>
-          )}
-        </CardContent>
-      </Card>
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle as="h2">Organization administrators</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {admins.data && admins.data.length > 0 ? (
+              <ul className="space-y-2 text-sm">
+                {admins.data.map((admin) => (
+                  <li key={admin.id} className="font-mono text-xs text-muted-foreground">
+                    {admin.userId}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">No organization admins assigned yet.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle as="h2">Organization administrators</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {admins.data && admins.data.length > 0 ? (
-            <ul className="space-y-2 text-sm">
-              {admins.data.map((admin) => (
-                <li key={admin.id} className="font-mono text-xs text-muted-foreground">
-                  {admin.userId}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">No organization admins assigned yet.</p>
-          )}
-        </CardContent>
-      </Card>
+      <ConfirmDialog
+        open={pendingAction !== null}
+        onClose={() => setPendingAction(null)}
+        onConfirm={onConfirmAction}
+        loading={suspend.isPending || archive.isPending}
+        error={
+          pendingAction === 'suspend' && suspend.error instanceof ApiError
+            ? suspend.error.message
+            : pendingAction === 'archive' && archive.error instanceof ApiError
+              ? archive.error.message
+              : null
+        }
+        title={
+          pendingAction === 'suspend' ? 'Suspend this organization?' : 'Archive this organization?'
+        }
+        description="This affects every academy, fellowship, and person in it. State why for the audit trail."
+        reasonLabel={`Reason to ${pendingAction ?? 'suspend'} this organization`}
+        confirmLabel={pendingAction === 'suspend' ? 'Suspend' : 'Archive'}
+      />
     </div>
   );
 }

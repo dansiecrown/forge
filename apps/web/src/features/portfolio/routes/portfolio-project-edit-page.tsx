@@ -9,6 +9,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { TextareaField } from '@/components/textarea-field';
 import {
@@ -179,41 +180,44 @@ export function PortfolioProjectEditPage() {
           <CardTitle as="h2">Visibility</CardTitle>
         </CardHeader>
         <CardContent>
-          {confirmingDelete ? (
-            <div className="flex justify-end gap-3">
-              <Button variant="secondary" onClick={() => setConfirmingDelete(false)}>
-                Cancel
+          <div className="flex flex-wrap gap-3">
+            {project.visibility === 'private' ? (
+              <Button loading={publish.isPending} onClick={() => publish.mutate(project.version)}>
+                Publish
               </Button>
+            ) : (
               <Button
-                variant="destructive"
-                loading={remove.isPending}
-                onClick={() => remove.mutate(project.version)}
+                variant="secondary"
+                loading={unpublish.isPending}
+                onClick={() => unpublish.mutate(project.version)}
               >
-                Confirm delete
+                Unpublish
               </Button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              {project.visibility === 'private' ? (
-                <Button loading={publish.isPending} onClick={() => publish.mutate(project.version)}>
-                  Publish
-                </Button>
-              ) : (
-                <Button
-                  variant="secondary"
-                  loading={unpublish.isPending}
-                  onClick={() => unpublish.mutate(project.version)}
-                >
-                  Unpublish
-                </Button>
-              )}
-              <Button variant="destructive" onClick={() => setConfirmingDelete(true)}>
-                Delete
-              </Button>
-            </div>
-          )}
+            )}
+            <Button variant="destructive" onClick={() => setConfirmingDelete(true)}>
+              Delete
+            </Button>
+          </div>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={async () => {
+          try {
+            await remove.mutateAsync(project.version);
+            setConfirmingDelete(false);
+          } catch {
+            // surfaced below via remove.error
+          }
+        }}
+        loading={remove.isPending}
+        error={remove.error instanceof ApiError ? remove.error.message : null}
+        title="Delete this project?"
+        description="It will no longer appear in your portfolio."
+        confirmLabel="Delete"
+      />
     </div>
   );
 }

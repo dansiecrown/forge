@@ -28,13 +28,3 @@ export const updateCohortSchema = z.object({
   description: z.string().max(2000).optional().or(z.literal('')),
 });
 export type UpdateCohortFormValues = z.infer<typeof updateCohortSchema>;
-
-export const membershipIdSchema = z.object({
-  membershipId: z.string().uuid('Enter a valid membership id.'),
-});
-export type MembershipIdFormValues = z.infer<typeof membershipIdSchema>;
-
-export const studentUserIdSchema = z.object({
-  studentUserId: z.string().uuid('Enter a valid user id.'),
-});
-export type StudentUserIdFormValues = z.infer<typeof studentUserIdSchema>;

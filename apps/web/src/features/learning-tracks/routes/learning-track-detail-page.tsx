@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, Route } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
+import { ActionsMenu } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
+import { buildPublishLifecycleItems } from '@/components/admin/publish-lifecycle-items';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -120,6 +123,25 @@ export function LearningTrackDetailPage() {
   const updateErrorMessage =
     updateTrack.error instanceof ApiError ? updateTrack.error.message : null;
 
+  async function onConfirmArchive() {
+    if (!track) return;
+    try {
+      await archive.mutateAsync(track.version);
+      setConfirmingArchive(false);
+    } catch {
+      // surfaced below via archive.error
+    }
+  }
+
+  const lifecycleItems = buildPublishLifecycleItems({
+    status: track.status,
+    publishing: publish.isPending,
+    restoring: restore.isPending,
+    onPublish: () => publish.mutate(track.version),
+    onArchiveRequest: () => setConfirmingArchive(true),
+    onRestore: () => restore.mutate(track.version),
+  });
+
   return (
     <div className="space-y-6">
       <AdminPageHeader
@@ -135,12 +157,20 @@ export function LearningTrackDetailPage() {
             / {track.slug}
           </>
         }
-        action={<Badge tone={STATUS_TONE[track.status]}>{track.status}</Badge>}
+        action={
+          <div className="flex items-center gap-3">
+            <Badge tone={STATUS_TONE[track.status]}>{track.status}</Badge>
+            <ActionsMenu items={lifecycleItems} />
+          </div>
+        }
       />
 
       <Card className="max-w-xl">
         <CardHeader>
-          <CardTitle as="h2">Track details</CardTitle>
+          <CardTitle as="h2" className="flex items-center gap-2">
+            <Route className="size-5 text-muted-foreground" aria-hidden="true" />
+            Track details
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
@@ -195,61 +225,10 @@ export function LearningTrackDetailPage() {
         </CardContent>
       </Card>
 
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle as="h2">Lifecycle</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {confirmingArchive ? (
-            <div className="flex justify-end gap-3">
-              <Button type="button" variant="secondary" onClick={() => setConfirmingArchive(false)}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                loading={archive.isPending}
-                onClick={async () => {
-                  await archive.mutateAsync(track.version);
-                  setConfirmingArchive(false);
-                }}
-              >
-                Confirm archive
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              {track.status === 'draft' ? (
-                <Button
-                  variant="secondary"
-                  loading={publish.isPending}
-                  onClick={() => publish.mutate(track.version)}
-                >
-                  Publish
-                </Button>
-              ) : null}
-              {track.status !== 'archived' ? (
-                <Button variant="destructive" onClick={() => setConfirmingArchive(true)}>
-                  Archive
-                </Button>
-              ) : null}
-              {track.status === 'archived' ? (
-                <Button
-                  variant="secondary"
-                  loading={restore.isPending}
-                  onClick={() => restore.mutate(track.version)}
-                >
-                  Restore
-                </Button>
-              ) : null}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle as="h2">Courses</CardTitle>
+          <Badge tone="neutral">{courses.rows.length}</Badge>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex justify-end">
@@ -273,6 +252,17 @@ export function LearningTrackDetailPage() {
           />
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={confirmingArchive}
+        onClose={() => setConfirmingArchive(false)}
+        onConfirm={onConfirmArchive}
+        loading={archive.isPending}
+        error={archive.error instanceof ApiError ? archive.error.message : null}
+        title="Archive this learning track?"
+        description="You can restore it back to draft later if needed."
+        confirmLabel="Archive"
+      />
     </div>
   );
 }

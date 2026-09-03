@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { IdCard } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { ApiError } from '@/api/client';
 import { Alert } from '@/components/ui/alert';
@@ -27,13 +28,16 @@ export function AccountTab() {
   const errorMessage = updateMe.error instanceof ApiError ? updateMe.error.message : null;
 
   return (
-    <Card>
+    <Card className="max-w-xl">
       <CardHeader>
-        <CardTitle as="h2">Account</CardTitle>
+        <CardTitle as="h2" className="flex items-center gap-2">
+          <IdCard className="size-5 text-muted-foreground" aria-hidden="true" />
+          Account
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <form
-          className="max-w-sm space-y-4"
+          className="space-y-4"
           onSubmit={form.handleSubmit((values) => updateMe.mutate(values))}
           noValidate
         >

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { KeyRound, Laptop2, ShieldCheck } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError } from '@/api/client';
@@ -7,6 +8,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import {
   useChangePassword,
@@ -53,12 +55,15 @@ function PasswordSection() {
     changePassword.error instanceof ApiError ? changePassword.error.message : null;
 
   return (
-    <Card>
+    <Card className="max-w-xl">
       <CardHeader>
-        <CardTitle as="h2">Password</CardTitle>
+        <CardTitle as="h2" className="flex items-center gap-2">
+          <KeyRound className="size-5 text-muted-foreground" aria-hidden="true" />
+          Password
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        <form className="max-w-sm space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+        <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
           {errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
           {changePassword.isSuccess ? <Alert variant="success">Password updated.</Alert> : null}
           <FormField
@@ -91,11 +96,12 @@ function MfaSection() {
   const disableMfa = useDisableMfa();
   const [code, setCode] = useState('');
   const [disableCode, setDisableCode] = useState('');
+  const [confirmingDisable, setConfirmingDisable] = useState(false);
 
   if (enrollMfa.isSuccess && !confirmEnrollment.isSuccess) {
     const enrollment = enrollMfa.data;
     return (
-      <Card>
+      <Card className="max-w-xl">
         <CardHeader>
           <CardTitle as="h2">Enable multi-factor authentication</CardTitle>
           <CardDescription>
@@ -132,9 +138,12 @@ function MfaSection() {
   }
 
   return (
-    <Card>
+    <Card className="max-w-xl">
       <CardHeader>
-        <CardTitle as="h2">Multi-factor authentication</CardTitle>
+        <CardTitle as="h2" className="flex items-center gap-2">
+          <ShieldCheck className="size-5 text-muted-foreground" aria-hidden="true" />
+          Multi-factor authentication
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
@@ -162,8 +171,8 @@ function MfaSection() {
             />
             <Button
               variant="destructive"
-              loading={disableMfa.isPending}
-              onClick={() => disableMfa.mutate({ code: disableCode })}
+              disabled={!disableCode}
+              onClick={() => setConfirmingDisable(true)}
             >
               Disable MFA
             </Button>
@@ -173,6 +182,23 @@ function MfaSection() {
           <Alert variant="danger">{disableMfa.error.message}</Alert>
         ) : null}
       </CardContent>
+
+      <ConfirmDialog
+        open={confirmingDisable}
+        onClose={() => setConfirmingDisable(false)}
+        onConfirm={async () => {
+          try {
+            await disableMfa.mutateAsync({ code: disableCode });
+            setConfirmingDisable(false);
+          } catch {
+            // surfaced above via disableMfa.error
+          }
+        }}
+        loading={disableMfa.isPending}
+        title="Disable multi-factor authentication?"
+        description="Your account will only be protected by your password from then on."
+        confirmLabel="Disable MFA"
+      />
     </Card>
   );
 }
@@ -180,11 +206,15 @@ function MfaSection() {
 function SessionsSection() {
   const { data: sessions } = useSessions();
   const revokeSession = useRevokeSession();
+  const [revokeSessionId, setRevokeSessionId] = useState<string | null>(null);
 
   return (
-    <Card>
+    <Card className="max-w-xl">
       <CardHeader>
-        <CardTitle as="h2">Active sessions</CardTitle>
+        <CardTitle as="h2" className="flex items-center gap-2">
+          <Laptop2 className="size-5 text-muted-foreground" aria-hidden="true" />
+          Active sessions
+        </CardTitle>
       </CardHeader>
       <CardContent>
         {!sessions || sessions.items.length === 0 ? (
@@ -202,11 +232,7 @@ function SessionsSection() {
                   ) : null}
                 </span>
                 {!session.current ? (
-                  <Button
-                    variant="tertiary"
-                    loading={revokeSession.isPending}
-                    onClick={() => revokeSession.mutate(session.id)}
-                  >
+                  <Button variant="tertiary" onClick={() => setRevokeSessionId(session.id)}>
                     Revoke
                   </Button>
                 ) : null}
@@ -215,6 +241,24 @@ function SessionsSection() {
           </ul>
         )}
       </CardContent>
+
+      <ConfirmDialog
+        open={revokeSessionId !== null}
+        onClose={() => setRevokeSessionId(null)}
+        onConfirm={async () => {
+          if (!revokeSessionId) return;
+          try {
+            await revokeSession.mutateAsync(revokeSessionId);
+            setRevokeSessionId(null);
+          } catch {
+            // surfaced via revokeSession.error, not currently displayed here
+          }
+        }}
+        loading={revokeSession.isPending}
+        title="Sign out that device?"
+        description="It will need to sign in again to continue."
+        confirmLabel="Revoke"
+      />
     </Card>
   );
 }

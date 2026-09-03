@@ -7,8 +7,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import {
   useCohortApplication,
   useCohortApplicationActions,
@@ -26,7 +25,6 @@ export function AdminCohortApplicationDetailPage() {
   const { data: application, isLoading, error } = useCohortApplication(id);
   const { approve, reject } = useCohortApplicationActions(id ?? '');
   const [confirmingReject, setConfirmingReject] = useState(false);
-  const [reason, setReason] = useState('');
 
   if (isLoading) {
     return (
@@ -42,6 +40,16 @@ export function AdminCohortApplicationDetailPage() {
         {error instanceof ApiError ? error.message : 'Application not found.'}
       </Alert>
     );
+  }
+
+  async function onConfirmReject(reason?: string) {
+    if (!application) return;
+    try {
+      await reject.mutateAsync({ version: application.version, reason: reason || undefined });
+      setConfirmingReject(false);
+    } catch {
+      // surfaced below via reject.error
+    }
   }
 
   return (
@@ -104,51 +112,33 @@ export function AdminCohortApplicationDetailPage() {
               </Alert>
             ) : null}
 
-            {confirmingReject ? (
-              <div className="space-y-3">
-                <Label htmlFor="reason">Reason (optional)</Label>
-                <Textarea
-                  id="reason"
-                  rows={3}
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  autoFocus
-                />
-                <div className="flex justify-end gap-3">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setConfirmingReject(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    loading={reject.isPending}
-                    onClick={() =>
-                      reject.mutate({ version: application.version, reason: reason || undefined })
-                    }
-                  >
-                    Confirm reject
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  loading={approve.isPending}
-                  onClick={() => approve.mutate(application.version)}
-                >
-                  Approve
-                </Button>
-                <Button variant="destructive" onClick={() => setConfirmingReject(true)}>
-                  Reject
-                </Button>
-              </div>
-            )}
+            <div className="flex flex-wrap gap-3">
+              <Button
+                loading={approve.isPending}
+                onClick={() => approve.mutate(application.version)}
+              >
+                Approve
+              </Button>
+              <Button variant="destructive" onClick={() => setConfirmingReject(true)}>
+                Reject
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : null}
+
+      <ConfirmDialog
+        open={confirmingReject}
+        onClose={() => setConfirmingReject(false)}
+        onConfirm={onConfirmReject}
+        loading={reject.isPending}
+        error={reject.error instanceof ApiError ? reject.error.message : null}
+        title="Reject this application?"
+        description="The applicant will be notified."
+        reasonLabel="Reason (optional)"
+        reasonRequired={false}
+        confirmLabel="Reject"
+      />
     </div>
   );
 }

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useActiveOrganization } from '@/contexts/organization-context';
-import type { AdminUser } from '../api/admin-users-api';
+import type { AdminUser, InviteUserInput } from '../api/admin-users-api';
 import {
   forcePasswordReset,
   getAdminUser,
   getLoginHistory,
+  inviteUser,
   listAdminUsers,
   listUserSessions,
   reactivateUser,
@@ -48,6 +49,15 @@ export function useAdminUsersList(q: string) {
     hasMore: query.data?.page.hasMore ?? false,
     loadMore,
   };
+}
+
+export function useInviteUser() {
+  const { activeOrganizationId } = useActiveOrganization();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: InviteUserInput) => inviteUser(body, activeOrganizationId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin-users', 'list'] }),
+  });
 }
 
 export function useAdminUser(userId: string | undefined) {

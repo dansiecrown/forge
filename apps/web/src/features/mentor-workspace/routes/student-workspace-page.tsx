@@ -10,6 +10,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { Tabs } from '@/components/ui/tabs';
 import { TextareaField } from '@/components/textarea-field';
 import { EmptyState } from '@/components/portal/empty-state';
@@ -202,6 +203,7 @@ function NotesTab({ enrollmentId, notes }: { enrollmentId: string; notes: Worksp
   const updateNote = useUpdateMentorNote(enrollmentId);
   const deleteNote = useDeleteMentorNote(enrollmentId);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingNote, setDeletingNote] = useState<{ id: string; version: number } | null>(null);
 
   const form = useForm<NoteFormValues>({
     resolver: zodResolver(noteSchema),
@@ -309,7 +311,7 @@ function NotesTab({ enrollmentId, notes }: { enrollmentId: string; notes: Worksp
                   <button
                     type="button"
                     aria-label="Delete note"
-                    onClick={() => deleteNote.mutate({ noteId: note.id, version: note.version })}
+                    onClick={() => setDeletingNote({ id: note.id, version: note.version })}
                     className="text-muted-foreground hover:text-danger"
                   >
                     <Trash2 className="size-4" aria-hidden="true" />
@@ -320,6 +322,28 @@ function NotesTab({ enrollmentId, notes }: { enrollmentId: string; notes: Worksp
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={deletingNote !== null}
+        onClose={() => setDeletingNote(null)}
+        onConfirm={async () => {
+          if (!deletingNote) return;
+          try {
+            await deleteNote.mutateAsync({
+              noteId: deletingNote.id,
+              version: deletingNote.version,
+            });
+            setDeletingNote(null);
+          } catch {
+            // surfaced below via deleteNote.error
+          }
+        }}
+        loading={deleteNote.isPending}
+        error={deleteNote.error instanceof ApiError ? deleteNote.error.message : null}
+        title="Delete this note?"
+        description="Any mentor assigned to this cohort loses access to it."
+        confirmLabel="Delete"
+      />
     </div>
   );
 }

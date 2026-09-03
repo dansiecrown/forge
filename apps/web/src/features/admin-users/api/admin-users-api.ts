@@ -31,6 +31,32 @@ export function getAdminUser(userId: string, organizationId?: string): Promise<A
   return apiRequest<AdminUser>(`/admin/users/${userId}`, { organizationId });
 }
 
+export interface InviteUserInput {
+  email: string;
+  displayName: string;
+  roles?: string[];
+}
+
+export interface InviteUserResult {
+  invitationId: string;
+  status: 'sent' | 'added';
+}
+
+/** Assigns a membership by inviting a person into the active organization —
+ * reuses the identity module's existing `POST /users/invitations` verbatim
+ * (the same mechanism the Cohort Applications approval flow already calls),
+ * rather than a new admin-specific invite path. */
+export function inviteUser(
+  body: InviteUserInput,
+  organizationId?: string,
+): Promise<InviteUserResult> {
+  return apiRequest<InviteUserResult>('/users/invitations', {
+    method: 'POST',
+    body,
+    organizationId,
+  });
+}
+
 export function suspendUser(userId: string, organizationId: string): Promise<void> {
   return apiRequest(`/admin/users/${userId}/actions/suspend`, { method: 'POST', organizationId });
 }

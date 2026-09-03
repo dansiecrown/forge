@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -70,6 +71,8 @@ export function AnnouncementsPage() {
       archiveAnnouncement(announcement.id, announcement.version, activeOrganizationId as string),
     onSuccess: invalidate,
   });
+  const [publishTarget, setPublishTarget] = useState<Announcement | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<Announcement | null>(null);
 
   return (
     <div className="space-y-6">
@@ -174,20 +177,12 @@ export function AnnouncementsPage() {
                   </div>
                   <div className="flex shrink-0 gap-2">
                     {announcement.status === 'draft' ? (
-                      <Button
-                        variant="secondary"
-                        loading={publish.isPending}
-                        onClick={() => publish.mutate(announcement)}
-                      >
+                      <Button variant="secondary" onClick={() => setPublishTarget(announcement)}>
                         Publish
                       </Button>
                     ) : null}
                     {announcement.status !== 'archived' ? (
-                      <Button
-                        variant="secondary"
-                        loading={archive.isPending}
-                        onClick={() => archive.mutate(announcement)}
-                      >
+                      <Button variant="destructive" onClick={() => setArchiveTarget(announcement)}>
                         Archive
                       </Button>
                     ) : null}
@@ -198,6 +193,43 @@ export function AnnouncementsPage() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={publishTarget !== null}
+        onClose={() => setPublishTarget(null)}
+        onConfirm={async () => {
+          if (!publishTarget) return;
+          try {
+            await publish.mutateAsync(publishTarget);
+            setPublishTarget(null);
+          } catch {
+            // surfaced above via publish.error
+          }
+        }}
+        loading={publish.isPending}
+        confirmVariant="primary"
+        title="Publish this announcement?"
+        description="It sends an in-app notification to everyone in its audience right away — there's no recall."
+        confirmLabel="Publish"
+      />
+
+      <ConfirmDialog
+        open={archiveTarget !== null}
+        onClose={() => setArchiveTarget(null)}
+        onConfirm={async () => {
+          if (!archiveTarget) return;
+          try {
+            await archive.mutateAsync(archiveTarget);
+            setArchiveTarget(null);
+          } catch {
+            // surfaced above via archive.error
+          }
+        }}
+        loading={archive.isPending}
+        title="Archive this announcement?"
+        description="Notifications already sent for it are unaffected."
+        confirmLabel="Archive"
+      />
     </div>
   );
 }

@@ -61,3 +61,19 @@ export function archiveOrganization(orgId: string, reason: string): Promise<Orga
 export function restoreOrganization(orgId: string): Promise<Organization> {
   return apiRequest<Organization>(`/organizations/${orgId}/actions/restore`, { method: 'POST' });
 }
+
+export interface UserMembershipSummary {
+  id: string;
+  organizationId: string;
+  status: string;
+}
+
+/** Used to resolve a person picked by email/name (an `AdminUser.id`) down
+ * to their membership id in the active organization — e.g. for cohort
+ * mentor assignment, which is keyed by membership, not user. */
+export function getUserMemberships(
+  userId: string,
+  organizationId?: string,
+): Promise<UserMembershipSummary[]> {
+  return apiRequest<UserMembershipSummary[]>(`/users/${userId}/memberships`, { organizationId });
+}

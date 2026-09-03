@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { GraduationCap, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
+import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
 import { useActiveOrganization } from '@/contexts/organization-context';
@@ -107,6 +109,22 @@ export function FellowshipDetailPage() {
     updateFellowship.error instanceof ApiError ? updateFellowship.error.message : null;
   const isDraft = fellowship.status === 'draft';
 
+  const lifecycleItems: ActionsMenuItem[] = [];
+  if (fellowship.status === 'draft') {
+    lifecycleItems.push({
+      label: 'Publish',
+      loading: publish.isPending,
+      onSelect: () => publish.mutate(fellowship.version),
+    });
+  }
+  if (fellowship.status === 'published') {
+    lifecycleItems.push({
+      label: 'Retire',
+      tone: 'danger',
+      onSelect: () => setConfirmingRetire(true),
+    });
+  }
+
   return (
     <div className="space-y-6">
       <AdminPageHeader
@@ -119,12 +137,20 @@ export function FellowshipDetailPage() {
             / {fellowship.slug}
           </>
         }
-        action={<Badge tone={STATUS_TONE[fellowship.status]}>{fellowship.status}</Badge>}
+        action={
+          <div className="flex items-center gap-3">
+            <Badge tone={STATUS_TONE[fellowship.status]}>{fellowship.status}</Badge>
+            <ActionsMenu items={lifecycleItems} />
+          </div>
+        }
       />
 
       <Card className="max-w-xl">
         <CardHeader>
-          <CardTitle as="h2">Programme details</CardTitle>
+          <CardTitle as="h2" className="flex items-center gap-2">
+            <GraduationCap className="size-5 text-muted-foreground" aria-hidden="true" />
+            Programme details
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
@@ -189,108 +215,86 @@ export function FellowshipDetailPage() {
         </CardContent>
       </Card>
 
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle as="h2">Lifecycle</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {fellowship.status === 'draft' ? (
-            <Button loading={publish.isPending} onClick={() => publish.mutate(fellowship.version)}>
-              Publish
+      {fellowship.status === 'retired' ? (
+        <p className="text-sm text-muted-foreground">This fellowship is retired.</p>
+      ) : null}
+
+      <ConfirmDialog
+        open={confirmingRetire}
+        onClose={() => setConfirmingRetire(false)}
+        onConfirm={() => {
+          retire.mutate(fellowship.version);
+          setConfirmingRetire(false);
+        }}
+        loading={retire.isPending}
+        error={retire.error instanceof ApiError ? retire.error.message : null}
+        title="Retire this fellowship?"
+        description="It can no longer be edited or have new cohorts created under it."
+        confirmLabel="Retire"
+      />
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle as="h2">Curriculum</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Learning Tracks structure this fellowship into courses, weekly modules, lessons,
+              resources and practical tasks.
+            </p>
+            <Button
+              variant="secondary"
+              onClick={() => navigate(`/admin/fellowships/${fellowship.id}/tracks`)}
+            >
+              Manage Learning Tracks
             </Button>
-          ) : null}
-          {fellowship.status === 'published' &&
-            (confirmingRetire ? (
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setConfirmingRetire(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  loading={retire.isPending}
-                  onClick={() => {
-                    retire.mutate(fellowship.version);
-                    setConfirmingRetire(false);
-                  }}
-                >
-                  Confirm retire
-                </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle as="h2">Duplicate this fellowship</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Clones the entire curriculum tree into a new draft fellowship.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {duplicate.error instanceof ApiError ? (
+              <Alert variant="danger">{duplicate.error.message}</Alert>
+            ) : null}
+            {duplicating ? (
+              <div className="space-y-3">
+                <FormField
+                  label="New title"
+                  name="duplicateTitle"
+                  autoFocus
+                  value={duplicateTitle}
+                  onChange={(e) => setDuplicateTitle(e.target.value)}
+                />
+                <FormField
+                  label="New slug"
+                  name="duplicateSlug"
+                  value={duplicateSlug}
+                  onChange={(e) => setDuplicateSlug(e.target.value)}
+                />
+                <div className="flex justify-end gap-3">
+                  <Button type="button" variant="secondary" onClick={() => setDuplicating(false)}>
+                    Cancel
+                  </Button>
+                  <Button loading={duplicate.isPending} onClick={() => duplicate.mutate()}>
+                    Duplicate
+                  </Button>
+                </div>
               </div>
             ) : (
-              <Button variant="destructive" onClick={() => setConfirmingRetire(true)}>
-                Retire
+              <Button variant="secondary" onClick={() => setDuplicating(true)}>
+                Duplicate fellowship
               </Button>
-            ))}
-          {fellowship.status === 'retired' ? (
-            <p className="text-sm text-muted-foreground">This fellowship is retired.</p>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle as="h2">Curriculum</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Learning Tracks structure this fellowship into courses, weekly modules, lessons,
-            resources and practical tasks.
-          </p>
-          <Button
-            variant="secondary"
-            onClick={() => navigate(`/admin/fellowships/${fellowship.id}/tracks`)}
-          >
-            Manage Learning Tracks
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle as="h2">Duplicate this fellowship</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Clones the entire curriculum tree into a new draft fellowship.
-          </p>
-        </CardHeader>
-        <CardContent>
-          {duplicate.error instanceof ApiError ? (
-            <Alert variant="danger">{duplicate.error.message}</Alert>
-          ) : null}
-          {duplicating ? (
-            <div className="space-y-3">
-              <FormField
-                label="New title"
-                name="duplicateTitle"
-                autoFocus
-                value={duplicateTitle}
-                onChange={(e) => setDuplicateTitle(e.target.value)}
-              />
-              <FormField
-                label="New slug"
-                name="duplicateSlug"
-                value={duplicateSlug}
-                onChange={(e) => setDuplicateSlug(e.target.value)}
-              />
-              <div className="flex justify-end gap-3">
-                <Button type="button" variant="secondary" onClick={() => setDuplicating(false)}>
-                  Cancel
-                </Button>
-                <Button loading={duplicate.isPending} onClick={() => duplicate.mutate()}>
-                  Duplicate
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <Button variant="secondary" onClick={() => setDuplicating(true)}>
-              Duplicate fellowship
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

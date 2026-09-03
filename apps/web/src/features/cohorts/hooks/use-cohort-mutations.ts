@@ -1,11 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   CreateCohortRequest,
-  CreateEnrollmentRequest,
   UpdateCohortRequest,
   UpdateEnrollmentRequest,
 } from '@forge/api-contract';
+import { ApiError } from '@/api/client';
 import { useActiveOrganization } from '@/contexts/organization-context';
+import type { AdminUser } from '@/features/admin-users/api/admin-users-api';
+import { getUserMemberships } from '@/features/organizations/api/organizations-api';
 import {
   activateCohort,
   assignCohortMentor,
@@ -78,8 +80,22 @@ export function useMentorAssignment(cohortId: string) {
     });
 
   const assign = useMutation({
-    mutationFn: (membershipId: string) =>
-      assignCohortMentor(cohortId, membershipId, activeOrganizationId),
+    // Cohort mentor assignment is keyed by membership, not user — the
+    // person picked by email/name has to be resolved to their membership
+    // id in the active organization first (docs/api-specification.md
+    // `POST /cohorts/:id/mentors` expects `membershipId`).
+    mutationFn: async (person: AdminUser) => {
+      const memberships = await getUserMemberships(person.id, activeOrganizationId);
+      const membership = memberships.find((m) => m.organizationId === activeOrganizationId);
+      if (!membership) {
+        throw new ApiError(
+          'NOT_A_MEMBER',
+          `${person.displayName} has no membership in this organization.`,
+          404,
+        );
+      }
+      return assignCohortMentor(cohortId, membership.id, activeOrganizationId);
+    },
     onSuccess: invalidate,
   });
   const unassign = useMutation({
@@ -100,8 +116,8 @@ export function useEnrollmentActions(cohortId: string) {
     });
 
   const enroll = useMutation({
-    mutationFn: (body: CreateEnrollmentRequest) =>
-      createEnrollment(cohortId, body, activeOrganizationId),
+    mutationFn: (student: AdminUser) =>
+      createEnrollment(cohortId, { studentUserId: student.id }, activeOrganizationId),
     onSuccess: invalidate,
   });
   const updateStatus = useMutation({
