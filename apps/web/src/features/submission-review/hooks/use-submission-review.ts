@@ -29,6 +29,7 @@ export function useSubmissionReviewHistory(submissionId: string | undefined) {
 function useInvalidateAfterReview(submissionId: string) {
   const queryClient = useQueryClient();
   return () => {
+    void queryClient.invalidateQueries({ queryKey: ['submission-detail', submissionId] });
     void queryClient.invalidateQueries({ queryKey: ['submission-reviews', submissionId] });
     void queryClient.invalidateQueries({ queryKey: ['mentors'] });
   };

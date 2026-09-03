@@ -134,6 +134,55 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   are not yet product-approved. At-risk flags are always paired with a plain-language reason string,
   never a bare score. See ADR-0008 Decisions 1 and 6.
 
+## Administration Platform (2026-07-30, Milestone 7)
+
+- **A new cross-cutting `AdminModule` is the standing pattern for any capability that spans two
+  modules in the `organizations → catalog → cohorts → learning` chain without an already-established
+  import path.** It sits as a new deepest leaf, importing all four modules plus `identity`/`platform`,
+  rather than any lower module reaching sideways or backward. This resolved
+  `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-016 (Academy/Fellowship archive not validating child-entity
+  state) without inverting the chain. Future milestones needing similar cross-module orchestration
+  should extend this module rather than add a new inter-module import. See
+  `docs/adr/0009-administration-platform.md` Decision 0.
+- **The Audit Center's read-side (`AuditLogService.search`/`getById`) is built entirely off the
+  indexes Milestone 2 already added** — no new index was needed. `AuditLogService.record()`'s
+  signature and error-swallowing behavior are unchanged; the write path was only refactored to share
+  its Prisma access with the new read path via an extracted `AuditLogRepository`. See ADR-0009
+  Decision 2.
+- **Communication Center and System Settings are both deliberately narrower than their fuller
+  documented designs, matching the brief's own explicit instructions** — direct synchronous
+  `Notification` persistence with no outbox/delivery-channel table (closes DEBT-026), and a single
+  global `SystemSettings` singleton row rather than a 4-scope-level versioned engine. Stored
+  password/session/MFA policy fields are admin-editable but not yet wired into any enforcement inside
+  `identity`'s auth flows — a disclosed, intentional gap, not an oversight. See ADR-0009 Decisions 1
+  and 5.
+- **No PDF or charting library was introduced.** Certificates render via a `{{placeholder}}` HTML
+  template the browser prints natively; Reports & Analytics reuses `ProgressRing`'s hand-rolled `<svg>`
+  precedent for a new `BarChart` component. Every reporting number is computed on read from existing
+  rows, never a stored time-series. See ADR-0009 Decision 4.
+- **Post-ship fix (2026-07-30): admin hierarchy visibility is now enforced, not just anchored.**
+  `MembershipsService.getAcademyScope()` is the new single source of truth for "how much of the org
+  hierarchy can this caller see" — Super Admin/Org Admin unrestricted, Academy Admin confined to their
+  anchored Academy — enforced at each module's existing `get()` existence-check chokepoint so every
+  mutation (which already calls `get()` first) is covered for free. The User Management list, which
+  had no organization scoping at all before this fix, is now scoped via a new `AdminUsersRepository`.
+  Closes `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-015 for the Academy/Fellowship/Cohort/User surface;
+  curriculum-content editing and Reports/Audit/Certificates/Announcements remain unscoped, disclosed
+  as follow-up. See ADR-0009 Decision 7.
+
+## Cohort Applications (2026-07-31)
+
+- **New self-service registration closes two gaps found during the hierarchy-scoping fix's live
+  testing: no way for a student to request joining a cohort themselves, and no way for a brand-new
+  prospect to apply at all.** A new `CohortApplication` entity (pending/approved/rejected/withdrawn)
+  backs both an anonymous `/apply` page and an authenticated `/portal/register` page; approval is a
+  manual admin action (`/admin/applications`) that reuses the existing `UsersService.invite()`
+  mechanism verbatim to create an account for a prospect, then `MembershipsService
+  .inviteIntoOrganization()` and `EnrollmentsService.create()` — no new account-creation or email
+  code was written. Two previously-stored-but-never-read fields now do real work:
+  `Fellowship.isPublic`/`Academy.isPublic` gate what's browsable, and `SystemSettings.registrationOpen`
+  is the feature's kill switch. See `docs/adr/0010-cohort-applications.md`.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

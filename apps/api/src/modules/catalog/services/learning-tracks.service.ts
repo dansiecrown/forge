@@ -35,7 +35,7 @@ export class LearningTracksService {
     fellowshipId: string,
     options: { status?: string; q?: string; cursor?: string; limit?: string },
   ): Promise<CollectionResult<LearningTrackEntity>> {
-    await this.fellowshipsService.get(scope, fellowshipId);
+    await this.fellowshipsService.assertExistsInOrg(scope, fellowshipId);
     const limit = parseLimit(options.limit);
     const { rows, hasMore } = await this.learningTracksRepository.list(scope, {
       fellowshipId,
@@ -72,7 +72,7 @@ export class LearningTracksService {
     input: CreateLearningTrackDto,
     actorUserId?: string,
   ): Promise<LearningTrackEntity> {
-    await this.fellowshipsService.get(scope, fellowshipId);
+    await this.fellowshipsService.assertExistsInOrg(scope, fellowshipId);
 
     const existing = await this.learningTracksRepository.findBySlug(
       scope,
@@ -242,7 +242,7 @@ export class LearningTracksService {
     items: { id: string; displayOrder: number }[],
     actorUserId?: string,
   ): Promise<void> {
-    await this.fellowshipsService.get(scope, fellowshipId);
+    await this.fellowshipsService.assertExistsInOrg(scope, fellowshipId);
     await this.learningTracksRepository.reorder(scope, fellowshipId, items);
     await this.auditLog.record({
       action: 'learning_track.reordered',

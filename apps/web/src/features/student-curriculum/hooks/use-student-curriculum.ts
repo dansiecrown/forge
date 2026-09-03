@@ -9,6 +9,7 @@ import {
   getActivity,
   getDashboard,
   getLesson,
+  getMyAttendance,
   getPracticalTask,
   getWeeklyModule,
   listBookmarks,
@@ -108,6 +109,16 @@ export function useDashboard() {
   return useQuery({
     queryKey: ['student-curriculum', 'dashboard', enrollmentId, activeOrganizationId],
     queryFn: () => getDashboard(enrollmentId as string, activeOrganizationId),
+    enabled: Boolean(enrollmentId) && Boolean(activeOrganizationId),
+  });
+}
+
+export function useMyAttendance() {
+  const { activeOrganizationId } = useActiveOrganization();
+  const enrollmentId = useEnrollmentId();
+  return useQuery({
+    queryKey: ['student-curriculum', 'attendance', enrollmentId, activeOrganizationId],
+    queryFn: () => getMyAttendance(enrollmentId as string, activeOrganizationId),
     enabled: Boolean(enrollmentId) && Boolean(activeOrganizationId),
   });
 }

@@ -100,6 +100,18 @@ export class MfaService {
     await this.mfaFactorsRepository.disable(factor.id);
   }
 
+  /** Admin-forced disable — skips the proof-of-possession step `disable()`
+   * requires. Only ever reachable from `AdminModule`'s
+   * `user.mfa.reset`-gated controller, never from a self-service route. See
+   * docs/adr/0009-administration-platform.md. */
+  async adminDisable(userId: string): Promise<void> {
+    const factor = await this.mfaFactorsRepository.findActiveByUserId(userId);
+    if (!factor || !factor.verifiedAt) {
+      throw AppException.conflict('MFA_NOT_ENABLED', 'MFA is not enabled for this account.');
+    }
+    await this.mfaFactorsRepository.disable(factor.id);
+  }
+
   private async tryConsumeRecoveryCode(userId: string, code: string): Promise<boolean> {
     const hash = hashOpaqueToken(code.trim());
     const unused = await this.recoveryCodesRepository.findUnusedByUserId(userId);

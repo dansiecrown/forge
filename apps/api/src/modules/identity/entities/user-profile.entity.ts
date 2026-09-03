@@ -2,6 +2,7 @@ import type { UserProfile } from '@prisma/client';
 
 export interface UserProfileEntity {
   bio: string | null;
+  phone: string | null;
   /** Labeled "Skills" for students, "Areas of Expertise" for mentors — same
    * underlying field, relabeled per-role in the UI only. */
   skills: string[];
@@ -21,6 +22,7 @@ export interface UserProfileEntity {
  * "not yet created" to the client (a real row always starts at 1). */
 export const EMPTY_USER_PROFILE: UserProfileEntity = {
   bio: null,
+  phone: null,
   skills: [],
   interests: [],
   githubUrl: null,
@@ -35,6 +37,7 @@ export const EMPTY_USER_PROFILE: UserProfileEntity = {
 export function toUserProfileEntity(row: UserProfile): UserProfileEntity {
   return {
     bio: row.bio,
+    phone: row.phone,
     skills: row.skills,
     interests: row.interests,
     githubUrl: row.githubUrl,

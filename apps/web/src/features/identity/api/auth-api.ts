@@ -8,6 +8,7 @@ import type {
   MeResponse,
   MfaEnrollResponse,
   MfaVerifyRequest,
+  MyPermissions,
   RefreshResponse,
   ResetPasswordRequest,
   SessionSummary,
@@ -45,6 +46,10 @@ export function resetPassword(body: ResetPasswordRequest): Promise<void> {
 
 export function fetchMe(): Promise<MeResponse> {
   return apiRequest<MeResponse>('/me');
+}
+
+export function fetchMyPermissions(organizationId: string): Promise<MyPermissions> {
+  return apiRequest<MyPermissions>(`/me/permissions?organizationId=${organizationId}`);
 }
 
 export function updateMe(body: { displayName?: string; timezone?: string; locale?: string }) {

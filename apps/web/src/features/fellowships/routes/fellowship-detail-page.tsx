@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
@@ -11,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
+import { useActiveOrganization } from '@/contexts/organization-context';
+import { duplicateFellowship } from '../api/fellowships-api';
 import {
   useFellowshipLifecycleActions,
   useUpdateFellowship,
@@ -34,6 +37,19 @@ export function FellowshipDetailPage() {
   const updateFellowship = useUpdateFellowship(fellowshipId ?? '');
   const { publish, retire } = useFellowshipLifecycleActions(fellowshipId ?? '');
   const [confirmingRetire, setConfirmingRetire] = useState(false);
+  const { activeOrganizationId } = useActiveOrganization();
+  const [duplicating, setDuplicating] = useState(false);
+  const [duplicateTitle, setDuplicateTitle] = useState('');
+  const [duplicateSlug, setDuplicateSlug] = useState('');
+  const duplicate = useMutation({
+    mutationFn: () =>
+      duplicateFellowship(
+        fellowshipId as string,
+        { title: duplicateTitle, slug: duplicateSlug },
+        activeOrganizationId,
+      ),
+    onSuccess: (cloned) => navigate(`/admin/fellowships/${cloned.id}`),
+  });
 
   const form = useForm<UpdateFellowshipFormValues>({
     resolver: zodResolver(updateFellowshipSchema),
@@ -230,6 +246,49 @@ export function FellowshipDetailPage() {
           >
             Manage Learning Tracks
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle as="h2">Duplicate this fellowship</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Clones the entire curriculum tree into a new draft fellowship.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {duplicate.error instanceof ApiError ? (
+            <Alert variant="danger">{duplicate.error.message}</Alert>
+          ) : null}
+          {duplicating ? (
+            <div className="space-y-3">
+              <FormField
+                label="New title"
+                name="duplicateTitle"
+                autoFocus
+                value={duplicateTitle}
+                onChange={(e) => setDuplicateTitle(e.target.value)}
+              />
+              <FormField
+                label="New slug"
+                name="duplicateSlug"
+                value={duplicateSlug}
+                onChange={(e) => setDuplicateSlug(e.target.value)}
+              />
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={() => setDuplicating(false)}>
+                  Cancel
+                </Button>
+                <Button loading={duplicate.isPending} onClick={() => duplicate.mutate()}>
+                  Duplicate
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="secondary" onClick={() => setDuplicating(true)}>
+              Duplicate fellowship
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>

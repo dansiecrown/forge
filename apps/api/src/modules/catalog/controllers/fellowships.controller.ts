@@ -5,19 +5,25 @@ import { RequirePermissions } from '../../../decorators/require-permissions.deco
 import { requireIfMatchVersion, requireOrganizationId } from '../../../shared/http/request-helpers';
 import {
   CreateFellowshipDto,
+  DuplicateFellowshipDto,
   FellowshipTransitionDto,
   UpdateFellowshipDto,
 } from '../dtos/fellowship.dto';
+import { FellowshipCloneService } from '../services/fellowship-clone.service';
 import { FellowshipsService } from '../services/fellowships.service';
 
 @Controller()
 export class FellowshipsController {
-  constructor(private readonly fellowshipsService: FellowshipsService) {}
+  constructor(
+    private readonly fellowshipsService: FellowshipsService,
+    private readonly fellowshipCloneService: FellowshipCloneService,
+  ) {}
 
   @Get('fellowships')
   @RequirePermissions('fellowship.read')
   list(
     @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
     @Query('academyId') academyId?: string,
     @Query('status') status?: string,
     @Query('q') q?: string,
@@ -27,6 +33,7 @@ export class FellowshipsController {
     return this.fellowshipsService.list(
       { organizationId: requireOrganizationId(organizationId) },
       { academyId, status, q, cursor, limit },
+      user.id,
     );
   }
 
@@ -46,10 +53,15 @@ export class FellowshipsController {
 
   @Get('fellowships/:id')
   @RequirePermissions('fellowship.read')
-  get(@Param('id') id: string, @ActiveOrganizationId() organizationId: string | undefined) {
+  get(
+    @Param('id') id: string,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
     return this.fellowshipsService.get(
       { organizationId: requireOrganizationId(organizationId) },
       id,
+      user.id,
     );
   }
 
@@ -83,6 +95,22 @@ export class FellowshipsController {
       { organizationId: requireOrganizationId(organizationId) },
       id,
       dto.version,
+      user.id,
+    );
+  }
+
+  @Post('fellowships/:id/actions/duplicate')
+  @RequirePermissions('fellowship.duplicate')
+  duplicate(
+    @Param('id') id: string,
+    @Body() dto: DuplicateFellowshipDto,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.fellowshipCloneService.clone(
+      { organizationId: requireOrganizationId(organizationId) },
+      id,
+      dto,
       user.id,
     );
   }

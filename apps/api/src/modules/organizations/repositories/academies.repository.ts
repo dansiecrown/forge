@@ -8,6 +8,9 @@ export interface ListAcademiesOptions {
   q?: string;
   cursor?: string;
   limit: number;
+  /** Milestone 7 hierarchy scoping: confines the list to a single Academy id
+   * for callers whose membership is restricted to it (e.g. ACADEMY_ADMIN). */
+  restrictToId?: string;
 }
 
 @Injectable()
@@ -23,6 +26,7 @@ export class AcademiesRepository {
       deletedAt: null,
       ...(options.status ? { status: options.status } : {}),
       ...(options.q ? { name: { contains: options.q, mode: 'insensitive' } } : {}),
+      ...(options.restrictToId ? { id: options.restrictToId } : {}),
     };
 
     const rows = await this.prisma.academy.findMany({

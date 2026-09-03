@@ -1,5 +1,6 @@
 import type { AcademyEntity } from '../../organizations/entities/academy.entity';
 import type { AcademiesService } from '../../organizations/services/academies.service';
+import type { MembershipsService } from '../../organizations/services/memberships.service';
 import type { AuditLogService } from '../../platform/audit-log.service';
 import type { Fellowship } from '@prisma/client';
 import { FellowshipsRepository } from '../repositories/fellowships.repository';
@@ -39,6 +40,15 @@ function fakeAuditLog(): AuditLogService {
   return { record: jest.fn(async () => undefined) } as unknown as AuditLogService;
 }
 
+/** Defaults to org-wide (unrestricted) access — matches Super Admin/Org
+ * Admin, the common case for existing tests. */
+function fakeMembershipsService(overrides: Partial<MembershipsService> = {}): MembershipsService {
+  return {
+    getAcademyScope: jest.fn(async () => ({ restricted: false, academyId: null })),
+    ...overrides,
+  } as unknown as MembershipsService;
+}
+
 describe('FellowshipsService', () => {
   it('treats a fellowship from another organization as not found, never forbidden', async () => {
     const repository: Partial<FellowshipsRepository> = {
@@ -50,9 +60,32 @@ describe('FellowshipsService', () => {
       repository as FellowshipsRepository,
       fakeAcademiesService(),
       fakeAuditLog(),
+      fakeMembershipsService(),
     );
 
-    await expect(service.get({ organizationId: 'org-2' }, 'fellowship-1')).rejects.toMatchObject({
+    await expect(
+      service.get({ organizationId: 'org-2' }, 'fellowship-1', 'caller-1'),
+    ).rejects.toMatchObject({
+      response: { code: 'NOT_FOUND' },
+    });
+  });
+
+  it("treats a fellowship outside an Academy Admin's own academy as not found", async () => {
+    const repository: Partial<FellowshipsRepository> = {
+      findById: jest.fn(async () => fakeFellowship({ academyId: 'academy-2' })),
+    };
+    const service = new FellowshipsService(
+      repository as FellowshipsRepository,
+      fakeAcademiesService(),
+      fakeAuditLog(),
+      fakeMembershipsService({
+        getAcademyScope: jest.fn(async () => ({ restricted: true, academyId: 'academy-1' })),
+      }),
+    );
+
+    await expect(
+      service.get({ organizationId: 'org-1' }, 'fellowship-1', 'caller-1'),
+    ).rejects.toMatchObject({
       response: { code: 'NOT_FOUND' },
     });
   });
@@ -65,10 +98,11 @@ describe('FellowshipsService', () => {
       repository as FellowshipsRepository,
       fakeAcademiesService(),
       fakeAuditLog(),
+      fakeMembershipsService(),
     );
 
     await expect(
-      service.assertOpenForCohortCreation({ organizationId: 'org-1' }, 'fellowship-1'),
+      service.assertOpenForCohortCreation({ organizationId: 'org-1' }, 'fellowship-1', 'caller-1'),
     ).rejects.toMatchObject({ response: { code: 'FELLOWSHIP_RETIRED' } });
   });
 
@@ -81,15 +115,16 @@ describe('FellowshipsService', () => {
       repository as FellowshipsRepository,
       fakeAcademiesService(),
       fakeAuditLog(),
+      fakeMembershipsService(),
     );
 
     await expect(
-      service.publish({ organizationId: 'org-1' }, 'fellowship-1', 1),
+      service.publish({ organizationId: 'org-1' }, 'fellowship-1', 1, 'caller-1'),
     ).rejects.toMatchObject({
       response: { code: 'INVALID_STATE_TRANSITION' },
     });
     await expect(
-      service.retire({ organizationId: 'org-1' }, 'fellowship-1', 1),
+      service.retire({ organizationId: 'org-1' }, 'fellowship-1', 1, 'caller-1'),
     ).resolves.toMatchObject({ status: 'retired' });
   });
 });

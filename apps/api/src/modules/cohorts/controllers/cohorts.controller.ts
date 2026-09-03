@@ -31,6 +31,7 @@ export class CohortsController {
   @RequirePermissions('cohort.read')
   list(
     @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
     @Query('fellowshipId') fellowshipId?: string,
     @Query('academyId') academyId?: string,
     @Query('status') status?: string,
@@ -41,6 +42,7 @@ export class CohortsController {
     return this.cohortsService.list(
       { organizationId: requireOrganizationId(organizationId) },
       { fellowshipId, academyId, status, q, cursor, limit },
+      user.id,
     );
   }
 
@@ -60,8 +62,16 @@ export class CohortsController {
 
   @Get('cohorts/:id')
   @RequirePermissions('cohort.read')
-  get(@Param('id') id: string, @ActiveOrganizationId() organizationId: string | undefined) {
-    return this.cohortsService.get({ organizationId: requireOrganizationId(organizationId) }, id);
+  get(
+    @Param('id') id: string,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.cohortsService.get(
+      { organizationId: requireOrganizationId(organizationId) },
+      id,
+      user.id,
+    );
   }
 
   @Patch('cohorts/:id')
@@ -130,6 +140,22 @@ export class CohortsController {
     );
   }
 
+  @Post('cohorts/:id/actions/archive')
+  @RequirePermissions('cohort.archive')
+  archive(
+    @Param('id') id: string,
+    @Body() dto: CohortTransitionDto,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.cohortsService.archive(
+      { organizationId: requireOrganizationId(organizationId) },
+      id,
+      dto.version,
+      user.id,
+    );
+  }
+
   @Post('cohorts/:id/actions/sync-curriculum')
   @RequirePermissions('cohort.curriculum.sync')
   syncCurriculum(
@@ -148,10 +174,15 @@ export class CohortsController {
 
   @Get('cohorts/:id/mentors')
   @RequirePermissions('cohort.read')
-  listMentors(@Param('id') id: string, @ActiveOrganizationId() organizationId: string | undefined) {
+  listMentors(
+    @Param('id') id: string,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
     return this.cohortsService.listMentors(
       { organizationId: requireOrganizationId(organizationId) },
       id,
+      user.id,
     );
   }
 

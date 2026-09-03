@@ -72,3 +72,17 @@ export function retireFellowship(
     organizationId,
   });
 }
+
+/** Milestone 7's duplicate/clone-curriculum action — always lands the copy
+ * in `draft`, regardless of the source's status. */
+export function duplicateFellowship(
+  id: string,
+  body: { title: string; slug: string; academyId?: string },
+  organizationId?: string,
+): Promise<Fellowship> {
+  return apiRequest<Fellowship>(`/fellowships/${id}/actions/duplicate`, {
+    method: 'POST',
+    body,
+    organizationId,
+  });
+}

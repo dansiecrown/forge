@@ -8,6 +8,7 @@ import { ListToolbar } from '@/components/admin/list-toolbar';
 import { LoadMore } from '@/components/admin/load-more';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { usePermissions } from '@/hooks/use-permissions';
 import { useOrganizationsList } from '../hooks/use-organizations';
 
 const STATUS_OPTIONS = [
@@ -44,6 +45,7 @@ export function OrganizationsListPage() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const { rows, isLoading, error, hasMore, loadMore } = useOrganizationsList(q, status);
+  const permissions = usePermissions();
 
   return (
     <div>
@@ -51,10 +53,12 @@ export function OrganizationsListPage() {
         title="Organizations"
         description="Platform tenants — provision, suspend, archive and restore."
         action={
-          <Button onClick={() => navigate('/admin/organizations/new')}>
-            <Plus className="size-4" aria-hidden="true" />
-            New organization
-          </Button>
+          permissions.has('organization.create') ? (
+            <Button onClick={() => navigate('/admin/organizations/new')}>
+              <Plus className="size-4" aria-hidden="true" />
+              New organization
+            </Button>
+          ) : undefined
         }
       />
       <ListToolbar

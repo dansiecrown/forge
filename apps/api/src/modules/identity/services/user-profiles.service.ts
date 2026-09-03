@@ -21,7 +21,16 @@ export class UserProfilesService {
     return row ? toUserProfileEntity(row) : EMPTY_USER_PROFILE;
   }
 
-  async update(userId: string, input: UpdateUserProfileDto): Promise<UserProfileEntity> {
+  /** `actorUserId` defaults to `userId` (the self-service `/me/profile`
+   * path — a user editing their own profile). An admin editing someone
+   * else's profile (Admin Users profile editing) passes their own id
+   * explicitly so the audit trail attributes the edit correctly rather than
+   * misattributing it to the profile owner. */
+  async update(
+    userId: string,
+    input: UpdateUserProfileDto,
+    actorUserId: string = userId,
+  ): Promise<UserProfileEntity> {
     const updated = await this.userProfilesRepository.upsert(userId, {
       ...input,
       learningPreferencesMetadata: input.learningPreferencesMetadata as
@@ -32,7 +41,7 @@ export class UserProfilesService {
       entityType: 'user_profile',
       entityId: updated.id,
       outcome: 'success',
-      actorUserId: userId,
+      actorUserId,
     });
     return toUserProfileEntity(updated);
   }

@@ -11,6 +11,8 @@ import { UsersRepository } from '../repositories/users.repository';
 
 export interface UpdateMeInput {
   displayName?: string;
+  givenName?: string;
+  familyName?: string;
   timezone?: string;
   locale?: string;
 }
@@ -47,6 +49,35 @@ export class UsersService {
 
   async updateMe(userId: string, input: UpdateMeInput): Promise<User> {
     return this.usersRepository.update(userId, input);
+  }
+
+  /** Admin-scoped account status change (suspend/reactivate) — distinct from
+   * `Membership.status`, which governs a user's standing within one
+   * organization. See docs/adr/0009-administration-platform.md. */
+  async updateStatus(userId: string, status: 'active' | 'suspended'): Promise<User> {
+    await this.getById(userId);
+    return this.usersRepository.update(userId, { status });
+  }
+
+  /** Admin-forced password reset — reuses the exact token-based reset-link
+   * mechanism `AuthService.forgotPassword` already uses (no new
+   * "must-reset-password" login-blocking gate; that would touch already-
+   * tested login flow, a materially riskier change than this milestone's
+   * scope — see docs/adr/0009-administration-platform.md Decision 5's
+   * sibling narrowing). Session revocation is the caller's responsibility
+   * (see `AdminUsersService.forcePasswordReset`), so the old password can't
+   * keep a session alive after the reset link is issued. */
+  async forcePasswordReset(userId: string): Promise<void> {
+    const user = await this.getById(userId);
+    const token = generateOpaqueToken(32);
+    const expiresAt = new Date(Date.now() + this.config.auth.passwordResetTokenTtlMinutes * 60_000);
+    await this.passwordResetTokensRepository.create(user.id, hashOpaqueToken(token), expiresAt);
+    await this.emailAdapter.send({
+      to: user.emailCanonical,
+      subject: 'Your Project Forge password must be reset',
+      templateKey: 'password-reset',
+      variables: { token, displayName: user.displayName },
+    });
   }
 
   list(

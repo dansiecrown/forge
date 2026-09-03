@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AcademiesService } from '../../organizations/services/academies.service';
+import { MembershipsService } from '../../organizations/services/memberships.service';
 import { AuditLogService } from '../../platform/audit-log.service';
 import { AppException } from '../../../shared/errors/app.exception';
 import { CollectionResult, parseLimit } from '../../../shared/pagination/collection-result';
@@ -23,15 +24,30 @@ export class FellowshipsService {
     private readonly fellowshipsRepository: FellowshipsRepository,
     private readonly academiesService: AcademiesService,
     private readonly auditLog: AuditLogService,
+    private readonly membershipsService: MembershipsService,
   ) {}
 
   async list(
     scope: TenantScope,
     options: { academyId?: string; status?: string; q?: string; cursor?: string; limit?: string },
+    callerId: string,
   ): Promise<CollectionResult<FellowshipEntity>> {
     const limit = parseLimit(options.limit);
+    const academyScope = await this.membershipsService.getAcademyScope(scope, callerId);
+    if (academyScope.restricted && !academyScope.academyId) {
+      return new CollectionResult([], {
+        nextCursor: null,
+        previousCursor: options.cursor ?? null,
+        limit,
+        hasMore: false,
+      });
+    }
+
     const { rows, hasMore } = await this.fellowshipsRepository.list(scope, {
-      academyId: options.academyId,
+      // A restricted caller's own academy always wins over whatever academyId
+      // they supplied — the query param is a convenience filter, never a
+      // trust boundary.
+      academyId: academyScope.restricted ? (academyScope.academyId as string) : options.academyId,
       status: options.status as never,
       q: options.q,
       cursor: options.cursor,
@@ -45,7 +61,26 @@ export class FellowshipsService {
     });
   }
 
-  async get(scope: TenantScope, id: string): Promise<FellowshipEntity> {
+  async get(scope: TenantScope, id: string, callerId: string): Promise<FellowshipEntity> {
+    const fellowship = await this.fellowshipsRepository.findById(scope, id);
+    if (!fellowship) {
+      throw AppException.notFound('Fellowship not found.');
+    }
+    const academyScope = await this.membershipsService.getAcademyScope(scope, callerId);
+    if (academyScope.restricted && academyScope.academyId !== fellowship.academyId) {
+      throw AppException.notFound('Fellowship not found.');
+    }
+    return toFellowshipEntity(fellowship);
+  }
+
+  /** Org-scope-only existence check, no academy restriction — used by the
+   * curriculum-tree services (learning tracks/courses/modules/lessons/
+   * resources/tasks) which don't yet carry caller identity through their
+   * own internal chains. Extending Milestone 7's academy-scoping into
+   * curriculum-content editing is disclosed follow-up debt, not attempted
+   * in this pass (out of scope: the reported gap was Academy/Fellowship/
+   * Cohort/User visibility, not curriculum editing). Not exposed over HTTP. */
+  async assertExistsInOrg(scope: TenantScope, id: string): Promise<FellowshipEntity> {
     const fellowship = await this.fellowshipsRepository.findById(scope, id);
     if (!fellowship) {
       throw AppException.notFound('Fellowship not found.');
@@ -53,7 +88,7 @@ export class FellowshipsService {
     return toFellowshipEntity(fellowship);
   }
 
-  /** Existence + org-scope check for the cohorts module validating a
+  /** Existence + org/academy-scope check for the cohorts module validating a
    * caller-supplied fellowshipId — not exposed over HTTP. Also blocks
    * creating a Cohort under a retired Fellowship, per
    * docs/database-design.md's documented Fellowship lifecycle ("retire
@@ -61,8 +96,9 @@ export class FellowshipsService {
   async assertOpenForCohortCreation(
     scope: TenantScope,
     fellowshipId: string,
+    callerId: string,
   ): Promise<FellowshipEntity> {
-    const fellowship = await this.get(scope, fellowshipId);
+    const fellowship = await this.get(scope, fellowshipId, callerId);
     if (fellowship.status === 'retired') {
       throw AppException.conflict(
         'FELLOWSHIP_RETIRED',
@@ -75,9 +111,9 @@ export class FellowshipsService {
   async create(
     scope: TenantScope,
     input: CreateFellowshipDto,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<FellowshipEntity> {
-    await this.academiesService.assertBelongsToScope(scope, input.academyId);
+    await this.academiesService.assertBelongsToScope(scope, input.academyId, actorUserId);
 
     const existing = await this.fellowshipsRepository.findBySlug(
       scope,
@@ -125,9 +161,9 @@ export class FellowshipsService {
     id: string,
     input: UpdateFellowshipDto,
     expectedVersion: number,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<FellowshipEntity> {
-    const existing = await this.get(scope, id);
+    const existing = await this.get(scope, id, actorUserId);
     if (existing.status === 'retired') {
       throw AppException.conflict('FELLOWSHIP_RETIRED', 'A retired fellowship cannot be edited.');
     }
@@ -164,9 +200,9 @@ export class FellowshipsService {
     id: string,
     nextStatus: 'published' | 'retired',
     expectedVersion: number,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<FellowshipEntity> {
-    const existing = await this.get(scope, id);
+    const existing = await this.get(scope, id, actorUserId);
     if (!ALLOWED_TRANSITIONS[existing.status]?.includes(nextStatus)) {
       throw AppException.conflict(
         'INVALID_STATE_TRANSITION',
@@ -203,7 +239,7 @@ export class FellowshipsService {
     scope: TenantScope,
     id: string,
     expectedVersion: number,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<FellowshipEntity> {
     return this.transition(scope, id, 'published', expectedVersion, actorUserId);
   }
@@ -212,7 +248,7 @@ export class FellowshipsService {
     scope: TenantScope,
     id: string,
     expectedVersion: number,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<FellowshipEntity> {
     return this.transition(scope, id, 'retired', expectedVersion, actorUserId);
   }

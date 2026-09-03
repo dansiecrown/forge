@@ -66,6 +66,14 @@ export class EnrollmentsRepository {
     return { rows: hasMore ? rows.slice(0, options.limit) : rows, hasMore };
   }
 
+  /** Used by `CohortApplicationsService.approve()` to make approval
+   * idempotent/resumable: a retried approval after a partial failure must
+   * reuse an already-created Enrollment rather than hitting the plain
+   * `@@unique([cohortId, userId])` constraint via a second `create()` call. */
+  findByCohortAndUser(cohortId: string, userId: string): Promise<Enrollment | null> {
+    return this.prisma.enrollment.findUnique({ where: { cohortId_userId: { cohortId, userId } } });
+  }
+
   countActiveForCohort(cohortId: string): Promise<number> {
     return this.prisma.enrollment.count({
       where: { cohortId, status: { in: ['invited', 'active', 'paused'] } },

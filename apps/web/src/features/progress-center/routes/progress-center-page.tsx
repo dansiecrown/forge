@@ -9,8 +9,15 @@ import type { StudentActivityItem } from '@forge/api-contract';
 import {
   useActivity,
   useDashboard,
+  useMyAttendance,
   useWeeklyModules,
 } from '@/features/student-curriculum/hooks/use-student-curriculum';
+
+const ATTENDANCE_TONE: Record<string, BadgeProps['tone']> = {
+  present: 'success',
+  absent: 'danger',
+  excused: 'warning',
+};
 
 const LOCK_STATE_TONE: Record<string, BadgeProps['tone']> = {
   completed: 'success',
@@ -28,8 +35,9 @@ export function ProgressCenterPage() {
   const { data: dashboard, isLoading: dashboardLoading } = useDashboard();
   const { data: modules, isLoading: modulesLoading } = useWeeklyModules();
   const { data: activity, isLoading: activityLoading } = useActivity(30);
+  const { data: attendance, isLoading: attendanceLoading } = useMyAttendance();
 
-  const isLoading = dashboardLoading || modulesLoading || activityLoading;
+  const isLoading = dashboardLoading || modulesLoading || activityLoading || attendanceLoading;
 
   if (isLoading) {
     return (
@@ -94,6 +102,26 @@ export function ProgressCenterPage() {
                     </span>
                   </div>
                   <Badge tone={LOCK_STATE_TONE[module.lockState]}>{module.lockState}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle as="h2">Weekly huddle attendance</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!attendance || attendance.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No huddle attendance recorded yet.</p>
+          ) : (
+            <ul className="space-y-3">
+              {attendance.map((entry) => (
+                <li key={entry.id} className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-foreground">Week {entry.weekNumber}</span>
+                  <Badge tone={ATTENDANCE_TONE[entry.status]}>{entry.status}</Badge>
                 </li>
               ))}
             </ul>

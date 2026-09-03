@@ -23,6 +23,7 @@ import { LessonsService } from './services/lessons.service';
 import { LearningResourcesService } from './services/learning-resources.service';
 import { PracticalTasksService } from './services/practical-tasks.service';
 import { CurriculumSnapshotService } from './services/curriculum-snapshot.service';
+import { FellowshipCloneService } from './services/fellowship-clone.service';
 
 /** Owns fellowships (the reusable programme template) and, since Milestone
  * 4, the full curriculum tree beneath it — Learning Track, Course, Weekly
@@ -59,6 +60,7 @@ import { CurriculumSnapshotService } from './services/curriculum-snapshot.servic
     LearningResourcesService,
     PracticalTasksService,
     CurriculumSnapshotService,
+    FellowshipCloneService,
   ],
   exports: [
     FellowshipsService,

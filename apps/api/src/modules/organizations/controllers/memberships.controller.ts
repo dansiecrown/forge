@@ -1,6 +1,9 @@
 import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Patch } from '@nestjs/common';
+import { RequirePermissions } from '../../../decorators/require-permissions.decorator';
 import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { AppException } from '../../../shared/errors/app.exception';
+import { requireOrganizationId } from '../../../shared/http/request-helpers';
+import { ActiveOrganizationId } from '../../../decorators/active-organization-id.decorator';
 import { UpdateMembershipStatusDto } from '../dtos/membership.dto';
 import { MembershipsService } from '../services/memberships.service';
 import { PermissionResolverService } from '../services/permission-resolver.service';
@@ -11,6 +14,22 @@ export class MembershipsController {
     private readonly membershipsService: MembershipsService,
     private readonly permissionResolver: PermissionResolverService,
   ) {}
+
+  @Get('organizations/:orgId/admins')
+  @RequirePermissions('organization.read')
+  listAdmins(@ActiveOrganizationId() organizationId: string | undefined) {
+    return this.membershipsService.listAdmins({
+      organizationId: requireOrganizationId(organizationId),
+    });
+  }
+
+  @Get('organizations/:orgId/membership-overview')
+  @RequirePermissions('organization.read')
+  getMembershipOverview(@ActiveOrganizationId() organizationId: string | undefined) {
+    return this.membershipsService.getOverview({
+      organizationId: requireOrganizationId(organizationId),
+    });
+  }
 
   @Get('users/:userId/memberships')
   async listForUser(

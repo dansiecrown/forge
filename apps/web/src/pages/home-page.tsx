@@ -11,9 +11,12 @@ export function HomePage() {
 
   // Role-aware landing: a STUDENT-only membership in the active organization
   // goes straight to the student portal, a MENTOR-only membership to the
-  // mentor portal. Everyone else (any other staff role present) keeps the
-  // existing stub — no general RBAC route-guard system, this is the entire
-  // scope of the redirect (Milestone 5, extended in Milestone 6).
+  // mentor portal, and any of the three admin roles to the admin console
+  // (Milestone 7 — previously only Student/Mentor were handled here, so
+  // every admin role landed on the generic stub below and had to type
+  // `/admin` manually). No general RBAC route-guard system beyond this and
+  // `RequireRole` — this is the entire scope of the redirect.
+  const ADMIN_ROLES = ['SUPER_ADMIN', 'ORG_ADMIN', 'ACADEMY_ADMIN'];
   const activeMembership = memberships.find((m) => m.organizationId === activeOrganizationId);
   if (
     activeMembership &&
@@ -28,6 +31,9 @@ export function HomePage() {
     activeMembership.roles[0] === 'MENTOR'
   ) {
     return <Navigate to="/mentor" replace />;
+  }
+  if (activeMembership && activeMembership.roles.some((role) => ADMIN_ROLES.includes(role))) {
+    return <Navigate to="/admin" replace />;
   }
 
   return (

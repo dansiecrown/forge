@@ -151,6 +151,40 @@ enum SubmissionReviewDecision {
   approved
 }
 
+// ---------------------------------------------------------------------------
+// Milestone 7 — Administration Platform. See
+// docs/adr/0009-administration-platform.md for the reconciliations between
+// docs/database-design.md's fuller (outbox-delivered Notification, 4-scope
+// versioned SystemSettings, mentor-recommendation certificate criterion) and
+// this schema's simplified equivalents.
+// ---------------------------------------------------------------------------
+
+enum AnnouncementScope {
+  platform
+  organization
+  academy
+  cohort
+}
+
+enum AnnouncementStatus {
+  draft
+  published
+  archived
+}
+
+enum CertificateStatus {
+  pending
+  issued
+  revoked
+}
+
+enum CohortApplicationStatus {
+  pending
+  approved
+  rejected
+  withdrawn
+}
+
 model User {
   id              String     @id @default(uuid())
   emailCanonical  String     @unique @map("email_canonical")
@@ -166,16 +200,20 @@ model User {
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(3)
 
-  externalIdentities      ExternalIdentity[]
-  passwordCredential      PasswordCredential?
-  authSessions            AuthSession[]
-  mfaFactors              MfaFactor[]
-  recoveryCodes           RecoveryCode[]
-  passwordResetTokens     PasswordResetToken[]
-  emailVerificationTokens EmailVerificationToken[]
-  memberships             Membership[]
-  enrollments             Enrollment[]
-  userProfile             UserProfile?
+  externalIdentities          ExternalIdentity[]
+  passwordCredential          PasswordCredential?
+  authSessions                AuthSession[]
+  mfaFactors                  MfaFactor[]
+  recoveryCodes               RecoveryCode[]
+  passwordResetTokens         PasswordResetToken[]
+  emailVerificationTokens     EmailVerificationToken[]
+  memberships                 Membership[]
+  enrollments                 Enrollment[]
+  userProfile                 UserProfile?
+  notifications               Notification[]
+  cohortApplicationsSubmitted CohortApplication[]      @relation("CohortApplicationApplicant")
+  cohortApplicationsReviewed  CohortApplication[]      @relation("CohortApplicationReviewer")
+  cohortApplicationsOnboarded CohortApplication[]      @relation("CohortApplicationResultingUser")
 
   @@index([status, lastLoginAt])
   @@map("users")
@@ -195,6 +233,7 @@ model UserProfile {
   id                          String   @id @default(uuid())
   userId                      String   @unique @map("user_id")
   bio                         String?
+  phone                       String?
   /// Labeled "Skills" for students, "Areas of Expertise" for mentors — same
   /// underlying field, relabeled per-role in the UI only.
   skills                      String[]
@@ -363,22 +402,26 @@ model Organization {
   createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  memberships       Membership[]
-  roles             Role[]
-  academies         Academy[]
-  fellowships       Fellowship[]
-  cohorts           Cohort[]
-  enrollments       Enrollment[]
-  learningTracks    LearningTrack[]
-  courses           Course[]
-  weeklyModules     WeeklyModule[]
-  lessons           Lesson[]
-  learningResources LearningResource[]
-  practicalTasks    PracticalTask[]
-  portfolioProjects PortfolioProject[]
-  huddleSessions    HuddleSession[]
-  submissionReviews SubmissionReview[]
-  mentorNotes       MentorNote[]
+  memberships          Membership[]
+  roles                Role[]
+  academies            Academy[]
+  fellowships          Fellowship[]
+  cohorts              Cohort[]
+  enrollments          Enrollment[]
+  learningTracks       LearningTrack[]
+  courses              Course[]
+  weeklyModules        WeeklyModule[]
+  lessons              Lesson[]
+  learningResources    LearningResource[]
+  practicalTasks       PracticalTask[]
+  portfolioProjects    PortfolioProject[]
+  huddleSessions       HuddleSession[]
+  submissionReviews    SubmissionReview[]
+  mentorNotes          MentorNote[]
+  announcements        Announcement[]
+  certificateTemplates CertificateTemplate[]
+  certificates         Certificate[]
+  cohortApplications   CohortApplication[]
 
   @@index([status, createdAt])
   @@map("organizations")
@@ -562,17 +605,20 @@ model Academy {
   branding       Json?
   contactEmail   String?       @map("contact_email")
   /// "Visibility" from the Milestone 3 brief — whether this academy appears
-  /// in any future public catalogue. No public catalogue exists yet.
+  /// in the public catalogue (`GET /public/fellowships`) added for the
+  /// Cohort Applications feature — see docs/adr/0010-cohort-applications.md.
   isPublic       Boolean       @default(false) @map("is_public")
   version        Int           @default(1)
   createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime?     @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  memberships  Membership[]
-  fellowships  Fellowship[]
-  cohorts      Cohort[]
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships        Membership[]
+  fellowships        Fellowship[]
+  cohorts            Cohort[]
+  announcements      Announcement[]
+  cohortApplications CohortApplication[]
 
   @@index([organizationId, status])
   @@map("academies")
@@ -604,11 +650,14 @@ model Fellowship {
   updatedAt            DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt            DateTime?        @map("deleted_at") @db.Timestamptz(3)
 
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  academy        Academy         @relation(fields: [academyId], references: [id], onDelete: Restrict)
-  cohorts        Cohort[]
-  enrollments    Enrollment[]
-  learningTracks LearningTrack[]
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  academy              Academy               @relation(fields: [academyId], references: [id], onDelete: Restrict)
+  cohorts              Cohort[]
+  enrollments          Enrollment[]
+  learningTracks       LearningTrack[]
+  certificateTemplates CertificateTemplate[]
+  certificates         Certificate[]
+  cohortApplications   CohortApplication[]
 
   @@index([academyId, status])
   @@map("fellowships")
@@ -644,13 +693,15 @@ model Cohort {
   updatedAt            DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt            DateTime?    @map("deleted_at") @db.Timestamptz(3)
 
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  academy        Academy         @relation(fields: [academyId], references: [id], onDelete: Restrict)
-  fellowship     Fellowship      @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
-  mentors        CohortMentor[]
-  enrollments    Enrollment[]
-  huddleSessions HuddleSession[]
-  mentorNotes    MentorNote[]
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  academy            Academy             @relation(fields: [academyId], references: [id], onDelete: Restrict)
+  fellowship         Fellowship          @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  mentors            CohortMentor[]
+  enrollments        Enrollment[]
+  huddleSessions     HuddleSession[]
+  mentorNotes        MentorNote[]
+  announcements      Announcement[]
+  cohortApplications CohortApplication[]
 
   @@index([organizationId, status, startsAt])
   @@index([fellowshipId, status])
@@ -762,6 +813,8 @@ model Enrollment {
   portfolioProjects        PortfolioProject[]
   huddleAttendance         HuddleAttendance[]
   mentorNotes              MentorNote[]
+  certificates             Certificate[]
+  resultingFromApplication CohortApplication?
 
   @@unique([cohortId, userId])
   @@index([userId])
@@ -831,10 +884,11 @@ model LearningTrack {
   updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt             DateTime?        @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  fellowship   Fellowship   @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
-  courses      Course[]
-  enrollments  Enrollment[]
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  fellowship         Fellowship          @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  courses            Course[]
+  enrollments        Enrollment[]
+  cohortApplications CohortApplication[]
 
   @@index([fellowshipId, status, displayOrder])
   @@map("learning_tracks")
@@ -1131,4 +1185,216 @@ model PortfolioProject {
 
   @@index([enrollmentId, displayOrder])
   @@map("portfolio_projects")
+}
+
+// ---------------------------------------------------------------------------
+// Milestone 7 — Administration Platform: Notification, Announcement,
+// CertificateTemplate, Certificate, SystemSettings. Reconciled against
+// docs/database-design.md in docs/adr/0009-administration-platform.md.
+// ---------------------------------------------------------------------------
+
+// Append-only, matching AuditLog's precedent — no update/delete method ever.
+// actorUserId is a plain reference (no relation), same convention AuditLog
+// already established for actor columns.
+model Notification {
+  id              String    @id @default(uuid())
+  organizationId  String?   @map("organization_id")
+  recipientUserId String    @map("recipient_user_id")
+  actorUserId     String?   @map("actor_user_id")
+  /// Freeform, matching AuditLog.action's precedent — e.g. "announcement.published".
+  type            String
+  title           String
+  body            String
+  /// Polymorphic source reference, same pair-of-columns shape as
+  /// AuditLog.entityType/entityId.
+  entityType      String?   @map("entity_type")
+  entityId        String?   @map("entity_id")
+  readAt          DateTime? @map("read_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  recipient User @relation(fields: [recipientUserId], references: [id], onDelete: Restrict)
+
+  @@index([recipientUserId, readAt, createdAt(sort: Desc)])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+// Direct synchronous persistence only — no delivery channel/outbox table.
+// Publishing fans out one Notification per resolved recipient. See
+// docs/adr/0009-administration-platform.md Decision 1.
+model Announcement {
+  id             String             @id @default(uuid())
+  organizationId String?            @map("organization_id")
+  academyId      String?            @map("academy_id")
+  cohortId       String?            @map("cohort_id")
+  scope          AnnouncementScope
+  authorUserId   String             @map("author_user_id")
+  title          String
+  body           String
+  status         AnnouncementStatus @default(draft)
+  publishedAt    DateTime?          @map("published_at") @db.Timestamptz(3)
+  version        Int                @default(1)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime?          @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  academy      Academy?      @relation(fields: [academyId], references: [id], onDelete: Restrict)
+  cohort       Cohort?       @relation(fields: [cohortId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, publishedAt(sort: Desc)])
+  @@index([cohortId, publishedAt(sort: Desc)])
+  @@map("announcements")
+}
+
+model CertificateTemplate {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  /// Null = organization-wide default template, reused across fellowships.
+  fellowshipId   String?   @map("fellowship_id")
+  name           String
+  /// Placeholder markup (e.g. {{studentName}}) consumed by the frontend's
+  /// browser-print PDF generation — no server-side rendering, no PDF library.
+  bodyHtml       String    @map("body_html")
+  status         String    @default("active")
+  version        Int       @default(1)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  fellowship   Fellowship?   @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  certificates Certificate[]
+
+  @@index([organizationId, status])
+  @@map("certificate_templates")
+}
+
+// Eligibility rule (90% required-lesson completion, 75% attendance, all
+// required PracticalTask submissions approved, admin approval at issue time)
+// intentionally omits docs/database-design.md's "mentor recommendation" step
+// — not part of this milestone's feature list. See
+// docs/adr/0009-administration-platform.md Decision 3.
+model Certificate {
+  id                    String            @id @default(uuid())
+  organizationId        String            @map("organization_id")
+  enrollmentId          String            @map("enrollment_id")
+  fellowshipId          String            @map("fellowship_id")
+  certificateTemplateId String            @map("certificate_template_id")
+  /// Globally unique opaque high-entropy code, resolved by the public
+  /// verification route.
+  verificationCode      String            @unique @map("verification_code")
+  status                CertificateStatus @default(pending)
+  /// Frozen eligibility-check evidence at issuance — same "frozen read-model,
+  /// never recomputed against live data" precedent as Cohort.curriculumSnapshot.
+  eligibilitySnapshot   Json              @map("eligibility_snapshot")
+  issuedAt              DateTime?         @map("issued_at") @db.Timestamptz(3)
+  issuedByUserId        String?           @map("issued_by_user_id")
+  revokedAt             DateTime?         @map("revoked_at") @db.Timestamptz(3)
+  revokedByUserId       String?           @map("revoked_by_user_id")
+  revokeReason          String?           @map("revoke_reason")
+  version               Int               @default(1)
+  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  enrollment          Enrollment          @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  fellowship          Fellowship          @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  certificateTemplate CertificateTemplate @relation(fields: [certificateTemplateId], references: [id], onDelete: Restrict)
+
+  @@unique([enrollmentId, fellowshipId])
+  @@index([organizationId, status, issuedAt(sort: Desc)])
+  @@map("certificates")
+}
+
+// A request to join a public Cohort, submitted either by an existing
+// authenticated user (`applicantUserId` set) or an anonymous prospect with
+// no platform account yet (`prospectEmail`/`prospectDisplayName` set) — see
+// docs/adr/0010-cohort-applications.md. Approval is a manual admin action
+// that orchestrates User creation (if needed, reusing the existing invite
+// mechanism), Membership creation, and Enrollment creation in one step,
+// applying `requestedLearningTrackId` if set.
+//
+// Uniqueness: "one pending application per (cohort, prospect email)" and
+// "one pending application per (cohort, applicant user)" are partial indexes
+// ("WHERE status = 'pending'"), which Prisma's schema DSL cannot express —
+// hand-written in the migration SQL, the same pattern as Role/CohortMentor
+// above. The applicant-XOR-prospect invariant is similarly a hand-written
+// CHECK constraint, not expressible here.
+model CohortApplication {
+  id                       String                  @id @default(uuid())
+  organizationId           String                  @map("organization_id")
+  /// Denormalized from the cohort, matching Cohort.academyId's own
+  /// denormalization precedent — lets the admin approval queue reuse
+  /// MembershipsService.getAcademyScope() exactly like every other admin list.
+  academyId                String                  @map("academy_id")
+  fellowshipId             String                  @map("fellowship_id")
+  cohortId                 String                  @map("cohort_id")
+  /// Set when submitted by an already-authenticated user. Mutually exclusive
+  /// with prospectEmail — enforced by a hand-written CHECK constraint.
+  applicantUserId          String?                 @map("applicant_user_id")
+  /// Set when submitted anonymously by someone with no platform account yet.
+  /// Stored lowercased/trimmed to match UsersRepository's own convention.
+  prospectEmail            String?                 @map("prospect_email")
+  prospectDisplayName      String?                 @map("prospect_display_name")
+  requestedLearningTrackId String?                 @map("requested_learning_track_id")
+  note                     String?
+  status                   CohortApplicationStatus @default(pending)
+  reviewedByUserId         String?                 @map("reviewed_by_user_id")
+  reviewedAt               DateTime?               @map("reviewed_at") @db.Timestamptz(3)
+  rejectionReason          String?                 @map("rejection_reason")
+  /// Set once approved. Points at whichever User the application resolved
+  /// to — the existing applicant, or the newly-invited prospect.
+  resultingUserId          String?                 @map("resulting_user_id")
+  resultingEnrollmentId    String?                 @unique @map("resulting_enrollment_id")
+  version                  Int                     @default(1)
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization           Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  academy                Academy        @relation(fields: [academyId], references: [id], onDelete: Restrict)
+  fellowship             Fellowship     @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  cohort                 Cohort         @relation(fields: [cohortId], references: [id], onDelete: Restrict)
+  applicant              User?          @relation("CohortApplicationApplicant", fields: [applicantUserId], references: [id], onDelete: Restrict)
+  requestedLearningTrack LearningTrack? @relation(fields: [requestedLearningTrackId], references: [id], onDelete: SetNull)
+  reviewedBy             User?          @relation("CohortApplicationReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  resultingUser          User?          @relation("CohortApplicationResultingUser", fields: [resultingUserId], references: [id], onDelete: SetNull)
+  resultingEnrollment    Enrollment?    @relation(fields: [resultingEnrollmentId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([academyId, status])
+  @@index([applicantUserId])
+  @@index([cohortId])
+  @@map("cohort_applications")
+}
+
+// Single global singleton row — application always operates on the fixed id
+// 'global' (seeded once in the migration). Platform-wide only, no
+// per-organization override — a deliberately narrower design than
+// docs/database-design.md's 4-scope-level versioned configuration engine.
+// Policy fields are stored/served for the admin UI only, not yet wired into
+// live enforcement in the identity module's auth flows. See
+// docs/adr/0009-administration-platform.md Decision 5.
+model SystemSettings {
+  id               String   @id @default("global")
+  platformName     String   @default("Project Forge") @map("platform_name")
+  logoAssetId      String?  @map("logo_asset_id")
+  primaryColor     String?  @map("primary_color")
+  defaultTheme     String   @default("dark") @map("default_theme")
+  maintenanceMode  Boolean  @default(false) @map("maintenance_mode")
+  registrationOpen Boolean  @default(true) @map("registration_open")
+  /// Stored, not machine-interpreted yet — same "stored metadata" precedent
+  /// as WeeklyModule.unlockRules.
+  passwordPolicy   Json?    @map("password_policy")
+  sessionPolicy    Json?    @map("session_policy")
+  mfaPolicy        Json?    @map("mfa_policy")
+  /// Single platform-wide boolean map — not the fuller per-organization
+  /// feature_flags/feature_flag_assignments rollout system documented for
+  /// later work.
+  featureFlags     Json?    @map("feature_flags")
+  version          Int      @default(1)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedByUserId  String?  @map("updated_by_user_id")
+
+  @@map("system_settings")
 }

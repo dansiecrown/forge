@@ -184,7 +184,7 @@ export class SubmissionReviewsService {
 
     const [user, cohort, task] = await Promise.all([
       this.usersService.getById(enrollment.userId),
-      this.cohortsService.get(scope, enrollment.cohortId),
+      this.cohortsService.get(scope, enrollment.cohortId, callerId),
       this.practicalTasksService.get(scope, submission.practicalTaskId),
     ]);
 

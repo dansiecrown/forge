@@ -47,15 +47,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [memberships, setMemberships] = useState<SessionMembership[]>([]);
 
   const applySuccessfulLogin = useCallback(
-    (response: Extract<LoginResponse, { mfaRequired: false }>) => {
+    async (response: Extract<LoginResponse, { mfaRequired: false }>) => {
       accessTokenRef.current = response.accessToken;
       setUser(response.user);
-      setStatus('authenticated');
       // The login response doesn't carry memberships (docs/api-specification.md
-      // §4.1) — fetch them once so the organization switcher has data.
-      void fetchMe()
-        .then((me) => setMemberships(me.memberships))
-        .catch(() => setMemberships([]));
+      // §4.1) — fetched here and awaited before flipping to 'authenticated',
+      // so role-gated routes (e.g. RequireRole) never see a transient empty
+      // memberships array and bounce a legitimately-authorized caller to
+      // /unauthorized before their real roles have loaded.
+      try {
+        const me = await fetchMe();
+        setMemberships(me.memberships);
+      } catch {
+        setMemberships([]);
+      }
+      setStatus('authenticated');
     },
     [],
   );
@@ -136,7 +142,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string) => {
       const response = await loginRequest({ email, password });
       if (!response.mfaRequired) {
-        applySuccessfulLogin(response);
+        await applySuccessfulLogin(response);
       }
       return response;
     },
@@ -147,7 +153,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     async (challengeToken: string, code: string) => {
       const response = await verifyMfa({ code }, challengeToken);
       if (!response.mfaRequired) {
-        applySuccessfulLogin(response);
+        await applySuccessfulLogin(response);
       }
       return response;
     },

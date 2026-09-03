@@ -8,6 +8,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { ResponseInterceptor } from './interceptors/response.interceptor';
 import { RequestIdMiddleware } from './middlewares/request-id.middleware';
+import { AdminModule } from './modules/admin/admin.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { CohortsModule } from './modules/cohorts/cohorts.module';
 import { IdentityModule } from './modules/identity/identity.module';
@@ -27,6 +28,7 @@ import { HealthController } from './health.controller';
     CohortsModule,
     LearningModule,
     IdentityModule,
+    AdminModule,
   ],
   controllers: [HealthController],
   providers: [

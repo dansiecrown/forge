@@ -133,6 +133,73 @@ export class RolesService {
     });
   }
 
+  /** Composes existing `role.read`+`role.create` permission checks (no new
+   * key) — copies a source role's current permission grants onto a new
+   * role, via the existing `create()` path. */
+  async clone(
+    sourceRoleId: string,
+    input: { name: string; key: string },
+    scope: TenantScope,
+    actorUserId?: string,
+  ): Promise<RoleWithPermissions> {
+    const source = await this.get(sourceRoleId, scope.organizationId);
+    const role = await this.create(
+      scope,
+      {
+        name: input.name,
+        key: input.key,
+        permissionIds: source.rolePermissions.map((rp) => rp.permission.id),
+      },
+      actorUserId,
+    );
+
+    await this.auditLog.record({
+      action: 'role.cloned',
+      entityType: 'role',
+      entityId: role.id,
+      outcome: 'success',
+      organizationId: scope.organizationId,
+      actorUserId,
+      metadata: { sourceRoleId },
+    });
+    return role;
+  }
+
+  /** Every role (system + this organization's custom roles) × every
+   * permission, in one response — the Role & Permission Management
+   * permission-matrix view. */
+  async getPermissionMatrix(scope: TenantScope): Promise<{
+    permissions: { id: string; key: string; resource: string; action: string }[];
+    roles: {
+      id: string;
+      key: string;
+      name: string;
+      isSystem: boolean;
+      grantedPermissionIds: string[];
+    }[];
+  }> {
+    const [permissions, roles] = await Promise.all([
+      this.permissionsRepository.list(),
+      this.rolesRepository.listForOrganization(scope.organizationId),
+    ]);
+
+    return {
+      permissions: permissions.map((p) => ({
+        id: p.id,
+        key: p.key,
+        resource: p.resource,
+        action: p.action,
+      })),
+      roles: roles.map((role) => ({
+        id: role.id,
+        key: role.key,
+        name: role.name,
+        isSystem: role.isSystem,
+        grantedPermissionIds: role.rolePermissions.map((rp) => rp.permission.id),
+      })),
+    };
+  }
+
   private async assertPermissionsExist(permissionIds: string[]): Promise<void> {
     if (permissionIds.length === 0) return;
     const found = await this.permissionsRepository.findByIds(permissionIds);

@@ -79,6 +79,21 @@ export class EnrollmentsService {
     return toEnrollmentEntity(enrollment);
   }
 
+  /** Used by `CohortApplicationsService.approve()` to make approval
+   * idempotent — looked up before falling back to `create()`, so a retried
+   * approval never double-creates. Not exposed over HTTP. */
+  async findByCohortAndUser(
+    scope: TenantScope,
+    cohortId: string,
+    userId: string,
+  ): Promise<EnrollmentEntity | null> {
+    const enrollment = await this.enrollmentsRepository.findByCohortAndUser(cohortId, userId);
+    if (!enrollment || enrollment.organizationId !== scope.organizationId) {
+      return null;
+    }
+    return toEnrollmentEntity(enrollment);
+  }
+
   /** Enrolls a student into a cohort. Business rules enforced here
    * (capacity, active membership) plus, at the database level, "only one
    * active/pending Enrollment per Fellowship" via the partial unique index
@@ -88,9 +103,9 @@ export class EnrollmentsService {
     scope: TenantScope,
     cohortId: string,
     studentUserId: string,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<EnrollmentEntity> {
-    const cohort = await this.cohortsService.assertExists(scope, cohortId);
+    const cohort = await this.cohortsService.assertExists(scope, cohortId, actorUserId);
 
     const isMember = await this.membershipsService.hasActiveMembership(scope, studentUserId);
     if (!isMember) {

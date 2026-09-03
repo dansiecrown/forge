@@ -39,6 +39,12 @@ export function LessonReaderPage() {
   }
 
   const canEmbed = EMBEDDABLE_TYPES.has(lesson.lessonType) && Boolean(lesson.resourceUrl);
+  const completeLessonError =
+    completeLesson.error instanceof ApiError
+      ? completeLesson.error.message
+      : completeLesson.error
+        ? 'Could not mark this lesson complete. Try again.'
+        : null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -99,6 +105,8 @@ export function LessonReaderPage() {
           Open resource <ExternalLink className="size-3.5" aria-hidden="true" />
         </a>
       ) : null}
+
+      {completeLessonError ? <Alert variant="danger">{completeLessonError}</Alert> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border pt-6">
         <div className="flex gap-2">

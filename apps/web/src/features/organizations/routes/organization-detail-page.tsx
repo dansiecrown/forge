@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { apiRequest, ApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/form-field';
 import { useActiveOrganization } from '@/contexts/organization-context';
+import { usePermissions } from '@/hooks/use-permissions';
 import {
   useOrganizationLifecycleActions,
   useUpdateOrganization,
@@ -37,6 +39,27 @@ export function OrganizationDetailPage() {
   const updateOrganization = useUpdateOrganization(orgId ?? '', activeOrganizationId);
   const { suspend, archive, restore } = useOrganizationLifecycleActions(orgId ?? '');
   const [pendingAction, setPendingAction] = useState<'suspend' | 'archive' | null>(null);
+  const permissions = usePermissions();
+  const stats = useQuery({
+    queryKey: ['admin-organization-stats', orgId],
+    queryFn: () =>
+      apiRequest<{
+        academyCount: number;
+        fellowshipCount: number;
+        cohortCount: number;
+        enrollmentCount: number;
+        certificatesIssued: number;
+      }>(`/admin/organizations/${orgId}/stats`, { organizationId: activeOrganizationId }),
+    enabled: Boolean(orgId && activeOrganizationId),
+  });
+  const admins = useQuery({
+    queryKey: ['admin-organization-admins', orgId],
+    queryFn: () =>
+      apiRequest<{ id: string; userId: string }[]>(`/organizations/${orgId}/admins`, {
+        organizationId: activeOrganizationId,
+      }),
+    enabled: Boolean(orgId && activeOrganizationId),
+  });
 
   const form = useForm<UpdateOrganizationFormValues>({
     resolver: zodResolver(updateOrganizationSchema),
@@ -191,17 +214,17 @@ export function OrganizationDetailPage() {
             </form>
           ) : (
             <div className="flex flex-wrap gap-3">
-              {organization.status === 'active' ? (
+              {organization.status === 'active' && permissions.has('organization.suspend') ? (
                 <Button variant="secondary" onClick={() => setPendingAction('suspend')}>
                   Suspend
                 </Button>
               ) : null}
-              {organization.status !== 'archived' ? (
+              {organization.status !== 'archived' && permissions.has('organization.archive') ? (
                 <Button variant="destructive" onClick={() => setPendingAction('archive')}>
                   Archive
                 </Button>
               ) : null}
-              {organization.status === 'archived' ? (
+              {organization.status === 'archived' && permissions.has('organization.restore') ? (
                 <Button
                   variant="secondary"
                   loading={restore.isPending}
@@ -210,7 +233,7 @@ export function OrganizationDetailPage() {
                   Restore
                 </Button>
               ) : null}
-              {organization.status === 'suspended' ? (
+              {organization.status === 'suspended' && permissions.has('organization.restore') ? (
                 <Button
                   variant="secondary"
                   loading={restore.isPending}
@@ -219,7 +242,72 @@ export function OrganizationDetailPage() {
                   Reactivate
                 </Button>
               ) : null}
+              {!permissions.has('organization.suspend') &&
+              !permissions.has('organization.archive') ? (
+                <p className="text-sm text-muted-foreground">
+                  Your role can view this organization but not change its lifecycle status.
+                </p>
+              ) : null}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle as="h2">Statistics</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {stats.data ? (
+            <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-muted-foreground">Academies</dt>
+                <dd className="text-lg font-semibold text-foreground">{stats.data.academyCount}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Fellowships</dt>
+                <dd className="text-lg font-semibold text-foreground">
+                  {stats.data.fellowshipCount}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Cohorts</dt>
+                <dd className="text-lg font-semibold text-foreground">{stats.data.cohortCount}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Enrollments</dt>
+                <dd className="text-lg font-semibold text-foreground">
+                  {stats.data.enrollmentCount}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Certificates issued</dt>
+                <dd className="text-lg font-semibold text-foreground">
+                  {stats.data.certificatesIssued}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="text-sm text-muted-foreground">Loading statistics…</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle as="h2">Organization administrators</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {admins.data && admins.data.length > 0 ? (
+            <ul className="space-y-2 text-sm">
+              {admins.data.map((admin) => (
+                <li key={admin.id} className="font-mono text-xs text-muted-foreground">
+                  {admin.userId}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">No organization admins assigned yet.</p>
           )}
         </CardContent>
       </Card>

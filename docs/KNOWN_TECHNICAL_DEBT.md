@@ -91,23 +91,43 @@ Format: **ID** — Title, then Description / Priority / Reason for deferral / Pl
 - **Reason for deferral:** Works correctly today (covered by existing tests); refactoring authorization code carries real regression risk that isn't worth taking without dedicated test coverage written specifically for the refactor.
 - **Planned milestone:** Alongside DEBT-005/DEBT-007, when the module gets broader attention.
 
-**DEBT-015 — Academy-scoped permission enforcement is anchored but not deep**
+**DEBT-015 — Academy-scoped permission enforcement is anchored but not deep — CLOSED for the core hierarchy (2026-07-30)**
 - **Description:** Milestone 3 added `Membership.academyId` (per ADR-0003's deferral) so an academy-scoped membership (e.g. `ACADEMY_ADMIN`) can point at a specific `Academy` row. `PermissionResolverService` was not extended to actually use it — resolved permissions are still purely organization-scoped; nothing currently checks that an `ACADEMY_ADMIN`'s actions stay within their own academy.
 - **Priority:** Medium
-- **Reason for deferral:** Building real academy-level authorization (layer 3, "resource policy," per `docs/system-architecture.md` §7) is a meaningfully sized change to the shared permission resolver, not a mechanical fix, and no academy-scoped role is exercised by any UI yet (admin UI in this milestone is organization-scoped).
-- **Planned milestone:** When an Academy Admin-facing surface is built (roadmap Phase 4/6 territory).
 - **Status (2026-07-29):** `MENTOR`'s cohort-scoping gap is closed — Milestone 6's
   `assertMentorAssignedToCohort` helper plus the tightened `ProgressionService.assertCanRead` now
   enforce that a mentor can only read a learner's progress/curriculum/portfolio data when actively
   assigned to that learner's cohort (`docs/adr/0008-mentor-experience.md` Decision 3). This debt item
   remains open for `ACADEMY_ADMIN` specifically — an academy-scoped admin's actions are still not
   checked against their own academy anywhere.
+- **Resolution (2026-07-30):** A live bug report ("Academy Admin sees all academies, not just their
+  own") surfaced that Milestone 7's new admin surface had exactly this gap, plus a second,
+  worse one: the User Management list had *zero* organization scoping at all (any authenticated
+  admin saw every user on the platform). Fixed by adding `MembershipsService.getAcademyScope()` —
+  Super Admin and any organization-scoped role (`ORG_ADMIN`) resolve to unrestricted; an
+  academy-scoped role resolves to `{ restricted: true, academyId }`, confined to the one Academy
+  its membership is anchored to (or to nothing, if never anchored — the safe default). This is
+  enforced at each module's existing existence-check chokepoint (`AcademiesService.get`,
+  `FellowshipsService.get`, `CohortsService.get` — every mutation already routes through `get()`
+  first, so gating it there closes read *and* write paths in one place), plus a new
+  `AdminUsersRepository` (Prisma-direct, same precedent as `AdminStatsRepository`) that scopes the
+  User Management list/detail by organization membership and, when restricted, by academy
+  (`Membership.academyId` or `Enrollment.academyId`). See `docs/adr/0009-administration-platform.md`
+  Decision 6.
+- **Remaining gap (not closed):** The curriculum-content tree (Learning Tracks/Courses/Weekly
+  Modules/Lessons/Resources/Practical Tasks) does not carry caller identity through its own internal
+  existence-check chain (`LearningTracksService` etc. call the new `FellowshipsService.assertExistsInOrg`,
+  an org-scope-only check, deliberately not the academy-scoped `get()`) — an Academy Admin can still
+  read/edit curriculum content nested under a fellowship outside their academy. Also not covered:
+  Reports, Audit Center, Certificates, Announcements. Tracked as follow-up; out of scope for this fix
+  (the reported gap was Academy/Fellowship/Cohort/User visibility specifically).
+- **Planned milestone:** Curriculum-tree and Reports/Audit/Certificates/Announcements academy-scoping,
+  next time either surface gets dedicated attention.
 
-**DEBT-016 — Academy archive / Fellowship retire do not block on active descendants**
-- **Description:** `docs/database-design.md` documents Academy as "cannot delete while active fellowship/cohort records exist" and Fellowship as "never delete with cohorts." Neither is enforced — archiving an Academy with active Fellowships/Cohorts beneath it, or retiring a Fellowship with active Cohorts, currently succeeds.
-- **Priority:** Medium
-- **Reason for deferral:** Enforcing it cleanly requires the owning module (`organizations`, `catalog`) to query its descendant module (`cohorts`), inverting the one-directional dependency chain (`organizations → catalog → cohorts`) `docs/project-structure.md`'s module-boundary rule establishes. Needs a deliberate cross-module invariant pattern (e.g. a read-model or domain event), not an ad hoc reverse import.
-- **Planned milestone:** Alongside whichever milestone first needs cross-module aggregate invariants generally, not just for this one case.
+**DEBT-016 — Academy archive / Fellowship retire do not block on active descendants — CLOSED (2026-07-30)**
+- **Description:** `docs/database-design.md` documents Academy as "cannot delete while active fellowship/cohort records exist" and Fellowship as "never delete with cohorts." Neither was enforced — archiving an Academy with active Fellowships/Cohorts beneath it, or retiring a Fellowship with active Cohorts, previously succeeded.
+- **Resolution:** Milestone 7 added a new cross-cutting `AdminModule` (`apps/api/src/modules/admin/`) that imports both sides of the chain and validates child-entity state before delegating to the unmodified `AcademiesService.archive()`/`FellowshipsService.retire()` — a new top-level composition point above the chain, not an inverted import. New routes `POST /admin/academies/:id/actions/archive` and `POST /admin/fellowships/:id/actions/retire` are the validated entry points; the original unvalidated routes are left in place for backward compatibility. See `docs/adr/0009-administration-platform.md` Decision 0.
+- **Planned milestone:** Resolved in Milestone 7 (Administration Platform).
 
 **DEBT-017 — Admin UI ships ahead of the Phase-5 web application shell**
 - **Description:** `apps/web/src/layouts/admin-layout.tsx` is a minimal, purpose-built shell (sidebar nav + org switcher) for the four Milestone 3 admin sections. `docs/development-roadmap.md` Phase 5 describes a fuller "web application shell and shared experience foundation" (route/cache conventions, shared session/tenant/theme context patterns) that doesn't exist yet.
@@ -266,13 +286,65 @@ machine-interpreted**
   for author-private notes emerges.
 - **Planned milestone:** Not currently planned; revisit on product request.
 
-**DEBT-026 — Notification Center and Notification Preferences are frontend-only placeholders**
+**DEBT-026 — Notification Center and Notification Preferences are frontend-only placeholders — PARTIALLY CLOSED (2026-07-30)**
 - **Description:** The header bell, the full `/portal/notifications` page, and Settings ->
   Notifications all render hardcoded placeholder data with local component/`localStorage` state only.
-  No `Notification` Prisma model, no `GET /notifications`, no `GET/PATCH /notification-preferences`
-  exist — verified live that opening the bell fires zero backend network calls.
+  Previously no `Notification` Prisma model, no `GET /notifications`, no
+  `GET/PATCH /notification-preferences` existed at all.
+- **Status (2026-07-30):** Milestone 7 built a real `Notification` model and
+  `GET /me/notifications` / `POST /me/notifications/:id/actions/mark-read` (`PlatformModule`'s
+  `NotificationsService`), populated by `Announcement.publish()`'s audience fan-out — see
+  `docs/adr/0009-administration-platform.md` Decision 1. The frontend header bell,
+  `/portal/notifications` page, and Settings -> Notifications tab were **not** rewired to this new
+  backend this milestone (out of explicit scope — Milestone 7 is the Administration Platform, not a
+  portal-UI pass) and still render placeholder data; no `GET/PATCH /notification-preferences` exists.
 - **Priority:** Low
-- **Reason for deferral:** Explicit brief instruction ("UI only... no backend notification engine").
-  The documented `Notification` entity (`database-design.md` §5) and preferences endpoints
-  (`api-specification.md` §4.9) remain correctly deferred, not contradicted.
-- **Planned milestone:** Roadmap Phase 10 (Communications, calendar and integration delivery).
+- **Reason for deferral:** The remaining frontend-wiring gap is a portal-UI task, not an
+  Administration Platform one; `NotificationsService` is a ready-to-call primitive waiting for it.
+- **Planned milestone:** Whichever milestone next touches the student/mentor portal notification UI.
+
+**DEBT-027 — System Settings policy fields are stored/editable but not enforced**
+- **Description:** `SystemSettings.passwordPolicy`/`sessionPolicy`/`mfaPolicy`/`featureFlags` are
+  admin-readable and admin-editable via `GET/PATCH /admin/settings`, but nothing in the `identity`
+  module reads them — password strength rules, session TTL, MFA requirements, and registration
+  gating all still run on their existing hardcoded/config-driven behavior.
+- **Priority:** Medium
+- **Reason for deferral:** `SystemSettingsService` is deliberately exported from `PlatformModule`
+  (reachable from `identity`, no chain inversion) so wiring is a clean follow-up, but actually
+  rewiring already-tested authentication flows to branch on stored policy is a materially riskier
+  change than this milestone's "build the Administration Platform" scope. See
+  `docs/adr/0009-administration-platform.md` Decision 5.
+- **Planned milestone:** Whichever milestone next revisits `identity`'s auth policy enforcement.
+
+**DEBT-028 — `SystemSettings`/`featureFlags` are single global values, not per-organization**
+- **Description:** `docs/database-design.md`'s System Settings design and `docs/api-specification.md`
+  §5's `GET/PATCH /platform/feature-flags/:key` describe a 4-scope-level (platform/organization/
+  academy/fellowship) versioned configuration/rollout system. This milestone implements one global
+  singleton row and one platform-wide `featureFlags` JSON boolean map instead.
+- **Priority:** Low
+- **Reason for deferral:** Disclosed, deliberate narrowing — branding/maintenance mode aren't
+  organization-scoped concepts anywhere else in this schema, and the brief's own flat field list has
+  no per-scope override requirement. See ADR-0009 Decision 5.
+- **Planned milestone:** Not currently planned; revisit if a real per-organization override need
+  emerges.
+
+**DEBT-029 — Certificate PDF generation has no server-side fallback**
+- **Description:** Certificates render as `{{placeholder}}`-templated HTML the frontend prints via
+  the browser's native `window.print()`. There is no server-side PDF rendering, so a certificate
+  cannot be generated headlessly (e.g. for an automated email attachment) without a browser.
+- **Priority:** Low
+- **Reason for deferral:** Explicit brief instruction to avoid a new PDF-generation dependency. See
+  ADR-0009 Decision 4.
+- **Planned milestone:** If/when automated certificate delivery (email attachment) is built.
+
+**DEBT-030 — Communication Center notifications are triggered by announcement publish only**
+- **Description:** `NotificationsService.notify()`/`notifyMany()` are generic, ready-to-call
+  primitives, but no existing domain event elsewhere in the codebase (submission approved, huddle
+  recorded, mentor note added, certificate issued, etc.) calls them — only
+  `AnnouncementsService.publish()` does.
+- **Priority:** Low
+- **Reason for deferral:** Retrofitting every existing service's domain events to also emit
+  notifications is a materially larger, unscoped refactor than "Communication Center." See ADR-0009
+  Decision 1.
+- **Planned milestone:** Not currently planned; revisit on product request for specific event-driven
+  notifications.

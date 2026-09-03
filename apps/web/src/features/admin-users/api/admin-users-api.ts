@@ -1,0 +1,90 @@
+import type { AdminAuditLogEntry, AdminSessionSummary } from '@forge/api-contract';
+import { apiRequest, apiRequestPage, type Page } from '@/api/client';
+
+interface AdminUser {
+  id: string;
+  displayName: string;
+  emailCanonical: string;
+  status: string;
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
+function buildQuery(params: Record<string, string | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) search.set(key, value);
+  }
+  const query = search.toString();
+  return query ? `?${query}` : '';
+}
+
+export function listAdminUsers(
+  q: string | undefined,
+  cursor: string | undefined,
+  organizationId?: string,
+) {
+  return apiRequestPage<AdminUser>(`/admin/users${buildQuery({ q, cursor })}`, { organizationId });
+}
+
+export function getAdminUser(userId: string, organizationId?: string): Promise<AdminUser> {
+  return apiRequest<AdminUser>(`/admin/users/${userId}`, { organizationId });
+}
+
+export function suspendUser(userId: string, organizationId: string): Promise<void> {
+  return apiRequest(`/admin/users/${userId}/actions/suspend`, { method: 'POST', organizationId });
+}
+
+export function reactivateUser(userId: string, organizationId: string): Promise<void> {
+  return apiRequest(`/admin/users/${userId}/actions/reactivate`, {
+    method: 'POST',
+    organizationId,
+  });
+}
+
+export function resetMfa(userId: string, organizationId: string): Promise<void> {
+  return apiRequest(`/admin/users/${userId}/actions/reset-mfa`, { method: 'POST', organizationId });
+}
+
+export function forcePasswordReset(userId: string, organizationId: string): Promise<void> {
+  return apiRequest(`/admin/users/${userId}/actions/force-password-reset`, {
+    method: 'POST',
+    organizationId,
+  });
+}
+
+export function listUserSessions(
+  userId: string,
+  organizationId: string,
+): Promise<Page<AdminSessionSummary>> {
+  return apiRequestPage<AdminSessionSummary>(`/admin/users/${userId}/sessions`, { organizationId });
+}
+
+export function revokeSession(
+  userId: string,
+  sessionId: string,
+  organizationId: string,
+): Promise<void> {
+  return apiRequest(`/admin/users/${userId}/sessions/${sessionId}`, {
+    method: 'DELETE',
+    organizationId,
+  });
+}
+
+export function revokeAllSessions(userId: string, organizationId: string): Promise<void> {
+  return apiRequest(`/admin/users/${userId}/sessions/actions/revoke-all`, {
+    method: 'POST',
+    organizationId,
+  });
+}
+
+export function getLoginHistory(
+  userId: string,
+  organizationId: string,
+): Promise<Page<AdminAuditLogEntry>> {
+  return apiRequestPage<AdminAuditLogEntry>(`/admin/users/${userId}/login-history`, {
+    organizationId,
+  });
+}
+
+export type { AdminUser };

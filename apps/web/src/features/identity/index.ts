@@ -7,6 +7,7 @@ export {
   disableMfa,
   enrollMfa,
   fetchMe,
+  fetchMyPermissions,
   listSessions,
   login,
   logout,

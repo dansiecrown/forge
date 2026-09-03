@@ -69,6 +69,10 @@ import { SubmissionReviewsService } from './services/submission-reviews.service'
     MentorWorkspaceService,
     MentorDashboardService,
   ],
-  exports: [ProgressionService],
+  // MentorWorkspaceService is additionally exported (Milestone 7) so
+  // AdminModule can reuse its cohort-roster/at-risk logic for Cohort
+  // Management instead of re-implementing it — see
+  // docs/adr/0009-administration-platform.md.
+  exports: [ProgressionService, MentorWorkspaceService],
 })
 export class LearningModule {}

@@ -6,6 +6,7 @@
 // `curriculumSnapshot`, not six independent resources.
 
 import type {
+  HuddleAttendanceWithWeek,
   ListLearningResourcesForStudentParams,
   StudentActivityItem,
   StudentDashboard,
@@ -79,6 +80,16 @@ export function getActivity(enrollmentId: string, limit: number, organizationId?
 
 export function getDashboard(enrollmentId: string, organizationId?: string) {
   return apiRequest<StudentDashboard>(`/enrollments/${enrollmentId}/dashboard`, {
+    organizationId,
+  });
+}
+
+/** Backed by `HuddleSessionsController`'s dual-path `GET
+ * /enrollments/:id/attendance` (self-owner or assigned mentor), not the
+ * curriculum controller — kept here anyway since Progress Center is the
+ * only student-facing consumer. */
+export function getMyAttendance(enrollmentId: string, organizationId?: string) {
+  return apiRequest<HuddleAttendanceWithWeek[]>(`/enrollments/${enrollmentId}/attendance`, {
     organizationId,
   });
 }

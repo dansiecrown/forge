@@ -14,6 +14,7 @@ export class AcademiesController {
   @RequirePermissions('academy.read')
   list(
     @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
     @Query('status') status?: string,
     @Query('q') q?: string,
     @Query('cursor') cursor?: string,
@@ -22,6 +23,7 @@ export class AcademiesController {
     return this.academiesService.list(
       { organizationId: requireOrganizationId(organizationId) },
       { status, q, cursor, limit },
+      user.id,
     );
   }
 
@@ -44,10 +46,12 @@ export class AcademiesController {
   get(
     @Param('academyId') academyId: string,
     @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
   ) {
     return this.academiesService.get(
       { organizationId: requireOrganizationId(organizationId) },
       academyId,
+      user.id,
     );
   }
 

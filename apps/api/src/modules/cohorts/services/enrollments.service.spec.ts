@@ -87,7 +87,7 @@ describe('EnrollmentsService', () => {
     );
 
     await expect(
-      service.create({ organizationId: 'org-1' }, 'cohort-1', 'user-1'),
+      service.create({ organizationId: 'org-1' }, 'cohort-1', 'user-1', 'actor-1'),
     ).rejects.toMatchObject({ response: { code: 'VALIDATION_ERROR' } });
   });
 
@@ -104,7 +104,7 @@ describe('EnrollmentsService', () => {
     );
 
     await expect(
-      service.create({ organizationId: 'org-1' }, 'cohort-1', 'user-1'),
+      service.create({ organizationId: 'org-1' }, 'cohort-1', 'user-1', 'actor-1'),
     ).rejects.toMatchObject({ response: { code: 'CAPACITY_REACHED' } });
   });
 
@@ -124,7 +124,7 @@ describe('EnrollmentsService', () => {
     );
 
     await expect(
-      service.create({ organizationId: 'org-1' }, 'cohort-1', 'user-1'),
+      service.create({ organizationId: 'org-1' }, 'cohort-1', 'user-1', 'actor-1'),
     ).rejects.toMatchObject({ response: { code: 'ACTIVE_ENROLLMENT_EXISTS' } });
   });
 

@@ -44,8 +44,13 @@ function fakeFellowshipsService(status: string = 'published'): FellowshipsServic
   } as unknown as FellowshipsService;
 }
 
-function fakeMembershipsService(): MembershipsService {
-  return {} as unknown as MembershipsService;
+/** Defaults to org-wide (unrestricted) access — matches Super Admin/Org
+ * Admin, the common case for existing tests. */
+function fakeMembershipsService(overrides: Partial<MembershipsService> = {}): MembershipsService {
+  return {
+    getAcademyScope: jest.fn(async () => ({ restricted: false, academyId: null })),
+    ...overrides,
+  } as unknown as MembershipsService;
 }
 
 function fakeCurriculumSnapshotService(): CurriculumSnapshotService {
@@ -75,7 +80,30 @@ describe('CohortsService', () => {
       fakeAuditLog(),
     );
 
-    await expect(service.get({ organizationId: 'org-2' }, 'cohort-1')).rejects.toMatchObject({
+    await expect(
+      service.get({ organizationId: 'org-2' }, 'cohort-1', 'caller-1'),
+    ).rejects.toMatchObject({
+      response: { code: 'NOT_FOUND' },
+    });
+  });
+
+  it("treats a cohort outside an Academy Admin's own academy as not found", async () => {
+    const repository: Partial<CohortsRepository> = {
+      findById: jest.fn(async () => fakeCohort({ academyId: 'academy-2' })),
+    };
+    const service = new CohortsService(
+      repository as CohortsRepository,
+      fakeFellowshipsService(),
+      fakeMembershipsService({
+        getAcademyScope: jest.fn(async () => ({ restricted: true, academyId: 'academy-1' })),
+      }),
+      fakeCurriculumSnapshotService(),
+      fakeAuditLog(),
+    );
+
+    await expect(
+      service.get({ organizationId: 'org-1' }, 'cohort-1', 'caller-1'),
+    ).rejects.toMatchObject({
       response: { code: 'NOT_FOUND' },
     });
   });
@@ -105,6 +133,7 @@ describe('CohortsService', () => {
           timezone: 'Africa/Lagos',
           capacity: 50,
         },
+        'caller-1',
       ),
     ).rejects.toMatchObject({ response: { code: 'VALIDATION_ERROR' } });
   });
@@ -123,11 +152,13 @@ describe('CohortsService', () => {
     );
 
     await expect(
-      service.activate({ organizationId: 'org-1' }, 'cohort-1', 3),
+      service.activate({ organizationId: 'org-1' }, 'cohort-1', 3, 'caller-1'),
     ).rejects.toMatchObject({
       response: { code: 'INVALID_STATE_TRANSITION' },
     });
-    await expect(service.pause({ organizationId: 'org-1' }, 'cohort-1', 3)).resolves.toMatchObject({
+    await expect(
+      service.pause({ organizationId: 'org-1' }, 'cohort-1', 3, 'caller-1'),
+    ).resolves.toMatchObject({
       status: 'paused',
     });
   });
@@ -144,7 +175,9 @@ describe('CohortsService', () => {
       fakeAuditLog(),
     );
 
-    await expect(service.pause({ organizationId: 'org-1' }, 'cohort-1', 1)).rejects.toMatchObject({
+    await expect(
+      service.pause({ organizationId: 'org-1' }, 'cohort-1', 1, 'caller-1'),
+    ).rejects.toMatchObject({
       response: { code: 'VERSION_CONFLICT' },
     });
   });
@@ -173,7 +206,12 @@ describe('CohortsService', () => {
       fakeAuditLog(),
     );
 
-    const result = await service.syncCurriculum({ organizationId: 'org-1' }, 'cohort-1', 1);
+    const result = await service.syncCurriculum(
+      { organizationId: 'org-1' },
+      'cohort-1',
+      1,
+      'caller-1',
+    );
 
     expect(updateCurriculumSnapshot).toHaveBeenCalledWith('cohort-1', freshSnapshot);
     expect(result.curriculumSnapshot).toEqual(freshSnapshot);
@@ -192,7 +230,7 @@ describe('CohortsService', () => {
     );
 
     await expect(
-      service.syncCurriculum({ organizationId: 'org-1' }, 'cohort-1', 1),
+      service.syncCurriculum({ organizationId: 'org-1' }, 'cohort-1', 1, 'caller-1'),
     ).rejects.toMatchObject({ response: { code: 'VERSION_CONFLICT' } });
   });
 });

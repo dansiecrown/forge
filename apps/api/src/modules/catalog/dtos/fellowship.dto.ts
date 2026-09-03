@@ -26,6 +26,21 @@ export class FellowshipTransitionDto {
   reason?: string;
 }
 
+export class DuplicateFellowshipDto {
+  @IsString()
+  @Length(1, 200)
+  title!: string;
+
+  @IsString()
+  @Matches(/^[a-z][a-z0-9-]*$/)
+  @Length(1, 80)
+  slug!: string;
+
+  @IsOptional()
+  @IsUUID()
+  academyId?: string;
+}
+
 export class CreateFellowshipDto {
   @IsUUID()
   academyId!: string;

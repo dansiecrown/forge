@@ -80,6 +80,22 @@ export class RefreshSessionService {
     await this.authSessionsRepository.revokeAllForUser(userId);
   }
 
+  /** Admin-scoped session listing/revocation (`AdminUsersService`) — the
+   * self-scoped equivalents live inline in `AuthController` since they also
+   * need the caller's own presented-cookie hash to flag "current"; the admin
+   * surface has no such concept. */
+  listActiveForUser(userId: string, options: { cursor?: string; limit: number }) {
+    return this.authSessionsRepository.listActiveForUser(userId, options);
+  }
+
+  async revokeForUser(userId: string, sessionId: string): Promise<void> {
+    const session = await this.authSessionsRepository.findById(sessionId);
+    if (!session || session.userId !== userId) {
+      throw AppException.notFound('Session not found.');
+    }
+    await this.authSessionsRepository.revoke(sessionId);
+  }
+
   private async issue(
     userId: string,
     familyId: string,

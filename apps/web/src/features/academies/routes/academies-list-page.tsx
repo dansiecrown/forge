@@ -9,6 +9,7 @@ import { LoadMore } from '@/components/admin/load-more';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useActiveOrganization } from '@/contexts/organization-context';
+import { usePermissions } from '@/hooks/use-permissions';
 import { useAcademiesList } from '../hooks/use-academies';
 
 const STATUS_OPTIONS = [
@@ -43,6 +44,7 @@ export function AcademiesListPage() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const { rows, isLoading, error, hasMore, loadMore } = useAcademiesList(q, status);
+  const permissions = usePermissions();
 
   if (!activeOrganizationId) {
     return (
@@ -56,10 +58,12 @@ export function AcademiesListPage() {
         title="Academies"
         description="Organization-owned learning brands and divisions."
         action={
-          <Button onClick={() => navigate('/admin/academies/new')}>
-            <Plus className="size-4" aria-hidden="true" />
-            New academy
-          </Button>
+          permissions.has('academy.create') ? (
+            <Button onClick={() => navigate('/admin/academies/new')}>
+              <Plus className="size-4" aria-hidden="true" />
+              New academy
+            </Button>
+          ) : undefined
         }
       />
       <ListToolbar

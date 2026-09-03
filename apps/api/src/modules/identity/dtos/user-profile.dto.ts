@@ -15,6 +15,11 @@ export class UpdateUserProfileDto {
   bio?: string;
 
   @IsOptional()
+  @IsString()
+  @Length(0, 40)
+  phone?: string;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(30)
   @IsString({ each: true })

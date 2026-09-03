@@ -10,14 +10,17 @@ export class UserProfilesRepository {
     return this.prisma.userProfile.findUnique({ where: { userId } });
   }
 
-  /** Upsert keyed on `userId` — a profile has exactly one possible writer
-   * (the owning user), so there is no lost-update race to protect against
-   * with `If-Match`/expected-version checking (see
-   * docs/adr/0007-student-experience.md). */
+  /** Upsert keyed on `userId` — originally a profile had exactly one
+   * possible writer (the owning user); an admin can now also write here
+   * (Milestone 8, Admin Users profile editing), so this is no longer
+   * strictly true, but it's still low-contention enough that no
+   * `If-Match`/expected-version checking has been added (see
+   * docs/adr/0007-student-experience.md for the original reasoning). */
   upsert(
     userId: string,
     data: {
       bio?: string;
+      phone?: string;
       skills?: string[];
       interests?: string[];
       githubUrl?: string;

@@ -41,11 +41,25 @@ export class CohortsService {
       cursor?: string;
       limit?: string;
     },
+    callerId: string,
   ): Promise<CollectionResult<CohortEntity>> {
     const limit = parseLimit(options.limit);
+    const academyScope = await this.membershipsService.getAcademyScope(scope, callerId);
+    if (academyScope.restricted && !academyScope.academyId) {
+      return new CollectionResult([], {
+        nextCursor: null,
+        previousCursor: options.cursor ?? null,
+        limit,
+        hasMore: false,
+      });
+    }
+
     const { rows, hasMore } = await this.cohortsRepository.list(scope, {
       fellowshipId: options.fellowshipId,
-      academyId: options.academyId,
+      // A restricted caller's own academy always wins over whatever
+      // academyId they supplied — the query param is a convenience filter,
+      // never a trust boundary.
+      academyId: academyScope.restricted ? (academyScope.academyId as string) : options.academyId,
       status: options.status as never,
       q: options.q,
       cursor: options.cursor,
@@ -59,28 +73,37 @@ export class CohortsService {
     });
   }
 
-  async get(scope: TenantScope, id: string): Promise<CohortEntity> {
+  async get(scope: TenantScope, id: string, callerId: string): Promise<CohortEntity> {
     const cohort = await this.cohortsRepository.findById(scope, id);
     if (!cohort) {
+      throw AppException.notFound('Cohort not found.');
+    }
+    const academyScope = await this.membershipsService.getAcademyScope(scope, callerId);
+    if (academyScope.restricted && academyScope.academyId !== cohort.academyId) {
       throw AppException.notFound('Cohort not found.');
     }
     return toCohortEntity(cohort);
   }
 
-  /** Existence + org-scope check for the enrollments flow below — not
-   * exposed over HTTP directly. */
-  async assertExists(scope: TenantScope, cohortId: string): Promise<CohortEntity> {
-    return this.get(scope, cohortId);
+  /** Existence + org/academy-scope check for the enrollments flow below —
+   * not exposed over HTTP directly. */
+  async assertExists(
+    scope: TenantScope,
+    cohortId: string,
+    callerId: string,
+  ): Promise<CohortEntity> {
+    return this.get(scope, cohortId, callerId);
   }
 
   async create(
     scope: TenantScope,
     input: CreateCohortDto,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<CohortEntity> {
     const fellowship = await this.fellowshipsService.assertOpenForCohortCreation(
       scope,
       input.fellowshipId,
+      actorUserId,
     );
 
     const startsAt = new Date(input.startsAt);
@@ -141,9 +164,9 @@ export class CohortsService {
     id: string,
     input: UpdateCohortDto,
     expectedVersion: number,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<CohortEntity> {
-    const existing = await this.get(scope, id);
+    const existing = await this.get(scope, id, actorUserId);
 
     const { status: lifecycleStatus, ...fields } = input;
     const data: Record<string, unknown> = { ...fields };
@@ -198,11 +221,11 @@ export class CohortsService {
   private async transition(
     scope: TenantScope,
     id: string,
-    nextStatus: 'active' | 'paused' | 'completed',
+    nextStatus: 'active' | 'paused' | 'completed' | 'archived',
     expectedVersion: number,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<CohortEntity> {
-    const existing = await this.get(scope, id);
+    const existing = await this.get(scope, id, actorUserId);
     if (!ALLOWED_TRANSITIONS[existing.status]?.includes(nextStatus)) {
       throw AppException.conflict(
         'INVALID_STATE_TRANSITION',
@@ -231,7 +254,7 @@ export class CohortsService {
     scope: TenantScope,
     id: string,
     expectedVersion: number,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<CohortEntity> {
     return this.transition(scope, id, 'active', expectedVersion, actorUserId);
   }
@@ -240,7 +263,7 @@ export class CohortsService {
     scope: TenantScope,
     id: string,
     expectedVersion: number,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<CohortEntity> {
     return this.transition(scope, id, 'paused', expectedVersion, actorUserId);
   }
@@ -249,9 +272,25 @@ export class CohortsService {
     scope: TenantScope,
     id: string,
     expectedVersion: number,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<CohortEntity> {
     return this.transition(scope, id, 'completed', expectedVersion, actorUserId);
+  }
+
+  /** No child entity sits below Cohort in the tenant hierarchy, so — unlike
+   * Academy/Fellowship archive — this needs no cross-module composition in
+   * `AdminModule`; it's a plain named transition, mirroring
+   * activate/pause/complete. `archived` was already a valid
+   * `ALLOWED_TRANSITIONS.completed` target before this method existed (only
+   * reachable via the generic `update()` call) — see
+   * docs/adr/0009-administration-platform.md. */
+  archive(
+    scope: TenantScope,
+    id: string,
+    expectedVersion: number,
+    actorUserId: string,
+  ): Promise<CohortEntity> {
+    return this.transition(scope, id, 'archived', expectedVersion, actorUserId);
   }
 
   /** Regenerates this cohort's frozen curriculum snapshot from current live
@@ -262,9 +301,9 @@ export class CohortsService {
     scope: TenantScope,
     id: string,
     expectedVersion: number,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<CohortEntity> {
-    const existing = await this.get(scope, id);
+    const existing = await this.get(scope, id, actorUserId);
     if (existing.version !== expectedVersion) {
       throw AppException.conflict(
         'VERSION_CONFLICT',
@@ -289,8 +328,12 @@ export class CohortsService {
 
   // --- Mentor assignment -----------------------------------------------
 
-  async listMentors(scope: TenantScope, cohortId: string): Promise<CohortMentorEntity[]> {
-    await this.get(scope, cohortId);
+  async listMentors(
+    scope: TenantScope,
+    cohortId: string,
+    callerId: string,
+  ): Promise<CohortMentorEntity[]> {
+    await this.get(scope, cohortId, callerId);
     const rows = await this.cohortsRepository.listMentors(cohortId);
     return rows.map(toCohortMentorEntity);
   }
@@ -299,9 +342,9 @@ export class CohortsService {
     scope: TenantScope,
     cohortId: string,
     membershipId: string,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<CohortMentorEntity> {
-    await this.get(scope, cohortId);
+    await this.get(scope, cohortId, actorUserId);
     const membership = await this.membershipsService.findById(scope, membershipId);
     if (!membership) {
       throw AppException.validation([
@@ -340,9 +383,9 @@ export class CohortsService {
     scope: TenantScope,
     cohortId: string,
     membershipId: string,
-    actorUserId?: string,
+    actorUserId: string,
   ): Promise<void> {
-    await this.get(scope, cohortId);
+    await this.get(scope, cohortId, actorUserId);
     const { count } = await this.cohortsRepository.unassignMentor(cohortId, membershipId);
     if (count === 0) {
       throw AppException.notFound('This mentor is not currently assigned to this cohort.');

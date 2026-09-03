@@ -32,6 +32,7 @@ function fakeTrack(overrides: Partial<LearningTrack> = {}): LearningTrack {
 function fakeFellowshipsService(): FellowshipsService {
   return {
     get: jest.fn(async () => ({ id: 'fellowship-1' }) as FellowshipEntity),
+    assertExistsInOrg: jest.fn(async () => ({ id: 'fellowship-1' }) as FellowshipEntity),
   } as unknown as FellowshipsService;
 }
 

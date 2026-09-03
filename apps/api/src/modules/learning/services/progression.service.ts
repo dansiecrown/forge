@@ -265,7 +265,7 @@ export class ProgressionService {
   ): Promise<ProgressionContext> {
     const enrollment = await this.enrollmentsService.get(scope, enrollmentId);
     await this.assertCanRead(scope, enrollment, callerId);
-    const cohort = await this.cohortsService.get(scope, enrollment.cohortId);
+    const cohort = await this.cohortsService.get(scope, enrollment.cohortId, callerId);
 
     const snapshot = cohort.curriculumSnapshot as CurriculumSnapshot | null;
     const track = snapshot?.tracks.find((t) => t.id === enrollment.currentLearningTrackId) ?? null;
