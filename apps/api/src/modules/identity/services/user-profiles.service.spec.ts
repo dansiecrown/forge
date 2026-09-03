@@ -8,6 +8,7 @@ function fakeRow(overrides: Partial<UserProfile> = {}): UserProfile {
     id: 'profile-1',
     userId: 'user-1',
     bio: null,
+    phone: null,
     skills: [],
     interests: [],
     githubUrl: null,
