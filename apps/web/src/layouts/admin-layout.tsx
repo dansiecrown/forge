@@ -6,7 +6,6 @@ import {
   Building2,
   ClipboardCheck,
   FileClock,
-  GraduationCap,
   LayoutDashboard,
   LayoutGrid,
   LogOut,
@@ -14,7 +13,6 @@ import {
   Settings as SettingsIcon,
   ShieldCheck,
   Users,
-  Users2,
   X,
 } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
@@ -37,12 +35,13 @@ import { cn } from '@/utils';
 // despite lacking `organization.list`/`audit.read` entirely, so both 403'd
 // immediately) — a real, reported gap, not by design.
 //
-// "Organizations" is gated on `organization.read` (which ORG_ADMIN holds
-// for their own org), not `organization.list` (the platform-wide listing —
-// SUPER_ADMIN only): an Org Admin still needs to reach *their own*
-// organization's settings, just never a cross-tenant list. `NavList` below
-// routes non-super-admins straight to their own org's detail page instead
-// of the list.
+// Pre-Milestone-8 hierarchy correction (docs/adr/0012-hierarchy-provisioning.md):
+// Organizations/Academies/Fellowships/Cohorts are no longer four unrelated
+// flat top-level items. There is exactly one entry point into the hierarchy,
+// resolved per role by `useHierarchyRootItem()` below — Super Admin gets the
+// cross-tenant "Organizations" list; everyone else lands directly on their
+// own organization or academy and reaches Fellowships/Cohorts by drilling
+// down through that page's own contextual sections instead.
 const NAV_ITEMS = [
   {
     to: '/admin',
@@ -51,25 +50,6 @@ const NAV_ITEMS = [
     end: true,
     requiresPermission: 'reports.read',
   },
-  {
-    to: '/admin/organizations',
-    label: 'Organizations',
-    icon: Building2,
-    requiresPermission: 'organization.read',
-  },
-  {
-    to: '/admin/academies',
-    label: 'Academies',
-    icon: LayoutGrid,
-    requiresPermission: 'academy.read',
-  },
-  {
-    to: '/admin/fellowships',
-    label: 'Fellowships',
-    icon: GraduationCap,
-    requiresPermission: 'fellowship.read',
-  },
-  { to: '/admin/cohorts', label: 'Cohorts', icon: Users2, requiresPermission: 'cohort.read' },
   { to: '/admin/users', label: 'Users', icon: Users, requiresPermission: 'user.read' },
   { to: '/admin/roles', label: 'Roles', icon: ShieldCheck, requiresPermission: 'role.read' },
   { to: '/admin/audit', label: 'Audit', icon: FileClock, requiresPermission: 'audit.read' },
@@ -100,21 +80,58 @@ const NAV_ITEMS = [
   },
 ];
 
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
+/** The hierarchy's single entry point, resolved per role — never four flat,
+ * unrelated Organizations/Academies/Fellowships/Cohorts items. Permission
+ * keys, not role names: `academy.create` is ORG_ADMIN-only (ACADEMY_ADMIN
+ * can update but never create an academy), so it doubles as the org-vs-academy
+ * signal without hardcoding either role's key. Returns null for a caller with
+ * none of these (e.g. Mentor/Student, who use their own portal layout, not
+ * this one, in practice) — no entry point is shown rather than a broken one. */
+function useHierarchyRootItem(): { to: string; label: string; icon: typeof Building2 } | null {
   const { has, isSuperAdmin } = usePermissions();
   const { activeOrganizationId } = useActiveOrganization();
+  const { memberships } = useSession();
+
+  if (isSuperAdmin) {
+    return { to: '/admin/organizations', label: 'Organizations', icon: Building2 };
+  }
+  if (!activeOrganizationId) return null;
+  if (has('academy.create')) {
+    return {
+      to: `/admin/organizations/${activeOrganizationId}`,
+      label: 'My Organization',
+      icon: Building2,
+    };
+  }
+  if (has('academy.update')) {
+    const myAcademyId = memberships.find(
+      (membership) => membership.organizationId === activeOrganizationId,
+    )?.academyId;
+    if (!myAcademyId) return null;
+    return { to: `/admin/academies/${myAcademyId}`, label: 'My Academy', icon: LayoutGrid };
+  }
+  return null;
+}
+
+function NavList({ onNavigate }: { onNavigate?: () => void }) {
+  const { has } = usePermissions();
+  const hierarchyRoot = useHierarchyRootItem();
   const visibleItems = NAV_ITEMS.filter((item) => has(item.requiresPermission));
+
+  // Dashboard first, then the one hierarchy entry point (Organizations / My
+  // Organization / My Academy), then every other permission-gated section.
+  const items: { to: string; label: string; icon: typeof Building2; end?: boolean }[] = [
+    ...(visibleItems[0] ? [visibleItems[0]] : []),
+    ...(hierarchyRoot ? [hierarchyRoot] : []),
+    ...visibleItems.slice(1),
+  ];
 
   return (
     <nav className="flex flex-1 flex-col gap-1" aria-label="Admin sections">
-      {visibleItems.map(({ to, label, icon: Icon, end }) => (
+      {items.map(({ to, label, icon: Icon, end }) => (
         <NavLink
           key={to}
-          to={
-            to === '/admin/organizations' && !isSuperAdmin && activeOrganizationId
-              ? `/admin/organizations/${activeOrganizationId}`
-              : to
-          }
+          to={to}
           end={end}
           onClick={onNavigate}
           className={({ isActive }) =>

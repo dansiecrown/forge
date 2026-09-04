@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { GraduationCap, Loader2 } from 'lucide-react';
+import { GraduationCap, Loader2, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { Breadcrumb } from '@/components/admin/breadcrumb';
+import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +17,11 @@ import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
 import { useActiveOrganization } from '@/contexts/organization-context';
+import { usePermissions } from '@/hooks/use-permissions';
+import { useOrganization } from '@/features/organizations';
+import { useAcademy } from '@/features/academies';
+import { useCohortsList } from '@/features/cohorts';
+import type { Cohort } from '@forge/api-contract';
 import { duplicateFellowship } from '../api/fellowships-api';
 import {
   useFellowshipLifecycleActions,
@@ -32,6 +39,34 @@ const STATUS_TONE: Record<string, BadgeProps['tone']> = {
   retired: 'danger',
 };
 
+const COHORT_STATUS_TONE: Record<string, BadgeProps['tone']> = {
+  draft: 'neutral',
+  enrolling: 'brand',
+  active: 'success',
+  paused: 'warning',
+  completed: 'neutral',
+  archived: 'danger',
+};
+
+const cohortColumns: DataTableColumn<Cohort>[] = [
+  {
+    key: 'name',
+    header: 'Name',
+    render: (row) => <span className="font-medium text-foreground">{row.name}</span>,
+  },
+  {
+    key: 'dates',
+    header: 'Dates',
+    render: (row) =>
+      `${new Date(row.startsAt).toLocaleDateString()} – ${new Date(row.endsAt).toLocaleDateString()}`,
+  },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (row) => <Badge tone={COHORT_STATUS_TONE[row.status]}>{row.status}</Badge>,
+  },
+];
+
 export function FellowshipDetailPage() {
   const { fellowshipId } = useParams<{ fellowshipId: string }>();
   const navigate = useNavigate();
@@ -40,6 +75,10 @@ export function FellowshipDetailPage() {
   const { publish, retire } = useFellowshipLifecycleActions(fellowshipId ?? '');
   const [confirmingRetire, setConfirmingRetire] = useState(false);
   const { activeOrganizationId } = useActiveOrganization();
+  const permissions = usePermissions();
+  const academy = useAcademy(fellowship?.academyId);
+  const organization = useOrganization(fellowship?.organizationId, fellowship?.organizationId);
+  const cohorts = useCohortsList('', '', fellowshipId);
   const [duplicating, setDuplicating] = useState(false);
   const [duplicateTitle, setDuplicateTitle] = useState('');
   const [duplicateSlug, setDuplicateSlug] = useState('');
@@ -130,12 +169,23 @@ export function FellowshipDetailPage() {
       <AdminPageHeader
         title={fellowship.title}
         description={
-          <>
-            <Link to="/admin/fellowships" className="text-brand hover:underline">
-              Fellowships
-            </Link>{' '}
-            / {fellowship.slug}
-          </>
+          <Breadcrumb
+            items={[
+              { label: 'Organizations', to: '/admin/organizations' },
+              ...(organization.data
+                ? [
+                    {
+                      label: organization.data.name,
+                      to: `/admin/organizations/${organization.data.id}`,
+                    },
+                  ]
+                : []),
+              ...(academy.data
+                ? [{ label: academy.data.name, to: `/admin/academies/${academy.data.id}` }]
+                : []),
+              { label: fellowship.title },
+            ]}
+          />
         }
         action={
           <div className="flex items-center gap-3">
@@ -145,7 +195,7 @@ export function FellowshipDetailPage() {
         }
       />
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2" className="flex items-center gap-2">
             <GraduationCap className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -153,33 +203,35 @@ export function FellowshipDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {updateErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {updateErrorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Title"
               disabled={!isDraft}
               error={form.formState.errors.title?.message}
               {...form.register('title')}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Duration (weeks)"
-                type="number"
-                min={1}
-                max={52}
-                disabled={!isDraft}
-                error={form.formState.errors.durationWeeks?.message}
-                {...form.register('durationWeeks')}
-              />
-              <FormField
-                label="Default capacity"
-                type="number"
-                min={1}
-                disabled={!isDraft}
-                error={form.formState.errors.defaultCapacity?.message}
-                {...form.register('defaultCapacity')}
-              />
-            </div>
+            <FormField
+              label="Duration (weeks)"
+              type="number"
+              min={1}
+              max={52}
+              disabled={!isDraft}
+              error={form.formState.errors.durationWeeks?.message}
+              {...form.register('durationWeeks')}
+            />
+            <FormField
+              label="Default capacity"
+              type="number"
+              min={1}
+              disabled={!isDraft}
+              error={form.formState.errors.defaultCapacity?.message}
+              {...form.register('defaultCapacity')}
+            />
             <FormField
               label="Summary"
               disabled={!isDraft}
@@ -192,7 +244,7 @@ export function FellowshipDetailPage() {
               error={form.formState.errors.description?.message}
               {...form.register('description')}
             />
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2">
               <input
                 id="isPublic"
                 type="checkbox"
@@ -203,13 +255,15 @@ export function FellowshipDetailPage() {
               <Label htmlFor="isPublic">Visible in the public catalogue</Label>
             </div>
             {isDraft ? (
-              <div className="flex justify-end pt-2">
+              <div className="flex w-full justify-end pt-2">
                 <Button type="submit" loading={updateFellowship.isPending}>
                   Save changes
                 </Button>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Only draft fellowships can be edited.</p>
+              <p className="w-full text-sm text-muted-foreground">
+                Only draft fellowships can be edited.
+              </p>
             )}
           </form>
         </CardContent>
@@ -295,6 +349,33 @@ export function FellowshipDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle as="h2">Cohorts</CardTitle>
+          {permissions.has('cohort.create') ? (
+            <Button
+              variant="secondary"
+              onClick={() => navigate(`/admin/cohorts/new?fellowshipId=${fellowship.id}`)}
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              New cohort
+            </Button>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            columns={cohortColumns}
+            rows={cohorts.rows}
+            rowKey={(row) => row.id}
+            isLoading={cohorts.isLoading}
+            error={cohorts.error}
+            emptyTitle="No cohorts yet"
+            emptyDescription="Schedule a cohort to start enrolling learners into this fellowship."
+            onRowClick={(row) => navigate(`/admin/cohorts/${row.id}`)}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

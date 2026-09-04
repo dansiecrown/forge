@@ -4,7 +4,10 @@ import type { Fellowship } from '@forge/api-contract';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { getFellowship, listFellowships } from '../api/fellowships-api';
 
-export function useFellowshipsList(q: string, status: string) {
+/** `academyId` scopes the list to one academy's own fellowships — used by
+ * the Academy detail page's contextual "Fellowships" section so it never
+ * shows every fellowship in the organization. */
+export function useFellowshipsList(q: string, status: string, academyId?: string) {
   const { activeOrganizationId } = useActiveOrganization();
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [items, setItems] = useState<Fellowship[]>([]);
@@ -12,13 +15,13 @@ export function useFellowshipsList(q: string, status: string) {
   useEffect(() => {
     setCursor(undefined);
     setItems([]);
-  }, [q, status, activeOrganizationId]);
+  }, [q, status, academyId, activeOrganizationId]);
 
   const query = useQuery({
-    queryKey: ['fellowships', 'list', activeOrganizationId, q, status, cursor],
+    queryKey: ['fellowships', 'list', activeOrganizationId, academyId, q, status, cursor],
     queryFn: () =>
       listFellowships(
-        { q: q || undefined, status: status || undefined, cursor },
+        { academyId, q: q || undefined, status: status || undefined, cursor },
         activeOrganizationId,
       ),
     enabled: Boolean(activeOrganizationId),

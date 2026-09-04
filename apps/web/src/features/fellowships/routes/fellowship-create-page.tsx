@@ -1,15 +1,18 @@
+import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
-import { useAcademyOptions } from '@/features/academies';
+import { Breadcrumb } from '@/components/admin/breadcrumb';
+import { useAcademy, useAcademyOptions } from '@/features/academies';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { ReadOnlyField } from '@/components/read-only-field';
+import { SelectField } from '@/components/select-field';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { useCreateFellowship } from '../hooks/use-fellowship-mutations';
 import {
@@ -20,11 +23,22 @@ import {
 export function FellowshipCreatePage() {
   const navigate = useNavigate();
   const { activeOrganizationId } = useActiveOrganization();
+  // Arriving from an Academy's own "Fellowships" section carries the academy
+  // as context (?academyId=) so the academy never has to be picked from a
+  // flat, org-wide dropdown — see docs/adr/0012-hierarchy-provisioning.md.
+  const [searchParams] = useSearchParams();
+  const contextAcademyId = searchParams.get('academyId') || undefined;
+  const contextAcademy = useAcademy(contextAcademyId);
   const academyOptions = useAcademyOptions();
   const createFellowship = useCreateFellowship();
   const form = useForm<CreateFellowshipFormValues>({
     resolver: zodResolver(createFellowshipSchema),
+    defaultValues: { academyId: contextAcademyId ?? '' },
   });
+
+  useEffect(() => {
+    if (contextAcademyId) form.setValue('academyId', contextAcademyId);
+  }, [contextAcademyId, form]);
 
   async function onSubmit(values: CreateFellowshipFormValues) {
     try {
@@ -55,26 +69,50 @@ export function FellowshipCreatePage() {
     <div>
       <AdminPageHeader
         title="New fellowship"
-        description="Define a reusable fellowship programme."
+        description={
+          contextAcademy.data ? (
+            <Breadcrumb
+              items={[
+                { label: 'Organizations', to: '/admin/organizations' },
+                {
+                  label: contextAcademy.data.name,
+                  to: `/admin/academies/${contextAcademy.data.id}`,
+                },
+                { label: 'New fellowship' },
+              ]}
+            />
+          ) : (
+            'Define a reusable fellowship programme.'
+          )
+        }
       />
-      <Card className="max-w-xl">
+      <Card>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {apiErrorMessage ? <Alert variant="danger">{apiErrorMessage}</Alert> : null}
-            <div className="space-y-1.5">
-              <Label htmlFor="academyId">Academy</Label>
-              <Select id="academyId" {...form.register('academyId')}>
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {apiErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {apiErrorMessage}
+              </Alert>
+            ) : null}
+            {contextAcademyId ? (
+              <>
+                <ReadOnlyField label="Academy" value={contextAcademy.data?.name ?? 'Loading…'} />
+                <input type="hidden" {...form.register('academyId')} />
+              </>
+            ) : (
+              <SelectField
+                label="Academy"
+                error={form.formState.errors.academyId?.message}
+                {...form.register('academyId')}
+              >
                 <option value="">Select an academy…</option>
                 {academyOptions.data?.items.map((academy) => (
                   <option key={academy.id} value={academy.id}>
                     {academy.name}
                   </option>
                 ))}
-              </Select>
-              {form.formState.errors.academyId ? (
-                <p className="text-sm text-danger">{form.formState.errors.academyId.message}</p>
-              ) : null}
-            </div>
+              </SelectField>
+            )}
             <FormField
               label="Title"
               error={form.formState.errors.title?.message}
@@ -86,23 +124,21 @@ export function FellowshipCreatePage() {
               error={form.formState.errors.slug?.message}
               {...form.register('slug')}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Duration (weeks)"
-                type="number"
-                min={1}
-                max={52}
-                error={form.formState.errors.durationWeeks?.message}
-                {...form.register('durationWeeks')}
-              />
-              <FormField
-                label="Default capacity"
-                type="number"
-                min={1}
-                error={form.formState.errors.defaultCapacity?.message}
-                {...form.register('defaultCapacity')}
-              />
-            </div>
+            <FormField
+              label="Duration (weeks)"
+              type="number"
+              min={1}
+              max={52}
+              error={form.formState.errors.durationWeeks?.message}
+              {...form.register('durationWeeks')}
+            />
+            <FormField
+              label="Default capacity"
+              type="number"
+              min={1}
+              error={form.formState.errors.defaultCapacity?.message}
+              {...form.register('defaultCapacity')}
+            />
             <FormField
               label="Summary"
               error={form.formState.errors.summary?.message}
@@ -113,7 +149,7 @@ export function FellowshipCreatePage() {
               error={form.formState.errors.description?.message}
               {...form.register('description')}
             />
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2">
               <input
                 id="isPublic"
                 type="checkbox"
@@ -122,11 +158,17 @@ export function FellowshipCreatePage() {
               />
               <Label htmlFor="isPublic">Visible in the public catalogue</Label>
             </div>
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex w-full justify-end gap-3 pt-2">
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => navigate('/admin/fellowships')}
+                onClick={() =>
+                  navigate(
+                    contextAcademyId
+                      ? `/admin/academies/${contextAcademyId}`
+                      : '/admin/fellowships',
+                  )
+                }
               >
                 Cancel
               </Button>

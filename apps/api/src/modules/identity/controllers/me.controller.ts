@@ -35,6 +35,7 @@ export class MeController {
         organizationId: membership.organizationId,
         status: membership.status,
         roles: membership.membershipRoles.map((membershipRole) => membershipRole.role.key),
+        academyId: membership.academyId,
       })),
     };
   }

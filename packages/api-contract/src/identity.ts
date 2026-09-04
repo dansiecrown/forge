@@ -100,7 +100,16 @@ export interface MeResponse {
   locale: string;
   emailVerified: boolean;
   mfaEnabled: boolean;
-  memberships: { organizationId: string; status: string; roles: string[] }[];
+  /** `academyId` is set only for a membership restricted to one academy
+   * (an academy-scoped role grant, e.g. ACADEMY_ADMIN/MENTOR/STUDENT) — null
+   * for an org-wide role (SUPER_ADMIN/ORG_ADMIN). Powers the admin nav's
+   * "My Academy" entry point. */
+  memberships: {
+    organizationId: string;
+    status: string;
+    roles: string[];
+    academyId: string | null;
+  }[];
 }
 
 /** `isSuperAdmin: true` means "treat as having every permission" —

@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { apiRequest, ApiError } from '@/api/client';
 import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { Breadcrumb } from '@/components/admin/breadcrumb';
+import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +17,8 @@ import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useAcademiesList } from '@/features/academies';
+import type { Academy } from '@forge/api-contract';
 import {
   useOrganizationLifecycleActions,
   useUpdateOrganization,
@@ -25,6 +29,25 @@ import {
   type UpdateOrganizationFormValues,
 } from '../schemas/organization-schemas';
 
+const ACADEMY_STATUS_TONE: Record<string, BadgeProps['tone']> = {
+  active: 'success',
+  archived: 'danger',
+};
+
+const academyColumns: DataTableColumn<Academy>[] = [
+  {
+    key: 'name',
+    header: 'Name',
+    render: (row) => <span className="font-medium text-foreground">{row.name}</span>,
+  },
+  { key: 'slug', header: 'Slug', render: (row) => row.slug },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (row) => <Badge tone={ACADEMY_STATUS_TONE[row.status]}>{row.status}</Badge>,
+  },
+];
+
 const STATUS_TONE: Record<string, BadgeProps['tone']> = {
   provisioning: 'neutral',
   active: 'success',
@@ -34,9 +57,22 @@ const STATUS_TONE: Record<string, BadgeProps['tone']> = {
 
 export function OrganizationDetailPage() {
   const { orgId } = useParams<{ orgId: string }>();
-  const { activeOrganizationId } = useActiveOrganization();
-  const { data: organization, isLoading, error } = useOrganization(orgId, activeOrganizationId);
-  const updateOrganization = useUpdateOrganization(orgId ?? '', activeOrganizationId);
+  const navigate = useNavigate();
+  const { activeOrganizationId, setActiveOrganizationId } = useActiveOrganization();
+  // Visiting an organization's own detail page makes it the active tenant
+  // context for the rest of the session's navigation — the missing link that
+  // lets a Super Admin actually drill Organization -> Academy -> Fellowship
+  // -> Cohort across organizations other than whichever one their org
+  // switcher last had selected. Every hook below this point that needs an
+  // "X-Organization-Id" for a call scoped to *this* organization uses `orgId`
+  // directly (not `activeOrganizationId`) so this page's own data is never
+  // stale for the one render before the effect below catches up.
+  useEffect(() => {
+    if (orgId && orgId !== activeOrganizationId) setActiveOrganizationId(orgId);
+  }, [orgId, activeOrganizationId, setActiveOrganizationId]);
+
+  const { data: organization, isLoading, error } = useOrganization(orgId, orgId);
+  const updateOrganization = useUpdateOrganization(orgId ?? '', orgId);
   const { suspend, archive, restore } = useOrganizationLifecycleActions(orgId ?? '');
   const [pendingAction, setPendingAction] = useState<'suspend' | 'archive' | null>(null);
   const permissions = usePermissions();
@@ -49,17 +85,18 @@ export function OrganizationDetailPage() {
         cohortCount: number;
         enrollmentCount: number;
         certificatesIssued: number;
-      }>(`/admin/organizations/${orgId}/stats`, { organizationId: activeOrganizationId }),
-    enabled: Boolean(orgId && activeOrganizationId),
+      }>(`/admin/organizations/${orgId}/stats`, { organizationId: orgId }),
+    enabled: Boolean(orgId),
   });
   const admins = useQuery({
     queryKey: ['admin-organization-admins', orgId],
     queryFn: () =>
       apiRequest<{ id: string; userId: string }[]>(`/organizations/${orgId}/admins`, {
-        organizationId: activeOrganizationId,
+        organizationId: orgId,
       }),
-    enabled: Boolean(orgId && activeOrganizationId),
+    enabled: Boolean(orgId),
   });
+  const academies = useAcademiesList('', '');
 
   const form = useForm<UpdateOrganizationFormValues>({
     resolver: zodResolver(updateOrganizationSchema),
@@ -155,12 +192,12 @@ export function OrganizationDetailPage() {
       <AdminPageHeader
         title={organization.name}
         description={
-          <>
-            <Link to="/admin/organizations" className="text-brand hover:underline">
-              Organizations
-            </Link>{' '}
-            / {organization.slug}
-          </>
+          <Breadcrumb
+            items={[
+              { label: 'Organizations', to: '/admin/organizations' },
+              { label: organization.name },
+            ]}
+          />
         }
         action={
           <div className="flex items-center gap-3">
@@ -175,13 +212,17 @@ export function OrganizationDetailPage() {
         </p>
       ) : null}
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2">Profile</CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {updateErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {updateErrorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Name"
               error={form.formState.errors.name?.message}
@@ -192,26 +233,24 @@ export function OrganizationDetailPage() {
               error={form.formState.errors.legalName?.message}
               {...form.register('legalName')}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Default timezone"
-                error={form.formState.errors.defaultTimezone?.message}
-                {...form.register('defaultTimezone')}
-              />
-              <FormField
-                label="Country (ISO code)"
-                maxLength={2}
-                error={form.formState.errors.country?.message}
-                {...form.register('country')}
-              />
-            </div>
+            <FormField
+              label="Default timezone"
+              error={form.formState.errors.defaultTimezone?.message}
+              {...form.register('defaultTimezone')}
+            />
+            <FormField
+              label="Country (ISO code)"
+              maxLength={2}
+              error={form.formState.errors.country?.message}
+              {...form.register('country')}
+            />
             <FormField
               label="Support email"
               type="email"
               error={form.formState.errors.supportEmail?.message}
               {...form.register('supportEmail')}
             />
-            <div className="flex justify-end pt-2">
+            <div className="flex w-full justify-end pt-2">
               <Button type="submit" loading={updateOrganization.isPending}>
                 Save changes
               </Button>
@@ -284,6 +323,30 @@ export function OrganizationDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle as="h2">Academies</CardTitle>
+          {permissions.has('academy.create') ? (
+            <Button variant="secondary" onClick={() => navigate('/admin/academies/new')}>
+              <Plus className="size-4" aria-hidden="true" />
+              New academy
+            </Button>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            columns={academyColumns}
+            rows={academies.rows}
+            rowKey={(row) => row.id}
+            isLoading={academies.isLoading}
+            error={academies.error}
+            emptyTitle="No academies yet"
+            emptyDescription="Create an academy to start organizing fellowships under this organization."
+            onRowClick={(row) => navigate(`/admin/academies/${row.id}`)}
+          />
+        </CardContent>
+      </Card>
 
       <ConfirmDialog
         open={pendingAction !== null}

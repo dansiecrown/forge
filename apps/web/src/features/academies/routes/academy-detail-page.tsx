@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { apiRequest, ApiError } from '@/api/client';
 import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { Breadcrumb } from '@/components/admin/breadcrumb';
+import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,20 +18,46 @@ import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useOrganization } from '@/features/organizations';
+import { useFellowshipsList } from '@/features/fellowships';
+import type { Fellowship } from '@forge/api-contract';
 import { useAcademy } from '../hooks/use-academies';
 import { useAcademyLifecycleActions, useUpdateAcademy } from '../hooks/use-academy-mutations';
 import { updateAcademySchema, type UpdateAcademyFormValues } from '../schemas/academy-schemas';
+
+const FELLOWSHIP_STATUS_TONE: Record<string, BadgeProps['tone']> = {
+  draft: 'neutral',
+  published: 'success',
+  retired: 'danger',
+};
+
+const fellowshipColumns: DataTableColumn<Fellowship>[] = [
+  {
+    key: 'title',
+    header: 'Title',
+    render: (row) => <span className="font-medium text-foreground">{row.title}</span>,
+  },
+  { key: 'slug', header: 'Slug', render: (row) => row.slug },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (row) => <Badge tone={FELLOWSHIP_STATUS_TONE[row.status]}>{row.status}</Badge>,
+  },
+];
 
 const STATUS_TONE: Record<string, BadgeProps['tone']> = { active: 'success', archived: 'danger' };
 
 export function AcademyDetailPage() {
   const { academyId } = useParams<{ academyId: string }>();
+  const navigate = useNavigate();
   const { data: academy, isLoading, error } = useAcademy(academyId);
   const updateAcademy = useUpdateAcademy(academyId ?? '');
   const { archive, restore } = useAcademyLifecycleActions(academyId ?? '');
   const [confirmingArchive, setConfirmingArchive] = useState(false);
   const { activeOrganizationId } = useActiveOrganization();
   const permissions = usePermissions();
+  const organization = useOrganization(academy?.organizationId, academy?.organizationId);
+  const fellowships = useFellowshipsList('', '', academyId);
   const stats = useQuery({
     queryKey: ['admin-academy-stats', academyId],
     queryFn: () =>
@@ -124,12 +152,20 @@ export function AcademyDetailPage() {
       <AdminPageHeader
         title={academy.name}
         description={
-          <>
-            <Link to="/admin/academies" className="text-brand hover:underline">
-              Academies
-            </Link>{' '}
-            / {academy.slug}
-          </>
+          <Breadcrumb
+            items={[
+              { label: 'Organizations', to: '/admin/organizations' },
+              ...(organization.data
+                ? [
+                    {
+                      label: organization.data.name,
+                      to: `/admin/organizations/${organization.data.id}`,
+                    },
+                  ]
+                : []),
+              { label: academy.name },
+            ]}
+          />
         }
         action={
           <div className="flex items-center gap-3">
@@ -144,13 +180,17 @@ export function AcademyDetailPage() {
         </p>
       ) : null}
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2">Profile</CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {updateErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {updateErrorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Name"
               error={form.formState.errors.name?.message}
@@ -172,7 +212,7 @@ export function AcademyDetailPage() {
               error={form.formState.errors.contactEmail?.message}
               {...form.register('contactEmail')}
             />
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2">
               <input
                 id="isPublic"
                 type="checkbox"
@@ -181,7 +221,7 @@ export function AcademyDetailPage() {
               />
               <Label htmlFor="isPublic">Visible in the public catalogue</Label>
             </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex w-full justify-end pt-2">
               <Button type="submit" loading={updateAcademy.isPending}>
                 Save changes
               </Button>
@@ -227,6 +267,33 @@ export function AcademyDetailPage() {
           ) : (
             <p className="text-sm text-muted-foreground">Loading statistics…</p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle as="h2">Fellowships</CardTitle>
+          {permissions.has('fellowship.create') ? (
+            <Button
+              variant="secondary"
+              onClick={() => navigate(`/admin/fellowships/new?academyId=${academy.id}`)}
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              New fellowship
+            </Button>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            columns={fellowshipColumns}
+            rows={fellowships.rows}
+            rowKey={(row) => row.id}
+            isLoading={fellowships.isLoading}
+            error={fellowships.error}
+            emptyTitle="No fellowships yet"
+            emptyDescription="Create a fellowship programme to start scheduling cohorts under this academy."
+            onRowClick={(row) => navigate(`/admin/fellowships/${row.id}`)}
+          />
         </CardContent>
       </Card>
 

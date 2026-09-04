@@ -201,6 +201,31 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   previously an authenticated (non-prospect) applicant showed as a bare user id with no name or
   email anywhere in the admin UI.
 
+## Hierarchy, Provisioning & Role-Access Correction (2026-09-04)
+
+- **Audited before changing anything, and confirmed the backend hierarchy enforcement was already
+  correct**: required non-nullable FKs at every level, every `create()` already validates its
+  parent belongs to the caller's scope, every `list()`/`get()` already academy-scopes a restricted
+  caller, mentor assignment is already cohort-scoped, and no `FELLOWSHIP_ADMIN` role exists
+  anywhere. The real gaps were all frontend: no contextual creation flow, no child lists on parent
+  detail pages, no real breadcrumb, and a flat nav. See `docs/adr/0012-hierarchy-provisioning.md`
+  for the full decision record.
+- **Contextual creation, child lists, and a real `Breadcrumb` component replace the flat
+  "pick any parent from a dropdown" pattern** on the Fellowship/Cohort create pages and the
+  Organization/Academy/Fellowship/Cohort detail pages — additive to existing routes, not a
+  restructure of them.
+- **The admin nav now resolves to exactly one hierarchy entry point per role** (Organizations / My
+  Organization / My Academy, by permission key — `academy.create` vs `academy.update`, not a
+  hardcoded role name) instead of presenting Organizations/Academies/Fellowships/Cohorts as four
+  unrelated top-level items. The flat list routes still exist; they're reached by drilling down,
+  not linked from the sidebar directly anymore.
+- **Fixed a real cross-organization navigation bug** this task's own "Super Admin can navigate the
+  hierarchy regardless of their own organization membership" requirement surfaced: visiting an
+  organization's own detail page now sets it as the active tenant context for the rest of that
+  browsing session, so a Super Admin drilling into a different organization than their switcher
+  last had selected no longer 404s one level down. See DEBT-033 for the one path (a raw
+  Academy/Fellowship/Cohort URL, deep-linked without visiting the org page first) it doesn't cover.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

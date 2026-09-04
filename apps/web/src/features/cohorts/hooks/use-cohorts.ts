@@ -4,7 +4,10 @@ import type { Cohort, CohortMentorAssignment, Enrollment } from '@forge/api-cont
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { getCohort, listCohortMentors, listCohorts, listEnrollments } from '../api/cohorts-api';
 
-export function useCohortsList(q: string, status: string) {
+/** `fellowshipId` scopes the list to one fellowship's own cohorts — used by
+ * the Fellowship detail page's contextual "Cohorts" section so it never
+ * shows every cohort in the organization. */
+export function useCohortsList(q: string, status: string, fellowshipId?: string) {
   const { activeOrganizationId } = useActiveOrganization();
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [items, setItems] = useState<Cohort[]>([]);
@@ -12,12 +15,15 @@ export function useCohortsList(q: string, status: string) {
   useEffect(() => {
     setCursor(undefined);
     setItems([]);
-  }, [q, status, activeOrganizationId]);
+  }, [q, status, fellowshipId, activeOrganizationId]);
 
   const query = useQuery({
-    queryKey: ['cohorts', 'list', activeOrganizationId, q, status, cursor],
+    queryKey: ['cohorts', 'list', activeOrganizationId, fellowshipId, q, status, cursor],
     queryFn: () =>
-      listCohorts({ q: q || undefined, status: status || undefined, cursor }, activeOrganizationId),
+      listCohorts(
+        { fellowshipId, q: q || undefined, status: status || undefined, cursor },
+        activeOrganizationId,
+      ),
     enabled: Boolean(activeOrganizationId),
   });
 

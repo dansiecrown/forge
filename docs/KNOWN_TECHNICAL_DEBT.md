@@ -375,3 +375,24 @@ machine-interpreted**
 - **Planned milestone:** Before this page is deployed anywhere the API isn't reachable at that
   default origin — set `window.FELLOWSHIP_API_BASE_URL` (e.g. via a small inline script the actual
   deploy pipeline templates in) at that point.
+
+**DEBT-033 — Academy/Fellowship/Cohort detail pages 404 for a Super Admin deep-linking directly,
+without first visiting that organization's own detail page**
+- **Description:** ADR-0012 fixed the primary hierarchy drill-down path (Organizations list → an
+  org's own detail page → its academies/fellowships/cohorts) by having `OrganizationDetailPage` set
+  the active-organization context to whatever `orgId` it's showing. A Super Admin who instead pastes
+  a raw Academy/Fellowship/Cohort URL directly, without visiting that org's detail page first, keeps
+  whatever organization their switcher last had selected — and `AcademiesService`/
+  `FellowshipsService`/`CohortsService`'s `get()` all filter by `organizationId` in the same
+  database query used to look the resource up (unlike `OrganizationsService.get()`, which looks up
+  by id first and checks Super Admin status before enforcing an org match) — so a mismatch reads as
+  "not found," even for a genuine Super Admin.
+- **Priority:** Low — the primary navigation flow this task asked for works correctly; this is a
+  deep-link edge case.
+- **Reason for deferral:** Fixing it fully means giving `AcademiesService.get()`/
+  `FellowshipsService.get()`/`CohortsService.get()` the same "look up by id first, then check Super
+  Admin before enforcing the org-scope match" pattern `OrganizationsService.get()` already has — a
+  change to three services' core lookup path, wider than this hierarchy/UX-focused task should carry
+  as a side effect.
+- **Planned milestone:** If direct deep-linking into another organization's hierarchy (rather than
+  drilling down from its own Organizations entry) becomes a real Super Admin workflow.

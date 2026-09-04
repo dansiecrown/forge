@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { BookOpen, Calendar, ClipboardList, Loader2, UserCheck, X } from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { Breadcrumb } from '@/components/admin/breadcrumb';
 import { PersonSearchField } from '@/components/admin/person-search-field';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -14,6 +15,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import type { AdminUser } from '@/features/admin-users/api/admin-users-api';
+import { useOrganization } from '@/features/organizations';
+import { useAcademy } from '@/features/academies';
+import { useFellowship } from '@/features/fellowships';
 import {
   useCohortLifecycleActions,
   useEnrollmentActions,
@@ -52,6 +56,9 @@ function toLocalInputValue(iso: string): string {
 export function CohortDetailPage() {
   const { cohortId } = useParams<{ cohortId: string }>();
   const { data: cohort, isLoading, error } = useCohort(cohortId);
+  const organization = useOrganization(cohort?.organizationId, cohort?.organizationId);
+  const academy = useAcademy(cohort?.academyId);
+  const fellowship = useFellowship(cohort?.fellowshipId);
   const updateCohort = useUpdateCohort(cohortId ?? '');
   const { activate, pause, complete, syncCurriculum } = useCohortLifecycleActions(cohortId ?? '');
   const mentors = useCohortMentors(cohortId);
@@ -201,12 +208,26 @@ export function CohortDetailPage() {
       <AdminPageHeader
         title={cohort.name}
         description={
-          <>
-            <Link to="/admin/cohorts" className="text-brand hover:underline">
-              Cohorts
-            </Link>{' '}
-            / {cohort.slug}
-          </>
+          <Breadcrumb
+            items={[
+              { label: 'Organizations', to: '/admin/organizations' },
+              ...(organization.data
+                ? [
+                    {
+                      label: organization.data.name,
+                      to: `/admin/organizations/${organization.data.id}`,
+                    },
+                  ]
+                : []),
+              ...(academy.data
+                ? [{ label: academy.data.name, to: `/admin/academies/${academy.data.id}` }]
+                : []),
+              ...(fellowship.data
+                ? [{ label: fellowship.data.title, to: `/admin/fellowships/${fellowship.data.id}` }]
+                : []),
+              { label: cohort.name },
+            ]}
+          />
         }
         action={
           <div className="flex items-center gap-3">
@@ -225,47 +246,51 @@ export function CohortDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-              {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
+            <form
+              className="flex flex-wrap gap-4"
+              onSubmit={form.handleSubmit(onSubmit)}
+              noValidate
+            >
+              {updateErrorMessage ? (
+                <Alert variant="danger" className="w-full">
+                  {updateErrorMessage}
+                </Alert>
+              ) : null}
               <FormField
                 label="Name"
                 error={form.formState.errors.name?.message}
                 {...form.register('name')}
               />
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  label="Starts at"
-                  type="datetime-local"
-                  error={form.formState.errors.startsAt?.message}
-                  {...form.register('startsAt')}
-                />
-                <FormField
-                  label="Ends at"
-                  type="datetime-local"
-                  error={form.formState.errors.endsAt?.message}
-                  {...form.register('endsAt')}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  label="Timezone"
-                  error={form.formState.errors.timezone?.message}
-                  {...form.register('timezone')}
-                />
-                <FormField
-                  label="Capacity"
-                  type="number"
-                  min={1}
-                  error={form.formState.errors.capacity?.message}
-                  {...form.register('capacity')}
-                />
-              </div>
+              <FormField
+                label="Starts at"
+                type="datetime-local"
+                error={form.formState.errors.startsAt?.message}
+                {...form.register('startsAt')}
+              />
+              <FormField
+                label="Ends at"
+                type="datetime-local"
+                error={form.formState.errors.endsAt?.message}
+                {...form.register('endsAt')}
+              />
+              <FormField
+                label="Timezone"
+                error={form.formState.errors.timezone?.message}
+                {...form.register('timezone')}
+              />
+              <FormField
+                label="Capacity"
+                type="number"
+                min={1}
+                error={form.formState.errors.capacity?.message}
+                {...form.register('capacity')}
+              />
               <FormField
                 label="Description"
                 error={form.formState.errors.description?.message}
                 {...form.register('description')}
               />
-              <div className="flex justify-end pt-2">
+              <div className="flex w-full justify-end pt-2">
                 <Button type="submit" loading={updateCohort.isPending}>
                   Save changes
                 </Button>
