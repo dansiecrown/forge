@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tech Impact Fellowship — Apply to the current cohort</title>
+    <meta
+      name="description"
+      content="A mentor-guided, project-based fellowship for people who want to build real technical skill. Learn what it takes, see the learning path, and apply to the current cohort."
+    />
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-nav" id="site-nav">
+      <div class="site-nav__inner">
+        <a class="brand" href="#top">
+          <span class="brand__mark" aria-hidden="true"></span>
+          Tech Impact Fellowship
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="#opportunity">Why it exists</a>
+          <a href="#learning-path">Learning path</a>
+          <a href="#how-it-works">How it works</a>
+          <a href="#outcomes">Outcomes</a>
+          <a href="#cohort">Current cohort</a>
+        </nav>
+        <a class="button button--primary nav-cta" href="#apply">Apply now</a>
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="mobile-nav"
+          aria-label="Open menu"
+        >
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+      <div class="mobile-nav" id="mobile-nav" hidden>
+        <a href="#opportunity">Why it exists</a>
+        <a href="#learning-path">Learning path</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#outcomes">Outcomes</a>
+        <a href="#cohort">Current cohort</a>
+        <a class="button button--primary" href="#apply">Apply now</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- 1. HERO -->
+      <section class="hero" id="top">
+        <div class="hero__glow" aria-hidden="true"></div>
+        <div class="section-inner hero__inner">
+          <p class="eyebrow reveal">Cohort-based · Mentor-guided · Project-first</p>
+          <h1 class="hero__title reveal">
+            Build real technical skill,<br />
+            with people invested in your growth.
+          </h1>
+          <p class="hero__lede reveal">
+            Tech Impact Fellowship is a structured, mentor-guided programme for people who learn
+            best by building — weekly curriculum, real practical work, and a mentor who actually
+            reviews it.
+          </p>
+          <div class="hero__actions reveal">
+            <a class="button button--primary button--lg" href="#apply">Apply for the fellowship</a>
+            <a class="button button--ghost button--lg" href="#how-it-works">See how it works</a>
+          </div>
+          <p class="hero__status reveal" id="hero-status" data-state="loading">
+            Checking current cohort status…
+          </p>
+        </div>
+      </section>
+
+      <!-- 2. THE OPPORTUNITY -->
+      <section class="section" id="opportunity">
+        <div class="section-inner">
+          <p class="eyebrow reveal">The opportunity</p>
+          <h2 class="section-title reveal">Skill is built, not credentialed.</h2>
+          <p class="section-lede reveal">
+            Most people trying to break into tech aren't short on effort or ambition — they're
+            short on structure and honest feedback. Tutorials get you started; they rarely get you
+            reviewed. Tech Impact Fellowship exists to close that gap: a defined weekly path,
+            practical work that mirrors how real teams operate, and a mentor whose job is to tell
+            you the truth about your work and help you improve it.
+          </p>
+        </div>
+      </section>
+
+      <!-- 3. WHAT PARTICIPANTS GET -->
+      <section class="section section--tint" id="what-you-get">
+        <div class="section-inner">
+          <p class="eyebrow reveal">What you get</p>
+          <h2 class="section-title reveal">Everything that turns effort into progress.</h2>
+          <div class="feature-grid">
+            <article class="feature-card reveal">
+              <div class="feature-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M4 19.5V6a2 2 0 0 1 2-2h13v14H6a2 2 0 0 0-2 2Zm0 0a2 2 0 0 0 2 2h13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <h3>A real curriculum, not a link dump</h3>
+              <p>
+                Learning tracks broken into courses, weekly modules and lessons — each week has a
+                clear objective, estimated time, and a practical task that proves you got it.
+              </p>
+            </article>
+            <article class="feature-card reveal">
+              <div class="feature-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M17 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M13 3.13a4 4 0 0 1 0 7.75M21 20v-1a4 4 0 0 0-3-3.87M12.5 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <h3>A mentor who actually reviews your work</h3>
+              <p>
+                Every practical task submission gets read and reviewed — approved, or sent back
+                with specific feedback. Weekly huddles keep you accountable and unstuck.
+              </p>
+            </article>
+            <article class="feature-card reveal">
+              <div class="feature-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18M3 15v4a2 2 0 0 0 2 2h4m10-6v4a2 2 0 0 1-2 2h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <h3>Practical work, not busywork</h3>
+              <p>
+                Ship real, working things — with a GitHub repository and a live demo, the same
+                artifacts you'd point a hiring manager to.
+              </p>
+            </article>
+            <article class="feature-card reveal">
+              <div class="feature-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 3 7v6c0 5 4 8 9 9 5-1 9-4 9-9V7l-9-5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              </div>
+              <h3>A cohort, not a solo grind</h3>
+              <p>
+                You move through the programme alongside a cohort of peers on the same schedule —
+                same weekly rhythm, shared momentum, real accountability.
+              </p>
+            </article>
+            <article class="feature-card reveal">
+              <div class="feature-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 21h8M12 18v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </div>
+              <h3>A portfolio worth sharing</h3>
+              <p>
+                Your approved projects build into a public portfolio — publish it when you're
+                ready, on your own terms.
+              </p>
+            </article>
+            <article class="feature-card reveal">
+              <div class="feature-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v5a4 4 0 0 0 4 4Zm-7-4a7 7 0 0 0 14 0M12 19v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <h3>A certificate that means something</h3>
+              <p>
+                Earned, not handed out — tied to real completion, attendance and approved work,
+                with a mentor's and administrator's sign-off. See exactly what it takes below.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. LEARNING PATH -->
+      <section class="section" id="learning-path">
+        <div class="section-inner">
+          <p class="eyebrow reveal">Learning path</p>
+          <h2 class="section-title reveal">Choose the track that matches where you are.</h2>
+          <p class="section-lede reveal">
+            Every track follows the same rhythm — courses, weekly modules, lessons and a practical
+            task each week — at a pace matched to its level.
+          </p>
+          <div class="track-grid" id="track-grid" aria-live="polite">
+            <p class="muted reveal" data-loading-text>Loading tracks…</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. HOW IT WORKS -->
+      <section class="section section--tint" id="how-it-works">
+        <div class="section-inner">
+          <p class="eyebrow reveal">How it works</p>
+          <h2 class="section-title reveal">From application to certificate.</h2>
+          <ol class="timeline">
+            <li class="timeline__step reveal">
+              <span class="timeline__index">01</span>
+              <div>
+                <h3>Apply</h3>
+                <p>Tell us who you are and pick the track you want to follow.</p>
+              </div>
+            </li>
+            <li class="timeline__step reveal">
+              <span class="timeline__index">02</span>
+              <div>
+                <h3>Review</h3>
+                <p>An administrator reviews every application by hand — no automatic accept.</p>
+              </div>
+            </li>
+            <li class="timeline__step reveal">
+              <span class="timeline__index">03</span>
+              <div>
+                <h3>Onboard</h3>
+                <p>Approved applicants get an account and are enrolled into the current cohort.</p>
+              </div>
+            </li>
+            <li class="timeline__step reveal">
+              <span class="timeline__index">04</span>
+              <div>
+                <h3>Learn, weekly</h3>
+                <p>Work through your track's lessons and resources at the cohort's pace.</p>
+              </div>
+            </li>
+            <li class="timeline__step reveal">
+              <span class="timeline__index">05</span>
+              <div>
+                <h3>Build &amp; get reviewed</h3>
+                <p>Submit each week's practical task; your mentor approves it or asks for a revision.</p>
+              </div>
+            </li>
+            <li class="timeline__step reveal">
+              <span class="timeline__index">06</span>
+              <div>
+                <h3>Mentorship, throughout</h3>
+                <p>Weekly huddles and direct feedback keep you on track the whole way.</p>
+              </div>
+            </li>
+            <li class="timeline__step reveal">
+              <span class="timeline__index">07</span>
+              <div>
+                <h3>Complete &amp; certify</h3>
+                <p>Meet the completion, attendance and review bar and earn your certificate.</p>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- 6. WHO IT IS FOR -->
+      <section class="section" id="who-its-for">
+        <div class="section-inner section-inner--split">
+          <div>
+            <p class="eyebrow reveal">Who it's for</p>
+            <h2 class="section-title reveal">Built for people who learn by doing.</h2>
+            <p class="section-lede reveal">
+              You don't need a degree in the field or a perfect résumé. You need the discipline to
+              show up weekly, submit real work, and take feedback seriously.
+            </p>
+          </div>
+          <ul class="check-list reveal">
+            <li>You're serious about building real, working skill — not just watching videos.</li>
+            <li>You can commit to a weekly cadence for the length of a cohort.</li>
+            <li>You want direct, specific feedback on your work, not just a passing grade.</li>
+            <li>You're comfortable learning alongside a cohort of peers, not in isolation.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 7. FELLOWSHIP EXPERIENCE -->
+      <section class="section section--tint" id="experience">
+        <div class="section-inner">
+          <p class="eyebrow reveal">The experience</p>
+          <h2 class="section-title reveal">What a week actually looks like.</h2>
+          <div class="experience-grid">
+            <article class="experience-card reveal">
+              <h3>Monday</h3>
+              <p>A new week unlocks — lessons, resources and that week's practical task, laid out in order.</p>
+            </article>
+            <article class="experience-card reveal">
+              <h3>Through the week</h3>
+              <p>Work the lessons at your own pace, acknowledge resources, and start building your practical task.</p>
+            </article>
+            <article class="experience-card reveal">
+              <h3>Weekly huddle</h3>
+              <p>A live session with your mentor and cohort — discussion, unblocking, and a recorded attendance mark toward your certificate.</p>
+            </article>
+            <article class="experience-card reveal">
+              <h3>Submission</h3>
+              <p>Submit your repository and live demo. Your mentor approves it, or sends it back with feedback to revise and resubmit.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- 8. OUTCOMES -->
+      <section class="section" id="outcomes">
+        <div class="section-inner">
+          <p class="eyebrow reveal">Outcomes</p>
+          <h2 class="section-title reveal">What you leave with.</h2>
+          <div class="outcomes-grid">
+            <div class="outcome reveal">
+              <h3>Skill, demonstrated</h3>
+              <p>A track's worth of completed, reviewed practical work — not just certificates of attendance.</p>
+            </div>
+            <div class="outcome reveal">
+              <h3>A public portfolio</h3>
+              <p>Your approved projects, publishable on your terms, as evidence of what you can actually do.</p>
+            </div>
+            <div class="outcome reveal">
+              <h3>A mentor relationship</h3>
+              <p>Weeks of direct, specific feedback from someone who reviewed your actual work, not a rubric bot.</p>
+            </div>
+            <div class="outcome reveal">
+              <h3>An earned certificate</h3>
+              <p class="outcome__criteria">
+                Issued when you reach <strong>90% required learning completion</strong>,
+                <strong>75% huddle attendance</strong>, have <strong>every required task approved</strong>,
+                and receive both your <strong>mentor's recommendation</strong> and
+                <strong>administrator approval</strong>. Transparent, and verifiable by anyone with your
+                certificate's code.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 9. CURRENT COHORT -->
+      <section class="section section--tint" id="cohort">
+        <div class="section-inner">
+          <p class="eyebrow reveal">Current cohort</p>
+          <h2 class="section-title reveal">Where things stand right now.</h2>
+          <div class="cohort-panel glass reveal" id="cohort-panel" aria-live="polite">
+            <p class="muted" data-loading-text>Checking open cohorts…</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10. FINAL CTA + APPLICATION FORM -->
+      <section class="section apply-section" id="apply">
+        <div class="section-inner">
+          <p class="eyebrow reveal">Apply</p>
+          <h2 class="section-title reveal">Ready to build something real?</h2>
+          <p class="section-lede reveal">
+            Applications are reviewed by hand. Tell us where to reach you, and pick the track
+            you'd like to follow.
+          </p>
+
+          <div class="apply-card glass reveal">
+            <form id="apply-form" novalidate>
+              <div class="form-row">
+                <label for="displayName">Full name</label>
+                <input id="displayName" name="displayName" type="text" autocomplete="name" required maxlength="160" />
+              </div>
+              <div class="form-row">
+                <label for="email">Email address</label>
+                <input id="email" name="email" type="email" autocomplete="email" required />
+              </div>
+              <div class="form-row">
+                <label for="cohortId">Cohort</label>
+                <select id="cohortId" name="cohortId" required>
+                  <option value="" disabled selected>Loading open cohorts…</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label for="trackId">Learning track (optional)</label>
+                <select id="trackId" name="trackId">
+                  <option value="">No preference</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label for="note">Anything you'd like us to know? (optional)</label>
+                <textarea id="note" name="note" rows="3" maxlength="2000"></textarea>
+              </div>
+
+              <div class="form-status" id="form-status" role="status" aria-live="polite"></div>
+
+              <button class="button button--primary button--lg" type="submit" id="submit-button">
+                Submit application
+              </button>
+              <p class="form-fineprint">
+                Submitting doesn't create an account yet — an administrator reviews every
+                application before anything is set up.
+              </p>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="section-inner site-footer__inner">
+        <p>Tech Impact Fellowship</p>
+        <p class="muted">
+          Already have an account?
+          <a href="/sign-in">Sign in</a>
+        </p>
+      </div>
+    </footer>
+
+    <script src="./script.js" defer></script>
+  </body>
+</html>

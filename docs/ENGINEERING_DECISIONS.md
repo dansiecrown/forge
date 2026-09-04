@@ -183,6 +183,16 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   `Fellowship.isPublic`/`Academy.isPublic` gate what's browsable, and `SystemSettings.registrationOpen`
   is the feature's kill switch. See `docs/adr/0010-cohort-applications.md`.
 
+## Public Fellowship Experience (2026-09-04)
+
+- **The public Tech Impact Fellowship landing page is vanilla HTML/CSS/JS, not a React route —
+  the first and only part of this codebase's frontend that isn't.** Served as a static asset from
+  `apps/web/public/fellowship/`, it never loads the React bundle, and calls the existing public
+  API (`GET /public/fellowships`, `POST /public/cohort-applications`) directly with `fetch()`. No
+  parallel application system, no duplicated curriculum data — same backend, same
+  `CohortApplication` entity as the authenticated `/apply` flow. See
+  `docs/adr/0011-public-fellowship-experience.md`.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

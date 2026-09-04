@@ -21,6 +21,13 @@ export const baseConfig = tseslint.config(
     files: ['**/*.cjs'],
     languageOptions: { globals: { ...globals.node } },
   },
+  {
+    // Plain .js — static browser assets served as-is (not bundled/type-checked
+    // by Vite), e.g. apps/web/public/**. Everything else in this repo is
+    // .ts/.tsx (already browser+node above) or .cjs (node above).
+    files: ['**/*.js'],
+    languageOptions: { globals: { ...globals.browser } },
+  },
   prettier,
 );
 

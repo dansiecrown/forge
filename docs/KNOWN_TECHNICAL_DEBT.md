@@ -348,3 +348,30 @@ machine-interpreted**
   Decision 1.
 - **Planned milestone:** Not currently planned; revisit on product request for specific event-driven
   notifications.
+
+**DEBT-031 — Public fellowship landing page's catalog is cross-tenant, not scoped to Tech Impact Fellowship**
+- **Description:** `GET /public/fellowships` (ADR-0010) is deliberately cross-tenant — its response
+  has no organization identifier to filter on. The new public landing page (ADR-0011) presents
+  itself specifically as Tech Impact Fellowship but consumes this same unscoped endpoint verbatim.
+  In the platform's current single-tenant-in-practice state this shows the correct data; if a
+  second organization ever also marks a fellowship public, this page would start listing their
+  tracks/cohorts too.
+- **Priority:** Low
+- **Reason for deferral:** Fixing it means adding an organization filter to a deliberately
+  cross-tenant, already-shipped public contract also used by the generic authenticated `/apply`
+  picker — a real API-contract change, not something this scope item's landing page alone should
+  force through.
+- **Planned milestone:** Whenever a second organization's public-catalog visibility is a real
+  product need.
+
+**DEBT-032 — Public landing page's API base URL has no build-time environment injection**
+- **Description:** `apps/web/public/fellowship/script.js` hardcodes `http://localhost:3000/api/v1`
+  (matching the React app's own fallback) behind a `window.FELLOWSHIP_API_BASE_URL` override,
+  since static assets under `public/` get none of Vite's `VITE_*` env handling the way `apps/web/src`
+  does.
+- **Priority:** Low
+- **Reason for deferral:** No existing mechanism in this repo injects env values into `public/`
+  assets; building one is a bigger, separately-scoped change than this one static page needs.
+- **Planned milestone:** Before this page is deployed anywhere the API isn't reachable at that
+  default origin — set `window.FELLOWSHIP_API_BASE_URL` (e.g. via a small inline script the actual
+  deploy pipeline templates in) at that point.
