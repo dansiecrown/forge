@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
+import type { CohortApplication } from '@forge/api-contract';
 import { ApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
@@ -19,6 +20,14 @@ const STATUS_TONE: Record<string, BadgeProps['tone']> = {
   rejected: 'danger',
   withdrawn: 'neutral',
 };
+
+function applicantName(application: CohortApplication): string {
+  return application.prospectDisplayName ?? application.applicantDisplayName ?? 'Applicant';
+}
+
+function applicantEmail(application: CohortApplication): string | null {
+  return application.prospectEmail ?? application.applicantEmail;
+}
 
 export function AdminCohortApplicationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -55,13 +64,13 @@ export function AdminCohortApplicationDetailPage() {
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        title={application.prospectDisplayName ?? 'Existing member application'}
+        title={applicantName(application)}
         description={
           <>
             <Link to="/admin/applications" className="text-brand hover:underline">
               Applications
             </Link>{' '}
-            / {application.prospectEmail ?? application.applicantUserId}
+            / {applicantEmail(application) ?? application.applicantUserId ?? 'Unknown applicant'}
           </>
         }
         action={<Badge tone={STATUS_TONE[application.status]}>{application.status}</Badge>}
@@ -72,6 +81,27 @@ export function AdminCohortApplicationDetailPage() {
           <CardTitle as="h2">Application</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
+          <p>
+            <span className="text-muted-foreground">Applicant</span> {applicantName(application)}
+            {application.applicantUserId ? ' (existing member)' : ' (new applicant)'}
+          </p>
+          <p>
+            <span className="text-muted-foreground">Email</span>{' '}
+            {applicantEmail(application) ?? '—'}
+          </p>
+          <p>
+            <span className="text-muted-foreground">Fellowship</span>{' '}
+            {application.fellowshipTitle ?? '—'}
+          </p>
+          <p>
+            <span className="text-muted-foreground">Cohort</span> {application.cohortName ?? '—'}
+          </p>
+          {application.requestedLearningTrackName ? (
+            <p>
+              <span className="text-muted-foreground">Requested track</span>{' '}
+              {application.requestedLearningTrackName}
+            </p>
+          ) : null}
           <p>
             <span className="text-muted-foreground">Submitted</span>{' '}
             {new Date(application.createdAt).toLocaleString()}
@@ -85,12 +115,24 @@ export function AdminCohortApplicationDetailPage() {
             <p>
               <span className="text-muted-foreground">Reviewed</span>{' '}
               {new Date(application.reviewedAt).toLocaleString()}
+              {application.reviewedByDisplayName ? ` by ${application.reviewedByDisplayName}` : ''}
             </p>
           ) : null}
           {application.rejectionReason ? (
             <p>
               <span className="text-muted-foreground">Rejection reason:</span>{' '}
               {application.rejectionReason}
+            </p>
+          ) : null}
+          {application.status === 'approved' && application.resultingUserId ? (
+            <p>
+              <span className="text-muted-foreground">Result:</span> Enrolled —{' '}
+              <Link
+                to={`/admin/users/${application.resultingUserId}`}
+                className="text-brand hover:underline"
+              >
+                view account
+              </Link>
             </p>
           ) : null}
         </CardContent>

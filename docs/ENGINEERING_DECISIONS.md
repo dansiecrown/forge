@@ -192,6 +192,14 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   parallel application system, no duplicated curriculum data — same backend, same
   `CohortApplication` entity as the authenticated `/apply` flow. See
   `docs/adr/0011-public-fellowship-experience.md`.
+- **The admin Cohort Applications queue gained search, a fellowship filter, and real server-side
+  bulk approve/reject** — `CohortApplicationsService.bulkApprove()`/`bulkReject()` loop the
+  existing single-item `approve()`/`reject()` per item, each independently version-checked and
+  independently reported, so one bad row never blocks the rest of a batch. Same permission
+  (`cohort.application.manage`), no new authorization model. The queue also now resolves and
+  surfaces full applicant/fellowship/cohort/track/reviewer detail via `APPLICATION_INCLUDE` —
+  previously an authenticated (non-prospect) applicant showed as a bare user id with no name or
+  email anywhere in the admin UI.
 
 ## Amendment process
 

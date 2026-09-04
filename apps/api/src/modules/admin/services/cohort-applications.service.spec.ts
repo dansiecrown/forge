@@ -1,4 +1,4 @@
-import type { CohortApplication, User } from '@prisma/client';
+import type { User } from '@prisma/client';
 import type { UsersService } from '../../identity/services/users.service';
 import type { MembershipsService } from '../../organizations/services/memberships.service';
 import type { EnrollmentEntity } from '../../cohorts/entities/enrollment.entity';
@@ -9,13 +9,21 @@ import {
   CohortApplicationConflictError,
   CohortApplicationVersionConflictError,
   CohortApplicationsRepository,
+  type CohortApplicationWithRelations,
 } from '../repositories/cohort-applications.repository';
 import { CohortApplicationsService } from './cohort-applications.service';
 
 const SCOPE = { organizationId: 'org-1' };
 
-function fakeApplication(overrides: Partial<CohortApplication> = {}): CohortApplication {
+function fakeApplication(
+  overrides: Partial<CohortApplicationWithRelations> = {},
+): CohortApplicationWithRelations {
   return {
+    fellowship: { title: 'Fellowship' },
+    cohort: { name: 'Cohort 1' },
+    applicant: null,
+    requestedLearningTrack: null,
+    reviewedBy: null,
     id: 'application-1',
     organizationId: 'org-1',
     academyId: 'academy-1',
