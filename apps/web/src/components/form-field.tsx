@@ -9,7 +9,9 @@ export interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
    * field whose content genuinely wants the width (Description, Summary,
    * Note), inside a `flex flex-wrap` form. Every other field defaults to an
    * intrinsic, wrappable width so a form of several short fields reads as a
-   * flow, not a single column of full-width rows stacked to the floor. */
+   * flow, not a single column of full-width rows stacked to the floor.
+   * Meaningless outside a `flex flex-wrap` parent — see the note on the
+   * default sizing below. */
   fullWidth?: boolean;
 }
 
@@ -17,12 +19,22 @@ export interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
  * the value directly beneath it, borderless, in the same box — one visual
  * unit instead of a label floating above a separate input. Meant to be laid
  * out inside a `<form className="flex flex-wrap gap-4">`, not `space-y-*`:
- * see e.g. `academy-detail-page.tsx`'s Profile card. */
+ * see e.g. `academy-detail-page.tsx`'s Profile card.
+ *
+ * The default sizing (`sm:flex-[1_1_18rem]`) is a `flex-basis`/grow/shrink
+ * shorthand, not a `max-width` — flex sizing properties are no-ops on
+ * anything that isn't a flex item, so this same default is inert (and
+ * harmless) inside a plain stacked `space-y-*` form: it just falls back to
+ * `w-full`, filling the same width as everything else in that form. A
+ * `max-width` here previously capped every field at a fixed pixel width
+ * even in stacked forms (sign-in, forgot/reset password) regardless of how
+ * wide their container actually was — a real, shipped regression this
+ * replaces. */
 export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
   ({ label, name, error, fullWidth, className, disabled, ...inputProps }, ref) => {
     const errorId = `${name}-error`;
     return (
-      <div className={cn(fullWidth ? 'w-full' : 'w-full sm:min-w-56 sm:max-w-72 sm:flex-1')}>
+      <div className={cn(fullWidth ? 'w-full' : 'w-full sm:min-w-56 sm:flex-[1_1_18rem]')}>
         <div
           className={cn(
             'rounded-control border border-border bg-surface-2 px-3 pb-2 pt-1.5 transition-colors duration-150 ease-out',

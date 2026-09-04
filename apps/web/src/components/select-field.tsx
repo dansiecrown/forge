@@ -10,13 +10,14 @@ export interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement
 }
 
 /** The `<select>` counterpart to `FormField` — same inset-label box, same
- * flow-friendly default width, so a parent picker never looks like it
- * belongs to a different design system than the text fields around it. */
+ * flow-friendly default width (see `FormField`'s own doc comment for why
+ * it's a `flex-basis` shorthand, not a `max-width` — the latter broke every
+ * non-flex-wrap consumer of this sizing). */
 export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(
   ({ label, name, error, fullWidth, className, disabled, children, ...selectProps }, ref) => {
     const errorId = `${name}-error`;
     return (
-      <div className={cn(fullWidth ? 'w-full' : 'w-full sm:min-w-56 sm:max-w-72 sm:flex-1')}>
+      <div className={cn(fullWidth ? 'w-full' : 'w-full sm:min-w-56 sm:flex-[1_1_18rem]')}>
         <div
           className={cn(
             'rounded-control border border-border bg-surface-2 px-3 pb-2 pt-1.5 transition-colors duration-150 ease-out',

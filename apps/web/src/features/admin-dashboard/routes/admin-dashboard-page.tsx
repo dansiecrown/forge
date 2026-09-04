@@ -102,7 +102,13 @@ export function AdminDashboardPage() {
                 </Card>
               </div>
 
+              {/* Exactly 8 tiles — divides evenly at both grid-cols-2 and
+                  grid-cols-4, so the last row is never left ragged with an
+                  empty trailing column. Active students repeats the hero
+                  number above; a small, deliberate redundancy in exchange
+                  for a grid that never looks broken regardless of viewport. */}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <StatTile label="Active students" value={data.activeStudentCount} />
                 <StatTile label="Completion rate" value={data.completionRate} />
                 <StatTile label="Active mentors" value={data.activeMentorCount} />
                 <StatTile label="Pending reviews" value={data.pendingReviewCount} />

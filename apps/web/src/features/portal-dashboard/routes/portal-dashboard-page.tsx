@@ -129,7 +129,11 @@ export function PortalDashboardPage() {
                   )}
                 </Card>
 
-                <div className="grid gap-4">
+                {/* flex + justify-between, not grid — a grid top-packs its
+                    items and leaves dead space below the last tile once this
+                    column is stretched to match the taller hero card beside
+                    it; flex distributes the gap instead. */}
+                <div className="flex h-full flex-col justify-between gap-4">
                   <KpiTile
                     icon={Flame}
                     tone="text-warning"

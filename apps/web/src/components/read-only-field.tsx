@@ -14,7 +14,7 @@ export function ReadOnlyField({
   fullWidth?: boolean;
 }) {
   return (
-    <div className={cn(fullWidth ? 'w-full' : 'w-full sm:min-w-56 sm:max-w-72 sm:flex-1')}>
+    <div className={cn(fullWidth ? 'w-full' : 'w-full sm:min-w-56 sm:flex-[1_1_18rem]')}>
       <div className="rounded-control border border-border bg-surface-2 px-3 pb-2 pt-1.5">
         <span className="block text-[11px] font-medium text-muted-foreground">{label}</span>
         <p className="mt-0.5 truncate text-sm text-foreground">{value}</p>
