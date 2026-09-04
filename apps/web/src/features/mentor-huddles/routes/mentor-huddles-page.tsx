@@ -138,7 +138,7 @@ export function MentorHuddlesPage() {
                 </Alert>
               ) : null}
               <form
-                className="space-y-4"
+                className="flex flex-wrap gap-4"
                 onSubmit={form.handleSubmit(async (values) => {
                   await upsertSession.mutateAsync({
                     notes: values.notes || undefined,
@@ -148,12 +148,6 @@ export function MentorHuddlesPage() {
                 })}
                 noValidate
               >
-                <TextareaField
-                  label="Notes"
-                  rows={4}
-                  error={form.formState.errors.notes?.message}
-                  {...form.register('notes')}
-                />
                 <FormField
                   label="Discussion topics (comma-separated)"
                   error={form.formState.errors.discussionTopics?.message}
@@ -164,7 +158,13 @@ export function MentorHuddlesPage() {
                   error={form.formState.errors.actionItems?.message}
                   {...form.register('actionItems')}
                 />
-                <div className="flex justify-end">
+                <TextareaField
+                  label="Notes"
+                  rows={4}
+                  error={form.formState.errors.notes?.message}
+                  {...form.register('notes')}
+                />
+                <div className="flex w-full justify-end">
                   <Button type="submit" loading={upsertSession.isPending}>
                     Save huddle
                   </Button>

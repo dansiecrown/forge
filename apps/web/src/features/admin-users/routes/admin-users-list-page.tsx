@@ -115,7 +115,7 @@ export function AdminUsersListPage() {
         description="They're added to this organization; roles can be changed any time from their profile."
       >
         <form
-          className="space-y-4"
+          className="flex flex-wrap gap-4"
           onSubmit={(event) => {
             event.preventDefault();
             void onInvite();
@@ -123,7 +123,9 @@ export function AdminUsersListPage() {
           noValidate
         >
           {inviteUser.error instanceof ApiError ? (
-            <Alert variant="danger">{inviteUser.error.message}</Alert>
+            <Alert variant="danger" className="w-full">
+              {inviteUser.error.message}
+            </Alert>
           ) : null}
           <FormField
             label="Display name"
@@ -142,7 +144,7 @@ export function AdminUsersListPage() {
             onChange={(event) => setEmail(event.target.value)}
           />
           {assignableRoles.length > 0 ? (
-            <div className="space-y-1.5">
+            <div className="w-full space-y-1.5">
               <Label>Roles</Label>
               <div className="space-y-2">
                 {assignableRoles.map((role) => (
@@ -159,7 +161,7 @@ export function AdminUsersListPage() {
               </div>
             </div>
           ) : null}
-          <div className="flex justify-end gap-3">
+          <div className="flex w-full justify-end gap-3">
             <Button type="button" variant="secondary" onClick={closeInvite}>
               Cancel
             </Button>

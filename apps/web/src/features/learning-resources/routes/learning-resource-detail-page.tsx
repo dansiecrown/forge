@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { SelectField } from '@/components/select-field';
 import { TextareaField } from '@/components/textarea-field';
 import {
   useLearningResourceLifecycleActions,
@@ -139,7 +139,7 @@ export function LearningResourceDetailPage() {
         }
       />
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2" className="flex items-center gap-2">
             <Link2 className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -147,50 +147,54 @@ export function LearningResourceDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {updateErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {updateErrorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Title"
               error={form.formState.errors.title?.message}
               {...form.register('title')}
             />
-            <div className="space-y-1.5">
-              <Label htmlFor="resourceType">Resource type</Label>
-              <Select id="resourceType" {...form.register('resourceType')}>
-                <option value="udemy_course">Udemy course</option>
-                <option value="youtube_video">YouTube video</option>
-                <option value="official_documentation">Official documentation</option>
-                <option value="github_repository">GitHub repository</option>
-                <option value="pdf">PDF</option>
-                <option value="article">Article</option>
-                <option value="book">Book</option>
-                <option value="other">Other</option>
-              </Select>
-            </div>
+            <SelectField label="Resource type" {...form.register('resourceType')}>
+              <option value="udemy_course">Udemy course</option>
+              <option value="youtube_video">YouTube video</option>
+              <option value="official_documentation">Official documentation</option>
+              <option value="github_repository">GitHub repository</option>
+              <option value="pdf">PDF</option>
+              <option value="article">Article</option>
+              <option value="book">Book</option>
+              <option value="other">Other</option>
+            </SelectField>
             <FormField
               label="URL"
               error={form.formState.errors.url?.message}
               {...form.register('url')}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Author"
-                error={form.formState.errors.author?.message}
-                {...form.register('author')}
-              />
-              <FormField
-                label="Provider"
-                error={form.formState.errors.provider?.message}
-                {...form.register('provider')}
-              />
-            </div>
+            <FormField
+              label="Author"
+              error={form.formState.errors.author?.message}
+              {...form.register('author')}
+            />
+            <FormField
+              label="Provider"
+              error={form.formState.errors.provider?.message}
+              {...form.register('provider')}
+            />
             <FormField
               label="Estimated duration (minutes)"
               type="number"
               error={form.formState.errors.estimatedDurationMinutes?.message}
               {...form.register('estimatedDurationMinutes')}
             />
-            <div className="flex items-center gap-2">
+            <TextareaField
+              label="Notes"
+              error={form.formState.errors.notes?.message}
+              {...form.register('notes')}
+            />
+            <div className="flex w-full items-center gap-2">
               <input
                 type="checkbox"
                 id="isRequired"
@@ -199,12 +203,7 @@ export function LearningResourceDetailPage() {
               />
               <Label htmlFor="isRequired">Required for progression</Label>
             </div>
-            <TextareaField
-              label="Notes"
-              error={form.formState.errors.notes?.message}
-              {...form.register('notes')}
-            />
-            <div className="flex justify-end pt-2">
+            <div className="flex w-full justify-end pt-2">
               <Button type="submit" loading={updateResource.isPending}>
                 Save changes
               </Button>

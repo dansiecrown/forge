@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { SelectField } from '@/components/select-field';
 import { TextareaField } from '@/components/textarea-field';
 import { useLessonLifecycleActions, useUpdateLesson } from '../hooks/use-lesson-mutations';
 import { useLesson } from '../hooks/use-lessons';
@@ -127,7 +127,7 @@ export function LessonDetailPage() {
         }
       />
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2" className="flex items-center gap-2">
             <PlayCircle className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -135,44 +135,43 @@ export function LessonDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {updateErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {updateErrorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Title"
               error={form.formState.errors.title?.message}
               {...form.register('title')}
+            />
+            <SelectField label="Lesson type" {...form.register('lessonType')}>
+              <option value="video">Video</option>
+              <option value="article">Article</option>
+              <option value="documentation">Documentation</option>
+              <option value="reading">Reading</option>
+              <option value="external_resource">External resource</option>
+              <option value="live_session_reference">Live session reference</option>
+              <option value="embedded_content">Embedded content</option>
+            </SelectField>
+            <FormField
+              label="Estimated duration (minutes)"
+              type="number"
+              error={form.formState.errors.estimatedDurationMinutes?.message}
+              {...form.register('estimatedDurationMinutes')}
+            />
+            <FormField
+              label="Resource URL"
+              error={form.formState.errors.resourceUrl?.message}
+              {...form.register('resourceUrl')}
             />
             <TextareaField
               label="Description"
               error={form.formState.errors.description?.message}
               {...form.register('description')}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="lessonType">Lesson type</Label>
-                <Select id="lessonType" {...form.register('lessonType')}>
-                  <option value="video">Video</option>
-                  <option value="article">Article</option>
-                  <option value="documentation">Documentation</option>
-                  <option value="reading">Reading</option>
-                  <option value="external_resource">External resource</option>
-                  <option value="live_session_reference">Live session reference</option>
-                  <option value="embedded_content">Embedded content</option>
-                </Select>
-              </div>
-              <FormField
-                label="Estimated duration (minutes)"
-                type="number"
-                error={form.formState.errors.estimatedDurationMinutes?.message}
-                {...form.register('estimatedDurationMinutes')}
-              />
-            </div>
-            <FormField
-              label="Resource URL"
-              error={form.formState.errors.resourceUrl?.message}
-              {...form.register('resourceUrl')}
-            />
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2">
               <input
                 type="checkbox"
                 id="completionRequired"
@@ -181,7 +180,7 @@ export function LessonDetailPage() {
               />
               <Label htmlFor="completionRequired">Required for progression</Label>
             </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex w-full justify-end pt-2">
               <Button type="submit" loading={updateLesson.isPending}>
                 Save changes
               </Button>

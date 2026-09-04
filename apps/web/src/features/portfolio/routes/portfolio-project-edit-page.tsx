@@ -119,22 +119,21 @@ export function PortfolioProjectEditPage() {
         </Card>
       ) : null}
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2">Project details</CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {errorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {errorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Title"
               error={form.formState.errors.title?.message}
               {...form.register('title')}
-            />
-            <TextareaField
-              label="Description"
-              error={form.formState.errors.description?.message}
-              {...form.register('description')}
             />
             <FormField
               label="Technologies (comma-separated)"
@@ -146,27 +145,30 @@ export function PortfolioProjectEditPage() {
               error={form.formState.errors.skillsAcquired?.message}
               {...form.register('skillsAcquired')}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Repository URL"
-                type="url"
-                error={form.formState.errors.repositoryUrl?.message}
-                {...form.register('repositoryUrl')}
-              />
-              <FormField
-                label="Live demo URL"
-                type="url"
-                error={form.formState.errors.liveDemoUrl?.message}
-                {...form.register('liveDemoUrl')}
-              />
-            </div>
+            <FormField
+              label="Repository URL"
+              type="url"
+              error={form.formState.errors.repositoryUrl?.message}
+              {...form.register('repositoryUrl')}
+            />
+            <FormField
+              label="Live demo URL"
+              type="url"
+              error={form.formState.errors.liveDemoUrl?.message}
+              {...form.register('liveDemoUrl')}
+            />
             <FormField
               label="Completion date"
               type="date"
               error={form.formState.errors.completionDate?.message}
               {...form.register('completionDate')}
             />
-            <div className="flex justify-end pt-2">
+            <TextareaField
+              label="Description"
+              error={form.formState.errors.description?.message}
+              {...form.register('description')}
+            />
+            <div className="flex w-full justify-end pt-2">
               <Button type="submit" loading={updateProject.isPending}>
                 Save changes
               </Button>

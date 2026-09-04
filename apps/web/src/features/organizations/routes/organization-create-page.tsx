@@ -46,10 +46,14 @@ export function OrganizationCreatePage() {
   return (
     <div>
       <AdminPageHeader title="New organization" description="Provision a new platform tenant." />
-      <Card className="max-w-xl">
+      <Card>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {apiErrorMessage ? <Alert variant="danger">{apiErrorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {apiErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {apiErrorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Name"
               autoFocus
@@ -67,28 +71,26 @@ export function OrganizationCreatePage() {
               error={form.formState.errors.legalName?.message}
               {...form.register('legalName')}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Default timezone"
-                placeholder="Africa/Lagos"
-                error={form.formState.errors.defaultTimezone?.message}
-                {...form.register('defaultTimezone')}
-              />
-              <FormField
-                label="Country (ISO code)"
-                placeholder="NG"
-                maxLength={2}
-                error={form.formState.errors.country?.message}
-                {...form.register('country')}
-              />
-            </div>
+            <FormField
+              label="Default timezone"
+              placeholder="Africa/Lagos"
+              error={form.formState.errors.defaultTimezone?.message}
+              {...form.register('defaultTimezone')}
+            />
+            <FormField
+              label="Country (ISO code)"
+              placeholder="NG"
+              maxLength={2}
+              error={form.formState.errors.country?.message}
+              {...form.register('country')}
+            />
             <FormField
               label="Support email"
               type="email"
               error={form.formState.errors.supportEmail?.message}
               {...form.register('supportEmail')}
             />
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex w-full justify-end gap-3 pt-2">
               <Button
                 type="button"
                 variant="secondary"

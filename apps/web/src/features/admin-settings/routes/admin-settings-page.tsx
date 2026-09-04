@@ -6,7 +6,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/form-field';
-import { Select } from '@/components/ui/select';
+import { SelectField } from '@/components/select-field';
 import { Switch } from '@/components/ui/switch';
 import { getSystemSettings, updateSystemSettings } from '../api/admin-settings-api';
 
@@ -58,7 +58,7 @@ export function AdminSettingsPage() {
         title="System Settings"
         description="Platform-wide branding, theme default, and maintenance/registration policy — Super Admin only."
       />
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2">Platform configuration</CardTitle>
         </CardHeader>
@@ -67,7 +67,7 @@ export function AdminSettingsPage() {
             <Alert variant="danger">{update.error.message}</Alert>
           ) : null}
           <form
-            className="space-y-5"
+            className="flex flex-wrap gap-4"
             onSubmit={(event) => {
               event.preventDefault();
               update.mutate();
@@ -80,21 +80,17 @@ export function AdminSettingsPage() {
               value={platformName}
               onChange={(e) => setPlatformName(e.target.value)}
             />
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground" htmlFor="defaultTheme">
-                Default theme
-              </label>
-              <Select
-                id="defaultTheme"
-                value={defaultTheme}
-                onChange={(e) => setDefaultTheme(e.target.value)}
-              >
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-                <option value="system">System</option>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between">
+            <SelectField
+              label="Default theme"
+              name="defaultTheme"
+              value={defaultTheme}
+              onChange={(e) => setDefaultTheme(e.target.value)}
+            >
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+              <option value="system">System</option>
+            </SelectField>
+            <div className="flex w-full items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-foreground">Maintenance mode</p>
                 <p className="text-sm text-muted-foreground">
@@ -107,7 +103,7 @@ export function AdminSettingsPage() {
                 label="Maintenance mode"
               />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex w-full items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-foreground">Registration open</p>
                 <p className="text-sm text-muted-foreground">
@@ -120,7 +116,7 @@ export function AdminSettingsPage() {
                 label="Registration open"
               />
             </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex w-full justify-end pt-2">
               <Button type="submit" loading={update.isPending}>
                 Save settings
               </Button>

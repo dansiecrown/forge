@@ -138,7 +138,11 @@ export function PracticalTaskPortalDetailPage() {
             </Alert>
           ) : null}
 
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSaveDraft)} noValidate>
+          <form
+            className="flex flex-wrap gap-4"
+            onSubmit={form.handleSubmit(onSaveDraft)}
+            noValidate
+          >
             <FormField
               label="GitHub repository URL"
               type="url"
@@ -153,7 +157,7 @@ export function PracticalTaskPortalDetailPage() {
               error={form.formState.errors.liveDemoUrl?.message}
               {...form.register('liveDemoUrl')}
             />
-            <div className="flex flex-wrap justify-end gap-3 pt-2">
+            <div className="flex w-full flex-wrap justify-end gap-3 pt-2">
               <Button
                 type="submit"
                 variant="secondary"

@@ -9,8 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/form-field';
 import { TextareaField } from '@/components/textarea-field';
-import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { SelectField } from '@/components/select-field';
 import { EmptyState } from '@/components/portal/empty-state';
 import { usePracticalTasks } from '@/features/student-curriculum/hooks/use-student-curriculum';
 import { useCreatePortfolioProject, usePortfolioProjects } from '../hooks/use-portfolio';
@@ -96,50 +95,43 @@ export function PortfolioProjectCreatePage() {
         title="New portfolio project"
         description="Feature a submitted practical task."
       />
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2">Project details</CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {errorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {errorMessage}
+              </Alert>
+            ) : null}
 
-            <div className="space-y-1.5">
-              <Label htmlFor="practicalTaskSubmissionId">Source task</Label>
-              <Select
-                id="practicalTaskSubmissionId"
-                defaultValue={eligibleTasks[0]?.submission?.id ?? ''}
-                {...form.register('practicalTaskSubmissionId')}
-                onChange={(event) => {
-                  form.setValue('practicalTaskSubmissionId', event.target.value);
-                  const task = eligibleTasks.find((t) => t.submission?.id === event.target.value);
-                  if (task && !form.getValues('title')) {
-                    form.setValue('title', task.title);
-                  }
-                }}
-              >
-                {eligibleTasks.map((task) => (
-                  <option key={task.id} value={task.submission?.id}>
-                    {task.title} (Week {task.weekNumber})
-                  </option>
-                ))}
-              </Select>
-              {form.formState.errors.practicalTaskSubmissionId ? (
-                <p className="text-sm text-danger" aria-live="polite">
-                  {form.formState.errors.practicalTaskSubmissionId.message}
-                </p>
-              ) : null}
-            </div>
+            <SelectField
+              label="Source task"
+              fullWidth
+              error={form.formState.errors.practicalTaskSubmissionId?.message}
+              defaultValue={eligibleTasks[0]?.submission?.id ?? ''}
+              {...form.register('practicalTaskSubmissionId')}
+              onChange={(event) => {
+                form.setValue('practicalTaskSubmissionId', event.target.value);
+                const task = eligibleTasks.find((t) => t.submission?.id === event.target.value);
+                if (task && !form.getValues('title')) {
+                  form.setValue('title', task.title);
+                }
+              }}
+            >
+              {eligibleTasks.map((task) => (
+                <option key={task.id} value={task.submission?.id}>
+                  {task.title} (Week {task.weekNumber})
+                </option>
+              ))}
+            </SelectField>
 
             <FormField
               label="Title"
               error={form.formState.errors.title?.message}
               {...form.register('title')}
-            />
-            <TextareaField
-              label="Description"
-              error={form.formState.errors.description?.message}
-              {...form.register('description')}
             />
             <FormField
               label="Technologies (comma-separated)"
@@ -151,28 +143,31 @@ export function PortfolioProjectCreatePage() {
               error={form.formState.errors.skillsAcquired?.message}
               {...form.register('skillsAcquired')}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Repository URL"
-                type="url"
-                error={form.formState.errors.repositoryUrl?.message}
-                {...form.register('repositoryUrl')}
-              />
-              <FormField
-                label="Live demo URL"
-                type="url"
-                error={form.formState.errors.liveDemoUrl?.message}
-                {...form.register('liveDemoUrl')}
-              />
-            </div>
+            <FormField
+              label="Repository URL"
+              type="url"
+              error={form.formState.errors.repositoryUrl?.message}
+              {...form.register('repositoryUrl')}
+            />
+            <FormField
+              label="Live demo URL"
+              type="url"
+              error={form.formState.errors.liveDemoUrl?.message}
+              {...form.register('liveDemoUrl')}
+            />
             <FormField
               label="Completion date"
               type="date"
               error={form.formState.errors.completionDate?.message}
               {...form.register('completionDate')}
             />
+            <TextareaField
+              label="Description"
+              error={form.formState.errors.description?.message}
+              {...form.register('description')}
+            />
 
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex w-full justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => navigate(-1)}>
                 Cancel
               </Button>

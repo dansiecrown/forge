@@ -39,7 +39,9 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
         className={cn(
           'rounded-card p-8 transition-all duration-500 ease-out',
           visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
-          glass ? 'glass-panel' : 'border border-border bg-surface shadow-subtle',
+          glass
+            ? 'glass-panel'
+            : 'border border-border bg-surface shadow-subtle hover:border-muted-foreground/30 hover:shadow-md',
           className,
         )}
         {...props}

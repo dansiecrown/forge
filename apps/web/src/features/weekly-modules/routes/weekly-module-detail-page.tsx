@@ -159,7 +159,7 @@ export function WeeklyModuleDetailPage() {
         }
       />
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2" className="flex items-center gap-2">
             <CalendarDays className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -167,22 +167,24 @@ export function WeeklyModuleDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Week number"
-                type="number"
-                error={form.formState.errors.weekNumber?.message}
-                {...form.register('weekNumber')}
-              />
-              <FormField
-                label="Estimated study hours"
-                type="number"
-                error={form.formState.errors.estimatedStudyHours?.message}
-                {...form.register('estimatedStudyHours')}
-              />
-            </div>
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {updateErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {updateErrorMessage}
+              </Alert>
+            ) : null}
+            <FormField
+              label="Week number"
+              type="number"
+              error={form.formState.errors.weekNumber?.message}
+              {...form.register('weekNumber')}
+            />
+            <FormField
+              label="Estimated study hours"
+              type="number"
+              error={form.formState.errors.estimatedStudyHours?.message}
+              {...form.register('estimatedStudyHours')}
+            />
             <FormField
               label="Title"
               error={form.formState.errors.title?.message}
@@ -193,12 +195,22 @@ export function WeeklyModuleDetailPage() {
               error={form.formState.errors.objectives?.message}
               {...form.register('objectives')}
             />
+            <FormField
+              label="Huddle meeting link"
+              error={form.formState.errors.huddleMeetingLink?.message}
+              {...form.register('huddleMeetingLink')}
+            />
             <TextareaField
               label="Summary"
               error={form.formState.errors.summary?.message}
               {...form.register('summary')}
             />
-            <div className="flex items-center gap-2">
+            <TextareaField
+              label="Mentor huddle notes"
+              error={form.formState.errors.mentorHuddleNotes?.message}
+              {...form.register('mentorHuddleNotes')}
+            />
+            <div className="flex w-full items-center gap-2">
               <input
                 type="checkbox"
                 id="requiresMentorHuddle"
@@ -207,7 +219,7 @@ export function WeeklyModuleDetailPage() {
               />
               <Label htmlFor="requiresMentorHuddle">Requires a mentor huddle this week</Label>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2">
               <input
                 type="checkbox"
                 id="requiresPracticalWork"
@@ -216,17 +228,7 @@ export function WeeklyModuleDetailPage() {
               />
               <Label htmlFor="requiresPracticalWork">Requires practical work this week</Label>
             </div>
-            <FormField
-              label="Huddle meeting link"
-              error={form.formState.errors.huddleMeetingLink?.message}
-              {...form.register('huddleMeetingLink')}
-            />
-            <TextareaField
-              label="Mentor huddle notes"
-              error={form.formState.errors.mentorHuddleNotes?.message}
-              {...form.register('mentorHuddleNotes')}
-            />
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2">
               <input
                 type="checkbox"
                 id="huddleAttendanceRequired"
@@ -235,7 +237,7 @@ export function WeeklyModuleDetailPage() {
               />
               <Label htmlFor="huddleAttendanceRequired">Huddle attendance is required</Label>
             </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex w-full justify-end pt-2">
               <Button type="submit" loading={updateModule.isPending}>
                 Save changes
               </Button>

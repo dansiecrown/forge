@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
-import { Select } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
+import { SelectField } from '@/components/select-field';
+import { TextareaField } from '@/components/textarea-field';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import {
   checkEligibility,
@@ -78,7 +78,7 @@ export function CertificatesPage() {
         description="Templates, issuance, and verification. PDF generation happens in the browser (print)."
       />
 
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2">Check eligibility &amp; issue</CardTitle>
         </CardHeader>
@@ -117,23 +117,19 @@ export function CertificatesPage() {
               )}
             </div>
           ) : null}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground" htmlFor="templateId">
-              Certificate template
-            </label>
-            <Select
-              id="templateId"
-              value={templateId}
-              onChange={(e) => setTemplateId(e.target.value)}
-            >
-              <option value="">Select a template…</option>
-              {templates.data?.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <SelectField
+            label="Certificate template"
+            name="templateId"
+            value={templateId}
+            onChange={(e) => setTemplateId(e.target.value)}
+          >
+            <option value="">Select a template…</option>
+            {templates.data?.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
+          </SelectField>
           <div className="flex justify-end">
             <Button
               loading={issue.isPending}
@@ -146,7 +142,7 @@ export function CertificatesPage() {
         </CardContent>
       </Card>
 
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2">Certificate templates</CardTitle>
         </CardHeader>
@@ -157,17 +153,13 @@ export function CertificatesPage() {
             value={templateName}
             onChange={(e) => setTemplateName(e.target.value)}
           />
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground" htmlFor="templateBody">
-              Body HTML (supports {'{{studentName}}'}, {'{{fellowshipTitle}}'})
-            </label>
-            <Textarea
-              id="templateBody"
-              value={templateBody}
-              onChange={(e) => setTemplateBody(e.target.value)}
-              rows={4}
-            />
-          </div>
+          <TextareaField
+            label={`Body HTML (supports {{studentName}}, {{fellowshipTitle}})`}
+            name="templateBody"
+            value={templateBody}
+            onChange={(e) => setTemplateBody(e.target.value)}
+            rows={4}
+          />
           <div className="flex justify-end">
             <Button
               variant="secondary"

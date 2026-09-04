@@ -14,8 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
-import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { SelectField } from '@/components/select-field';
 import { TextareaField } from '@/components/textarea-field';
 import { useCoursesList } from '@/features/courses';
 import type { Course } from '@forge/api-contract';
@@ -165,7 +164,7 @@ export function LearningTrackDetailPage() {
         }
       />
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2" className="flex items-center gap-2">
             <Route className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -173,39 +172,32 @@ export function LearningTrackDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {updateErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {updateErrorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Name"
               error={form.formState.errors.name?.message}
               {...form.register('name')}
             />
-            <TextareaField
-              label="Description"
-              error={form.formState.errors.description?.message}
-              {...form.register('description')}
+            <SelectField
+              label="Difficulty"
+              error={form.formState.errors.difficulty?.message}
+              {...form.register('difficulty')}
+            >
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+            </SelectField>
+            <FormField
+              label="Estimated weeks"
+              type="number"
+              error={form.formState.errors.estimatedWeeks?.message}
+              {...form.register('estimatedWeeks')}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="difficulty">Difficulty</Label>
-                <Select id="difficulty" {...form.register('difficulty')}>
-                  <option value="beginner">Beginner</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
-                </Select>
-                {form.formState.errors.difficulty ? (
-                  <p className="text-sm text-danger" aria-live="polite">
-                    {form.formState.errors.difficulty.message}
-                  </p>
-                ) : null}
-              </div>
-              <FormField
-                label="Estimated weeks"
-                type="number"
-                error={form.formState.errors.estimatedWeeks?.message}
-                {...form.register('estimatedWeeks')}
-              />
-            </div>
             <FormField
               label="Learning outcomes (comma-separated)"
               error={form.formState.errors.learningOutcomes?.message}
@@ -216,7 +208,12 @@ export function LearningTrackDetailPage() {
               error={form.formState.errors.tags?.message}
               {...form.register('tags')}
             />
-            <div className="flex justify-end pt-2">
+            <TextareaField
+              label="Description"
+              error={form.formState.errors.description?.message}
+              {...form.register('description')}
+            />
+            <div className="flex w-full justify-end pt-2">
               <Button type="submit" loading={updateTrack.isPending}>
                 Save changes
               </Button>

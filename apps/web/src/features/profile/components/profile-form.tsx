@@ -75,7 +75,7 @@ export function ProfileForm({ variant = 'student' }: { variant?: 'student' | 'me
   const errorMessage = updateProfile.error instanceof ApiError ? updateProfile.error.message : null;
 
   return (
-    <Card className="max-w-xl">
+    <Card>
       <CardHeader>
         <div className="flex items-center gap-3">
           {variant === 'mentor' && user ? (
@@ -85,14 +85,17 @@ export function ProfileForm({ variant = 'student' }: { variant?: 'student' | 'me
         </div>
       </CardHeader>
       <CardContent>
-        <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-          {errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
-          {updateProfile.isSuccess ? <Alert variant="success">Profile saved.</Alert> : null}
-          <TextareaField
-            label="Bio"
-            error={form.formState.errors.bio?.message}
-            {...form.register('bio')}
-          />
+        <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          {errorMessage ? (
+            <Alert variant="danger" className="w-full">
+              {errorMessage}
+            </Alert>
+          ) : null}
+          {updateProfile.isSuccess ? (
+            <Alert variant="success" className="w-full">
+              Profile saved.
+            </Alert>
+          ) : null}
           <FormField
             label={
               variant === 'mentor'
@@ -133,7 +136,12 @@ export function ProfileForm({ variant = 'student' }: { variant?: 'student' | 'me
               {...form.register('availability')}
             />
           ) : null}
-          <div className="flex justify-end pt-2">
+          <TextareaField
+            label="Bio"
+            error={form.formState.errors.bio?.message}
+            {...form.register('bio')}
+          />
+          <div className="flex w-full justify-end pt-2">
             <Button type="submit" loading={updateProfile.isPending}>
               Save profile
             </Button>

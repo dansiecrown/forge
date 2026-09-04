@@ -15,7 +15,7 @@ export function AdminPageHeader({
         <h1 className="text-2xl font-semibold leading-tight tracking-tight text-foreground">
           {title}
         </h1>
-        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+        {description ? <div className="text-sm text-muted-foreground">{description}</div> : null}
       </div>
       {action}
     </div>

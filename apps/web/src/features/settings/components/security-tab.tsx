@@ -55,7 +55,7 @@ function PasswordSection() {
     changePassword.error instanceof ApiError ? changePassword.error.message : null;
 
   return (
-    <Card className="max-w-xl">
+    <Card>
       <CardHeader>
         <CardTitle as="h2" className="flex items-center gap-2">
           <KeyRound className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -63,9 +63,17 @@ function PasswordSection() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-          {errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
-          {changePassword.isSuccess ? <Alert variant="success">Password updated.</Alert> : null}
+        <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          {errorMessage ? (
+            <Alert variant="danger" className="w-full">
+              {errorMessage}
+            </Alert>
+          ) : null}
+          {changePassword.isSuccess ? (
+            <Alert variant="success" className="w-full">
+              Password updated.
+            </Alert>
+          ) : null}
           <FormField
             label="Current password"
             type="password"
@@ -78,7 +86,7 @@ function PasswordSection() {
             error={form.formState.errors.newPassword?.message}
             {...form.register('newPassword')}
           />
-          <div className="flex justify-end">
+          <div className="flex w-full justify-end">
             <Button type="submit" loading={changePassword.isPending}>
               Update password
             </Button>

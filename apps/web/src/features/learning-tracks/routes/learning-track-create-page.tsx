@@ -7,8 +7,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/form-field';
-import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { SelectField } from '@/components/select-field';
 import { TextareaField } from '@/components/textarea-field';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { useCreateLearningTrack } from '../hooks/use-learning-track-mutations';
@@ -65,13 +64,17 @@ export function LearningTrackCreatePage() {
         title="New learning track"
         description="Add a structured path to this fellowship."
       />
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2">Track details</CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {errorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {errorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Name"
               error={form.formState.errors.name?.message}
@@ -82,32 +85,21 @@ export function LearningTrackCreatePage() {
               error={form.formState.errors.slug?.message}
               {...form.register('slug')}
             />
-            <TextareaField
-              label="Description"
-              error={form.formState.errors.description?.message}
-              {...form.register('description')}
+            <SelectField
+              label="Difficulty"
+              error={form.formState.errors.difficulty?.message}
+              {...form.register('difficulty')}
+            >
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+            </SelectField>
+            <FormField
+              label="Estimated weeks"
+              type="number"
+              error={form.formState.errors.estimatedWeeks?.message}
+              {...form.register('estimatedWeeks')}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="difficulty">Difficulty</Label>
-                <Select id="difficulty" {...form.register('difficulty')}>
-                  <option value="beginner">Beginner</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
-                </Select>
-                {form.formState.errors.difficulty ? (
-                  <p className="text-sm text-danger" aria-live="polite">
-                    {form.formState.errors.difficulty.message}
-                  </p>
-                ) : null}
-              </div>
-              <FormField
-                label="Estimated weeks"
-                type="number"
-                error={form.formState.errors.estimatedWeeks?.message}
-                {...form.register('estimatedWeeks')}
-              />
-            </div>
             <FormField
               label="Learning outcomes (comma-separated)"
               error={form.formState.errors.learningOutcomes?.message}
@@ -118,7 +110,12 @@ export function LearningTrackCreatePage() {
               error={form.formState.errors.tags?.message}
               {...form.register('tags')}
             />
-            <div className="flex justify-end gap-3 pt-2">
+            <TextareaField
+              label="Description"
+              error={form.formState.errors.description?.message}
+              {...form.register('description')}
+            />
+            <div className="flex w-full justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => navigate(-1)}>
                 Cancel
               </Button>

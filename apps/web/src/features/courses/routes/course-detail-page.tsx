@@ -148,7 +148,7 @@ export function CourseDetailPage() {
         }
       />
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2" className="flex items-center gap-2">
             <BookOpen className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -156,27 +156,21 @@ export function CourseDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {updateErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {updateErrorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Title"
               error={form.formState.errors.title?.message}
               {...form.register('title')}
             />
-            <TextareaField
-              label="Overview"
-              error={form.formState.errors.overview?.message}
-              {...form.register('overview')}
-            />
             <FormField
               label="Objectives (comma-separated)"
               error={form.formState.errors.objectives?.message}
               {...form.register('objectives')}
-            />
-            <TextareaField
-              label="Completion criteria"
-              error={form.formState.errors.completionCriteria?.message}
-              {...form.register('completionCriteria')}
             />
             <FormField
               label="Estimated hours"
@@ -184,7 +178,17 @@ export function CourseDetailPage() {
               error={form.formState.errors.estimatedHours?.message}
               {...form.register('estimatedHours')}
             />
-            <div className="flex justify-end pt-2">
+            <TextareaField
+              label="Overview"
+              error={form.formState.errors.overview?.message}
+              {...form.register('overview')}
+            />
+            <TextareaField
+              label="Completion criteria"
+              error={form.formState.errors.completionCriteria?.message}
+              {...form.register('completionCriteria')}
+            />
+            <div className="flex w-full justify-end pt-2">
               <Button type="submit" loading={updateCourse.isPending}>
                 Save changes
               </Button>

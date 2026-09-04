@@ -37,10 +37,14 @@ export function RoleCreatePage() {
   return (
     <div>
       <AdminPageHeader title="New role" description="Create a custom role for this organization." />
-      <Card className="max-w-2xl">
+      <Card>
         <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit} noValidate>
-            {apiErrorMessage ? <Alert variant="danger">{apiErrorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={onSubmit} noValidate>
+            {apiErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {apiErrorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Name"
               name="name"
@@ -55,12 +59,14 @@ export function RoleCreatePage() {
               value={key}
               onChange={(e) => setKey(e.target.value)}
             />
-            <PermissionCheckboxList
-              permissions={matrix?.permissions ?? []}
-              selected={permissionIds}
-              onChange={setPermissionIds}
-            />
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="w-full">
+              <PermissionCheckboxList
+                permissions={matrix?.permissions ?? []}
+                selected={permissionIds}
+                onChange={setPermissionIds}
+              />
+            </div>
+            <div className="flex w-full justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => navigate('/admin/roles')}>
                 Cancel
               </Button>

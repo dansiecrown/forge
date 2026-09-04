@@ -132,7 +132,7 @@ export function PracticalTaskDetailPage() {
         }
       />
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2" className="flex items-center gap-2">
             <ClipboardCheck className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -140,12 +140,33 @@ export function PracticalTaskDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {updateErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {updateErrorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Title"
               error={form.formState.errors.title?.message}
               {...form.register('title')}
+            />
+            <FormField
+              label="Deliverables (comma-separated)"
+              error={form.formState.errors.deliverables?.message}
+              {...form.register('deliverables')}
+            />
+            <FormField
+              label="Due offset (days after week unlocks)"
+              type="number"
+              error={form.formState.errors.dueOffsetDays?.message}
+              {...form.register('dueOffsetDays')}
+            />
+            <FormField
+              label="Maximum score"
+              type="number"
+              error={form.formState.errors.maxScore?.message}
+              {...form.register('maxScore')}
             />
             <TextareaField
               label="Description"
@@ -157,26 +178,7 @@ export function PracticalTaskDetailPage() {
               error={form.formState.errors.instructions?.message}
               {...form.register('instructions')}
             />
-            <FormField
-              label="Deliverables (comma-separated)"
-              error={form.formState.errors.deliverables?.message}
-              {...form.register('deliverables')}
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Due offset (days after week unlocks)"
-                type="number"
-                error={form.formState.errors.dueOffsetDays?.message}
-                {...form.register('dueOffsetDays')}
-              />
-              <FormField
-                label="Maximum score"
-                type="number"
-                error={form.formState.errors.maxScore?.message}
-                {...form.register('maxScore')}
-              />
-            </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex w-full justify-end pt-2">
               <Button type="submit" loading={updateTask.isPending}>
                 Save changes
               </Button>
