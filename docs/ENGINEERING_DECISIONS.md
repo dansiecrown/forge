@@ -226,6 +226,22 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   last had selected no longer 404s one level down. See DEBT-033 for the one path (a raw
   Academy/Fellowship/Cohort URL, deep-linked without visiting the org page first) it doesn't cover.
 
+## Dashboard Bento Redesign (2026-09-04)
+
+- **The Admin, Mentor, and Student dashboards now use an asymmetric Bento layout, a skeleton
+  loading state, and glassmorphism content cards — a deliberate, disclosed exception to ADR-0004**
+  (which reserves glass for floating surfaces and uses spinners everywhere else). Every other page
+  in the app is untouched and stays on the ADR-0004 pattern. See
+  `docs/adr/0013-dashboard-bento-redesign.md` for the full decision record, including why this
+  exception was scoped to exactly these three pages.
+- **A new compound `DashboardState` component** replaces each dashboard's own hand-rolled
+  Loading/Error/Empty chain, and gives Error its own distinct visual with a working retry — before,
+  a real fetch failure and "nothing here yet" rendered the identical message with no way to recover
+  short of a full reload.
+- **No fabricated data.** Mentor and Student have no time-series data to chart, so their Bento focal
+  tile is their single most important *existing* element (Review queue; Progress ring + Continue
+  learning merged into one hero tile) rather than an invented chart.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.
