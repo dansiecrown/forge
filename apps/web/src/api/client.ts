@@ -34,6 +34,16 @@ export function configureApiClient(nextHooks: ApiClientHooks): void {
   hooks = nextHooks;
 }
 
+/** The current access token, for the one caller outside this module that
+ * legitimately needs it directly: the chat WebSocket connection
+ * (`features/chat`), which authenticates its handshake the same way every
+ * REST call does (`ChatGateway.handleConnection` verifies the same access
+ * token `performRequest` sends as a Bearer header) but can't go through
+ * `performRequest` itself since it isn't an HTTP request. */
+export function getCurrentAccessToken(): string | null {
+  return hooks.getAccessToken();
+}
+
 // Concurrent 401s share a single in-flight refresh instead of each racing
 // their own, per docs/system-architecture.md §3 "concurrent refreshes are coalesced".
 let inFlightRefresh: Promise<string | null> | null = null;

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { AppConfig, AuthConfig } from './configuration';
+import type { AppConfig, AuthConfig, RedisConfig } from './configuration';
 
 @Injectable()
 export class AppConfigService {
@@ -12,5 +12,9 @@ export class AppConfigService {
 
   get auth(): AuthConfig {
     return this.configService.getOrThrow<AuthConfig>('auth');
+  }
+
+  get redis(): RedisConfig {
+    return this.configService.getOrThrow<RedisConfig>('redis');
   }
 }

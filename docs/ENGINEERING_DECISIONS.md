@@ -242,6 +242,27 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   tile is their single most important *existing* element (Review queue; Progress ring + Continue
   learning merged into one hero tile) rather than an invented chart.
 
+## Fellowship Real-Time Chat (2026-09-05)
+
+- **Fellowship is the chat boundary — not Cohort, not Organization — and there is no
+  `FELLOWSHIP_ADMIN` role.** Access to a Fellowship's chat is derived entirely from the same
+  relationships every other module already uses (active `Enrollment` for students, active
+  `CohortMentor` assignment for mentors, `chat.channel.manage` + academy scope for admins) via one
+  shared `ChatAccessService`, called by both the REST controllers and the WebSocket gateway so the
+  two can never drift apart. See `docs/adr/0014-fellowship-chat.md` for the full decision record.
+- **Redis is now wired into the API for the first time** — narrowly, only for real-time chat-event
+  fan-out via `@socket.io/redis-adapter`, never as the source of truth for messages or
+  authorization (Postgres and the existing permission system remain that). A Redis outage degrades
+  real-time delivery only; this was verified against a genuine outage in this project's own dev
+  environment, not merely reasoned about.
+- **The WebSocket gateway accepts no writes.** Every chat mutation goes through the existing REST
+  endpoints; the socket is subscribe-and-receive only, re-running the same authorization check the
+  REST `GET` route uses on every subscribe, with a periodic sweep that revokes a now-stale
+  subscription without waiting for a reconnect.
+- **Chat notifications reuse the existing `NotificationsService`** — reply notifications only, the
+  same plain-persisted-row model Announcements already uses. No `@mention` system was added (no
+  unique user handle exists to match against — see DEBT-034).
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

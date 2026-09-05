@@ -3,6 +3,10 @@ export interface AppConfig {
   webOrigin: string;
 }
 
+export interface RedisConfig {
+  url: string;
+}
+
 export interface AuthConfig {
   jwtAccessSecret: string;
   jwtAccessTtlSeconds: number;
@@ -32,6 +36,9 @@ export default () => ({
     port: Number(process.env.API_PORT ?? 3000),
     webOrigin: requireEnv('WEB_ORIGIN'),
   } satisfies AppConfig,
+  redis: {
+    url: process.env.REDIS_URL ?? 'redis://localhost:6379',
+  } satisfies RedisConfig,
   auth: {
     jwtAccessSecret: requireEnv('JWT_ACCESS_SECRET'),
     jwtAccessTtlSeconds: Number(process.env.JWT_ACCESS_TTL_SECONDS ?? 900),

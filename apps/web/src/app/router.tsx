@@ -110,6 +110,8 @@ const SettingsPage = lazyNamed<{ variant?: 'student' | 'mentor' }>(
   'SettingsPage',
 );
 const NotificationsPage = lazyNamed(() => import('@/features/notifications'), 'NotificationsPage');
+const StudentChatPage = lazyNamed(() => import('@/features/chat'), 'StudentChatPage');
+const MentorChatPage = lazyNamed(() => import('@/features/chat'), 'MentorChatPage');
 const StudentRegisterPage = lazyNamed(
   () => import('@/features/cohort-applications'),
   'StudentRegisterPage',
@@ -224,6 +226,7 @@ const router = createBrowserRouter([
               { path: 'profile', element: suspended(<ProfilePage />) },
               { path: 'settings', element: suspended(<SettingsPage />) },
               { path: 'notifications', element: suspended(<NotificationsPage />) },
+              { path: 'chat', element: suspended(<StudentChatPage />) },
               { path: 'register', element: suspended(<StudentRegisterPage />) },
             ],
           },
@@ -243,6 +246,7 @@ const router = createBrowserRouter([
               { path: 'review-queue', element: suspended(<ReviewQueuePage />) },
               { path: 'submissions/:submissionId', element: suspended(<SubmissionReviewPage />) },
               { path: 'huddles', element: suspended(<MentorHuddlesPage />) },
+              { path: 'chat', element: suspended(<MentorChatPage />) },
               { path: 'settings', element: suspended(<SettingsPage variant="mentor" />) },
             ],
           },

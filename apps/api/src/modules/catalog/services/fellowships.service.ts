@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AcademiesService } from '../../organizations/services/academies.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
 import { AuditLogService } from '../../platform/audit-log.service';
+import { ChatChannelsService } from '../../chat/services/chat-channels.service';
 import { AppException } from '../../../shared/errors/app.exception';
 import { CollectionResult, parseLimit } from '../../../shared/pagination/collection-result';
 import type { TenantScope } from '../../../shared/tenancy/tenant-scope';
@@ -20,11 +21,14 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 
 @Injectable()
 export class FellowshipsService {
+  private readonly logger = new Logger(FellowshipsService.name);
+
   constructor(
     private readonly fellowshipsRepository: FellowshipsRepository,
     private readonly academiesService: AcademiesService,
     private readonly auditLog: AuditLogService,
     private readonly membershipsService: MembershipsService,
+    private readonly chatChannelsService: ChatChannelsService,
   ) {}
 
   async list(
@@ -153,6 +157,23 @@ export class FellowshipsService {
       organizationId: scope.organizationId,
       actorUserId,
     });
+
+    // Every Fellowship gets its #general chat channel the moment it exists
+    // — see docs/adr/0014-fellowship-chat.md Decision 4. Best-effort: a
+    // failure here must never fail fellowship creation itself (the channel
+    // can always be created later through the normal chat API), so it's
+    // logged, not thrown.
+    try {
+      await this.chatChannelsService.createDefaultGeneralChannel(
+        scope.organizationId,
+        fellowship.id,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create #general chat channel for fellowship ${fellowship.id}: ${(error as Error).message}`,
+      );
+    }
+
     return toFellowshipEntity(fellowship);
   }
 

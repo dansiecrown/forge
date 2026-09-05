@@ -280,6 +280,33 @@ Each endpoint line supplies description, authentication/authorization, body sche
 | `GET /audit-logs` | immutable scoped audit search; Admin restricted scope or Super | filters `actorUserId,action,entityType,entityId,start,end,outcome`, cursor; max range | `200 {data:[{id:"uuid",occurredAt:"…",action:"certificate.issued",actor:{…},outcome:"success"}],meta:{page:{…}}}`; `403` |
 | `GET /audit-logs/:id` | audit event detail; same authorization | no body | `200 {data:{id:"uuid",beforeRedacted:{…},afterRedacted:{…},requestId:"…"}}`; `404` |
 
+### 4.13 Fellowship chat
+
+Distinct from §4.9's `/conversations`/`/messages` (a still-undelivered direct/group DM design) —
+Fellowship chat is a separate, actually-implemented feature: one set of channels per Fellowship
+(not a per-user conversation), scoped by the same Enrollment/CohortMentor/admin-scope relationships
+every other module uses, with no new "Fellowship Admin" role. See
+`docs/adr/0014-fellowship-chat.md`.
+
+| Method / path | Description, auth/permission | Request sample & validation | Success response / errors |
+| --- | --- | --- | --- |
+| `GET /fellowships/:fellowshipId/chat/channels` / `POST …` | list visible channels (private channels only for members/managers) / create; `chat.channel.read` / `chat.channel.manage` | POST `{ "name":"Announcements","slug":"announcements","type":"announcements","isPrivate":false }`; unique slug per Fellowship | `200 {data:[{id:"uuid",name:"general","type":"general"}]}` / `201`; `403/404/409 SLUG_TAKEN` |
+| `GET /chat/channels/:id` / `PATCH /chat/channels/:id` | channel detail / rename+describe; participant read / `chat.channel.manage`, `If-Match` | PATCH `{ "name":"General","description":"…" }` | `200`; `403/404/409 VERSION_CONFLICT` |
+| `POST /chat/channels/:id/actions/archive` / `.../restore` / `DELETE /chat/channels/:id` | archive/restore (DELETE archives, never hard-deletes); `chat.channel.manage` | `{ "version":1 }` | `200`; `403/404/409` |
+| `GET /chat/channels/:id/messages` / `POST …` | cursor message history (newest-first pages) / post; `chat.channel.read` / `chat.message.create` | POST `{ "content":"Hello","replyToMessageId":"uuid"? }`; 1–4000 chars, reply must be same channel | `200 {data:[…],meta:{page:{…}}}` / `201`; `403/404/422` |
+| `PATCH /chat/messages/:id` / `DELETE /chat/messages/:id` | edit-own (last-write-wins, no `version`) / soft-delete; author, or `chat.message.moderate` for someone else's | PATCH `{ "content":"Corrected" }` | `200`; `403/404` |
+| `POST /chat/messages/:id/reactions` / `DELETE …/reactions/:reaction` | add/remove own reaction (idempotent add); `chat.reaction.manage` | `{ "reaction":"👍" }` | `200`/`204`; `404` |
+| `GET /chat/channels/:id/read` / `POST /chat/channels/:id/read` | this caller's read marker + unread count / mark read; `chat.channel.read` | POST `{ "lastReadMessageId":"uuid"? }` | `200 {data:{lastReadMessageId,lastReadAt,unreadCount}}` / `200`; `403/404` |
+
+**WebSocket** (`/chat` socket.io namespace, same access token as REST): client emits
+`chat.subscribe`/`chat.unsubscribe` `{channelId, organizationId}` and
+`chat.typing.start`/`.stop` `{channelId}`; server emits `chat.subscribed`, `chat.error
+{code}`, `chat.access.revoked`, `chat.typing.started`/`.stopped`, and the broadcast events
+`chat.message.created`/`.updated`/`.deleted`, `chat.reaction.updated`, `chat.channel.updated` (full
+entity payloads, matching the REST shapes above). The gateway never accepts a write over the
+socket — every mutation goes through the REST endpoints; the socket only subscribes and receives.
+See the ADR for authorization re-evaluation, Redis's role, and reconnection behavior.
+
 ## 5. Super-admin and platform operations
 
 Super-admin users use the same resources with platform-level permissions but must never receive all tenant data by default. Platform-only routes require `SUPER_ADMIN`, re-authentication for destructive/support actions, and an audit reason.

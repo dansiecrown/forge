@@ -211,9 +211,13 @@ model User {
   enrollments                 Enrollment[]
   userProfile                 UserProfile?
   notifications               Notification[]
-  cohortApplicationsSubmitted CohortApplication[]      @relation("CohortApplicationApplicant")
-  cohortApplicationsReviewed  CohortApplication[]      @relation("CohortApplicationReviewer")
-  cohortApplicationsOnboarded CohortApplication[]      @relation("CohortApplicationResultingUser")
+  cohortApplicationsSubmitted CohortApplication[]             @relation("CohortApplicationApplicant")
+  cohortApplicationsReviewed  CohortApplication[]             @relation("CohortApplicationReviewer")
+  cohortApplicationsOnboarded CohortApplication[]             @relation("CohortApplicationResultingUser")
+  chatMessages                FellowshipChatMessage[]
+  chatMessageReactions        FellowshipChatMessageReaction[]
+  chatChannelMemberships      FellowshipChatChannelMember[]
+  chatReadStates              FellowshipChatReadState[]
 
   @@index([status, lastLoginAt])
   @@map("users")
@@ -422,6 +426,7 @@ model Organization {
   certificateTemplates CertificateTemplate[]
   certificates         Certificate[]
   cohortApplications   CohortApplication[]
+  chatChannels         FellowshipChatChannel[]
 
   @@index([status, createdAt])
   @@map("organizations")
@@ -650,14 +655,15 @@ model Fellowship {
   updatedAt            DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt            DateTime?        @map("deleted_at") @db.Timestamptz(3)
 
-  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  academy              Academy               @relation(fields: [academyId], references: [id], onDelete: Restrict)
+  organization         Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  academy              Academy                 @relation(fields: [academyId], references: [id], onDelete: Restrict)
   cohorts              Cohort[]
   enrollments          Enrollment[]
   learningTracks       LearningTrack[]
   certificateTemplates CertificateTemplate[]
   certificates         Certificate[]
   cohortApplications   CohortApplication[]
+  chatChannels         FellowshipChatChannel[]
 
   @@index([academyId, status])
   @@map("fellowships")
@@ -1397,4 +1403,123 @@ model SystemSettings {
   updatedByUserId  String?  @map("updated_by_user_id")
 
   @@map("system_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Fellowship Chat (pre-Milestone-8 additional scope): Fellowship is the
+// communication boundary, not Cohort or Organization — see
+// docs/adr/0014-fellowship-chat.md. Access to a Fellowship's chat is derived
+// from the existing hierarchy (an active Enrollment or CohortMentorAssignment
+// on any Cohort under the Fellowship, or an org-wide/academy-scoped admin
+// role) rather than a new parallel membership system — the one exception is
+// FellowshipChatChannelMember, needed only for a channel explicitly marked
+// private, which the existing hierarchy has no equivalent for.
+// ---------------------------------------------------------------------------
+
+enum ChatChannelType {
+  general
+  announcements
+  standard
+}
+
+model FellowshipChatChannel {
+  id             String          @id @default(uuid())
+  organizationId String          @map("organization_id")
+  fellowshipId   String          @map("fellowship_id")
+  name           String
+  slug           String
+  description    String?
+  type           ChatChannelType @default(standard)
+  isPrivate      Boolean         @default(false) @map("is_private")
+  archivedAt     DateTime?       @map("archived_at") @db.Timestamptz(3)
+  version        Int             @default(1)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  fellowship   Fellowship                    @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  messages     FellowshipChatMessage[]
+  members      FellowshipChatChannelMember[]
+  readStates   FellowshipChatReadState[]
+
+  // Hand-written partial unique index (WHERE archived_at IS NULL) added in
+  // the migration SQL, same convention as Academy/Cohort's own slug
+  // uniqueness — Prisma's schema DSL cannot express a partial index, so this
+  // plain @@unique is intentionally not declared here to avoid conflicting
+  // with that hand-written one.
+  @@index([fellowshipId, archivedAt])
+  @@map("fellowship_chat_channels")
+}
+
+model FellowshipChatMessage {
+  id               String    @id @default(uuid())
+  channelId        String    @map("channel_id")
+  authorId         String    @map("author_id")
+  content          String
+  replyToMessageId String?   @map("reply_to_message_id")
+  editedAt         DateTime? @map("edited_at") @db.Timestamptz(3)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  channel   FellowshipChatChannel           @relation(fields: [channelId], references: [id], onDelete: Restrict)
+  author    User                            @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  replyTo   FellowshipChatMessage?          @relation("MessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies   FellowshipChatMessage[]         @relation("MessageReplies")
+  reactions FellowshipChatMessageReaction[]
+
+  @@index([channelId, createdAt])
+  @@index([authorId])
+  @@index([replyToMessageId])
+  @@map("fellowship_chat_messages")
+}
+
+model FellowshipChatMessageReaction {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  reaction  String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  message FellowshipChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, reaction])
+  @@index([messageId])
+  @@map("fellowship_chat_message_reactions")
+}
+
+// Only ever populated for a channel with isPrivate = true — a public
+// channel's access is derived entirely from Fellowship-level authorization,
+// same as every other chat read/write check.
+model FellowshipChatChannelMember {
+  id            String   @id @default(uuid())
+  channelId     String   @map("channel_id")
+  userId        String   @map("user_id")
+  addedAt       DateTime @default(now()) @map("added_at") @db.Timestamptz(3)
+  addedByUserId String?  @map("added_by_user_id")
+
+  channel FellowshipChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@map("fellowship_chat_channel_members")
+}
+
+// Lightweight "high-water mark" read state — one row per (user, channel),
+// corrected in place — rather than a continuously-synchronized unread
+// counter. Unread count, where shown, is derived at read time by counting
+// messages newer than lastReadAt/lastReadMessageId.
+model FellowshipChatReadState {
+  userId            String   @map("user_id")
+  channelId         String   @map("channel_id")
+  lastReadMessageId String?  @map("last_read_message_id")
+  lastReadAt        DateTime @default(now()) @map("last_read_at") @db.Timestamptz(3)
+
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel FellowshipChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([userId, channelId])
+  @@index([channelId])
+  @@map("fellowship_chat_read_states")
 }

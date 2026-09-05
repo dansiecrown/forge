@@ -10,17 +10,20 @@ import { ResponseInterceptor } from './interceptors/response.interceptor';
 import { RequestIdMiddleware } from './middlewares/request-id.middleware';
 import { AdminModule } from './modules/admin/admin.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { CohortsModule } from './modules/cohorts/cohorts.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { LearningModule } from './modules/learning/learning.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { PlatformModule } from './modules/platform/platform.module';
+import { RedisModule } from './redis/redis.module';
 import { HealthController } from './health.controller';
 
 @Module({
   imports: [
     AppConfigModule,
     DatabaseModule,
+    RedisModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     PlatformModule,
     OrganizationsModule,
@@ -29,6 +32,7 @@ import { HealthController } from './health.controller';
     LearningModule,
     IdentityModule,
     AdminModule,
+    ChatModule,
   ],
   controllers: [HealthController],
   providers: [

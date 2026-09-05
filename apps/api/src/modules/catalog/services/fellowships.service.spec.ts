@@ -2,6 +2,7 @@ import type { AcademyEntity } from '../../organizations/entities/academy.entity'
 import type { AcademiesService } from '../../organizations/services/academies.service';
 import type { MembershipsService } from '../../organizations/services/memberships.service';
 import type { AuditLogService } from '../../platform/audit-log.service';
+import type { ChatChannelsService } from '../../chat/services/chat-channels.service';
 import type { Fellowship } from '@prisma/client';
 import { FellowshipsRepository } from '../repositories/fellowships.repository';
 import { FellowshipsService } from './fellowships.service';
@@ -40,6 +41,12 @@ function fakeAuditLog(): AuditLogService {
   return { record: jest.fn(async () => undefined) } as unknown as AuditLogService;
 }
 
+function fakeChatChannelsService(): ChatChannelsService {
+  return {
+    createDefaultGeneralChannel: jest.fn(async () => ({})),
+  } as unknown as ChatChannelsService;
+}
+
 /** Defaults to org-wide (unrestricted) access — matches Super Admin/Org
  * Admin, the common case for existing tests. */
 function fakeMembershipsService(overrides: Partial<MembershipsService> = {}): MembershipsService {
@@ -61,6 +68,7 @@ describe('FellowshipsService', () => {
       fakeAcademiesService(),
       fakeAuditLog(),
       fakeMembershipsService(),
+      fakeChatChannelsService(),
     );
 
     await expect(
@@ -81,6 +89,7 @@ describe('FellowshipsService', () => {
       fakeMembershipsService({
         getAcademyScope: jest.fn(async () => ({ restricted: true, academyId: 'academy-1' })),
       }),
+      fakeChatChannelsService(),
     );
 
     await expect(
@@ -99,6 +108,7 @@ describe('FellowshipsService', () => {
       fakeAcademiesService(),
       fakeAuditLog(),
       fakeMembershipsService(),
+      fakeChatChannelsService(),
     );
 
     await expect(
@@ -116,6 +126,7 @@ describe('FellowshipsService', () => {
       fakeAcademiesService(),
       fakeAuditLog(),
       fakeMembershipsService(),
+      fakeChatChannelsService(),
     );
 
     await expect(

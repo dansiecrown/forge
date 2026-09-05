@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ChatModule } from '../chat/chat.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PlatformModule } from '../platform/platform.module';
 import { FellowshipsController } from './controllers/fellowships.controller';
@@ -34,7 +35,7 @@ import { FellowshipCloneService } from './services/fellowship-clone.service';
  * shape reconciles with that doc's fuller (versioned, Module+Week,
  * graded-Assignment) design. */
 @Module({
-  imports: [OrganizationsModule, PlatformModule],
+  imports: [OrganizationsModule, PlatformModule, ChatModule],
   controllers: [
     FellowshipsController,
     LearningTracksController,

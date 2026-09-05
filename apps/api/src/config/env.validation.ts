@@ -19,4 +19,10 @@ export const envValidationSchema = Joi.object({
   EMAIL_VERIFICATION_TOKEN_TTL_HOURS: Joi.number().positive().default(48),
 
   COOKIE_SECRET: Joi.string().min(32).required(),
+
+  // Provisioned in docker-compose since ADR-0002 but unwired until Fellowship
+  // Chat (docs/adr/0014-fellowship-chat.md) needed cross-instance pub/sub for
+  // its WebSocket gateway. Defaulted, not required, so every environment that
+  // predates this feature keeps working unchanged.
+  REDIS_URL: Joi.string().uri().default('redis://localhost:6379'),
 });

@@ -396,3 +396,31 @@ without first visiting that organization's own detail page**
   as a side effect.
 - **Planned milestone:** If direct deep-linking into another organization's hierarchy (rather than
   drilling down from its own Organizations entry) becomes a real Super Admin workflow.
+
+**DEBT-034 — Fellowship chat has no `@mention` notifications**
+- **Description:** `ChatMessagesService.notifyReply()` (ADR-0014 Decision 5) notifies a message's
+  author when someone replies to it, via `replyToMessageId` — an unambiguous, already-real relation.
+  It does not implement `@mention` parsing/notification. `User` has no handle/username field to
+  match a `@foo` token against (only `displayName`, which isn't unique, and `emailCanonical`, which
+  isn't something you'd type in a message).
+- **Priority:** Low
+- **Reason for deferral:** Doing this properly means adding a real, unique, user-facing identifier
+  to `User` — new schema and almost certainly a new profile-settings surface — which is
+  architecture well beyond what a chat notification nicety should introduce as a side effect.
+- **Planned milestone:** If/when `User` gains a real handle/username concept for other reasons
+  (profile pages, search, etc.), `@mention` notifications become a small addition on top of it.
+
+**DEBT-035 — Fellowship chat channel management has no frontend UI**
+- **Description:** `chat.channel.manage` (create, rename, describe, archive, restore, optionally
+  private) is fully built and tested on the backend — REST endpoints, permissions, audit logging —
+  but no admin screen calls any of it. `#general` is created automatically for every Fellowship, so
+  every Fellowship has a working chat from day one; creating a *second* channel currently requires
+  a direct API call.
+- **Priority:** Medium — the core participant chat experience (Student/Mentor) is fully functional;
+  this only blocks an admin who wants channels beyond `#general`.
+- **Reason for deferral:** The two roles that can manage channels (ORG_ADMIN/ACADEMY_ADMIN) have no
+  existing per-Fellowship page to host this in — the closest fit,
+  `FellowshipDetailPage` (ADR-0012), would need a new "Chat" section added to it, which is admin-UI
+  scope beyond this task's own Student/Mentor-focused chat experience.
+- **Planned milestone:** A short follow-up adding a "Channels" section to `FellowshipDetailPage`
+  that reuses the same `chat-api.ts` client functions already written for the participant UI.

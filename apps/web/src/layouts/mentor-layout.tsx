@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquare,
   Settings as SettingsIcon,
   Users,
   X,
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { to: '/mentor/cohorts', label: 'My Cohorts', icon: Users },
   { to: '/mentor/review-queue', label: 'Review Queue', icon: ClipboardCheck },
   { to: '/mentor/huddles', label: 'Huddles', icon: CalendarCheck },
+  { to: '/mentor/chat', label: 'Chat', icon: MessageSquare },
   { to: '/mentor/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
