@@ -142,3 +142,13 @@ Stop.
 Explain the ambiguity.
 
 Wait for clarification.
+
+
+## Architecture Lock Rule
+
+When implementation and documentation disagree:
+
+1. Determine which represents the better long-term architecture.
+2. If the implementation is demonstrably correct, update the documentation.
+3. If the implementation is incorrect, update the code.
+4. Never change both without explicitly documenting the reason in an ADR or ENGINEERING_DECISIONS.md.

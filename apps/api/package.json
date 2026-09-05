@@ -16,6 +16,10 @@
   "jest": {
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
+    "setupFiles": [
+      "<rootDir>/test-setup.ts"
+    ],
+    "maxWorkers": 1,
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },

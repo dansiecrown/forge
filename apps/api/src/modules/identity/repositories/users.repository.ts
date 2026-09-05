@@ -30,6 +30,12 @@ export class UsersRepository {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
+  /** Batch lookup for the Mentor Portal's cohort roster — avoids an N+1
+   * query when rendering a list of enrollments' student names/emails. */
+  findByIds(ids: string[]): Promise<User[]> {
+    return this.prisma.user.findMany({ where: { id: { in: ids } } });
+  }
+
   create(input: CreateUserInput): Promise<User> {
     return this.prisma.user.create({
       data: {

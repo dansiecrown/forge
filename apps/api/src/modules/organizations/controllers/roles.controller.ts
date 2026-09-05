@@ -14,7 +14,7 @@ import { ActiveOrganizationId } from '../../../decorators/active-organization-id
 import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { RequirePermissions } from '../../../decorators/require-permissions.decorator';
 import { AppException } from '../../../shared/errors/app.exception';
-import { CreateRoleDto, UpdateRolePermissionsDto } from '../dtos/role.dto';
+import { CloneRoleDto, CreateRoleDto, UpdateRolePermissionsDto } from '../dtos/role.dto';
 import { RolesService } from '../services/roles.service';
 
 function requireOrganizationId(organizationId: string | undefined): string {
@@ -62,10 +62,34 @@ export class RolesController {
     );
   }
 
+  @Get('roles/permission-matrix')
+  @RequirePermissions('role.read', 'permission.read')
+  getPermissionMatrix(@ActiveOrganizationId() organizationId?: string) {
+    return this.rolesService.getPermissionMatrix({
+      organizationId: requireOrganizationId(organizationId),
+    });
+  }
+
   @Get('roles/:roleId')
   @RequirePermissions('role.read')
   get(@Param('roleId') roleId: string, @ActiveOrganizationId() organizationId?: string) {
     return this.rolesService.get(roleId, organizationId);
+  }
+
+  @Post('roles/:roleId/actions/clone')
+  @RequirePermissions('role.read', 'role.create')
+  clone(
+    @Param('roleId') roleId: string,
+    @Body() dto: CloneRoleDto,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.rolesService.clone(
+      roleId,
+      dto,
+      { organizationId: requireOrganizationId(organizationId) },
+      user.id,
+    );
   }
 
   @Patch('roles/:roleId')

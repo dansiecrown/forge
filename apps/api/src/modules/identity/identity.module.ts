@@ -7,11 +7,13 @@ import { ConsoleEmailAdapter } from '../../shared/email/console-email.adapter';
 import { IdempotencyService } from '../../shared/idempotency/idempotency.service';
 import { AuthController } from './controllers/auth.controller';
 import { MeController } from './controllers/me.controller';
+import { ProfileController } from './controllers/profile.controller';
 import { UsersController } from './controllers/users.controller';
 import { AuthSessionsRepository } from './repositories/auth-sessions.repository';
 import { ExternalIdentitiesRepository } from './repositories/external-identities.repository';
 import { MfaFactorsRepository, RecoveryCodesRepository } from './repositories/mfa.repository';
 import { PasswordCredentialsRepository } from './repositories/password-credentials.repository';
+import { UserProfilesRepository } from './repositories/user-profiles.repository';
 import { UsersRepository } from './repositories/users.repository';
 import {
   EmailVerificationTokensRepository,
@@ -22,11 +24,12 @@ import { AuthService } from './services/auth.service';
 import { MfaService } from './services/mfa.service';
 import { PasswordService } from './services/password.service';
 import { RefreshSessionService } from './services/refresh-session.service';
+import { UserProfilesService } from './services/user-profiles.service';
 import { UsersService } from './services/users.service';
 
 @Module({
   imports: [JwtModule.register({}), OrganizationsModule, PlatformModule],
-  controllers: [AuthController, MeController, UsersController],
+  controllers: [AuthController, MeController, ProfileController, UsersController],
   providers: [
     UsersRepository,
     ExternalIdentitiesRepository,
@@ -36,15 +39,23 @@ import { UsersService } from './services/users.service';
     RecoveryCodesRepository,
     PasswordResetTokensRepository,
     EmailVerificationTokensRepository,
+    UserProfilesRepository,
     PasswordService,
     AccessTokenService,
     RefreshSessionService,
     MfaService,
     AuthService,
     UsersService,
+    UserProfilesService,
     IdempotencyService,
     { provide: EMAIL_ADAPTER, useClass: ConsoleEmailAdapter },
   ],
-  exports: [AccessTokenService, UsersService],
+  exports: [
+    AccessTokenService,
+    UsersService,
+    MfaService,
+    RefreshSessionService,
+    UserProfilesService,
+  ],
 })
 export class IdentityModule {}

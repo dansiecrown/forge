@@ -110,6 +110,56 @@ export class MembershipsRepository {
     });
   }
 
+  /** Active memberships in this organization holding the given role key —
+   * used by the Organization Management "organization administrators" list. */
+  listByRoleKey(scope: TenantScope, roleKey: string): Promise<MembershipWithRoles[]> {
+    return this.prisma.membership.findMany({
+      where: {
+        organizationId: scope.organizationId,
+        membershipRoles: { some: { revokedAt: null, role: { key: roleKey } } },
+      },
+      include: ACTIVE_ROLES_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Membership-status and role-grant counts for the "membership overview"
+   * summary — two light `groupBy` queries, no new aggregation table. */
+  async getOverview(
+    scope: TenantScope,
+  ): Promise<{ total: number; byStatus: Record<string, number>; byRole: Record<string, number> }> {
+    const [total, byStatusRows, byRoleRows] = await Promise.all([
+      this.prisma.membership.count({ where: { organizationId: scope.organizationId } }),
+      this.prisma.membership.groupBy({
+        by: ['status'],
+        where: { organizationId: scope.organizationId },
+        _count: true,
+      }),
+      this.prisma.membershipRole.groupBy({
+        by: ['roleId'],
+        where: { revokedAt: null, membership: { organizationId: scope.organizationId } },
+        _count: true,
+      }),
+    ]);
+
+    const byStatus: Record<string, number> = {};
+    for (const row of byStatusRows) {
+      byStatus[row.status] = row._count;
+    }
+
+    const roles = await this.prisma.role.findMany({
+      where: { id: { in: byRoleRows.map((r) => r.roleId) } },
+    });
+    const roleKeyById = new Map(roles.map((r) => [r.id, r.key]));
+    const byRole: Record<string, number> = {};
+    for (const row of byRoleRows) {
+      const key = roleKeyById.get(row.roleId) ?? row.roleId;
+      byRole[key] = row._count;
+    }
+
+    return { total, byStatus, byRole };
+  }
+
   /** Platform-scoped role grants (e.g. SUPER_ADMIN) held anywhere, regardless
    * of which organization the carrying membership belongs to. */
   findPlatformRoleGrants(userId: string, roleKey: string): Promise<MembershipRole[]> {

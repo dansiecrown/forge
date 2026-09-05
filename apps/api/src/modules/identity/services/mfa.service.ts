@@ -82,6 +82,36 @@ export class MfaService {
     return Boolean(factor?.verifiedAt);
   }
 
+  /** Self-service disable from Settings — requires proving current
+   * possession of the factor (a valid TOTP code or an unused recovery code,
+   * same acceptance rule as `verifyChallenge`) rather than trusting the
+   * authenticated session alone. */
+  async disable(userId: string, code: string): Promise<void> {
+    const factor = await this.mfaFactorsRepository.findActiveByUserId(userId);
+    if (!factor || !factor.verifiedAt) {
+      throw AppException.conflict('MFA_NOT_ENABLED', 'MFA is not enabled for this account.');
+    }
+
+    const valid = await this.verifyChallenge(userId, code);
+    if (!valid) {
+      throw AppException.unauthenticated('The verification code is invalid.', 'INVALID_MFA_CODE');
+    }
+
+    await this.mfaFactorsRepository.disable(factor.id);
+  }
+
+  /** Admin-forced disable — skips the proof-of-possession step `disable()`
+   * requires. Only ever reachable from `AdminModule`'s
+   * `user.mfa.reset`-gated controller, never from a self-service route. See
+   * docs/adr/0009-administration-platform.md. */
+  async adminDisable(userId: string): Promise<void> {
+    const factor = await this.mfaFactorsRepository.findActiveByUserId(userId);
+    if (!factor || !factor.verifiedAt) {
+      throw AppException.conflict('MFA_NOT_ENABLED', 'MFA is not enabled for this account.');
+    }
+    await this.mfaFactorsRepository.disable(factor.id);
+  }
+
   private async tryConsumeRecoveryCode(userId: string, code: string): Promise<boolean> {
     const hash = hashOpaqueToken(code.trim());
     const unused = await this.recoveryCodesRepository.findUnusedByUserId(userId);

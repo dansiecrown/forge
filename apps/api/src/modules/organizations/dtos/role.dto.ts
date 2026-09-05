@@ -23,3 +23,13 @@ export class UpdateRolePermissionsDto {
   @IsString({ each: true })
   permissionIds!: string[];
 }
+
+export class CloneRoleDto {
+  @IsString()
+  @Length(1, 120)
+  name!: string;
+
+  @IsString()
+  @Matches(/^[a-z][a-z0-9_-]*$/)
+  key!: string;
+}

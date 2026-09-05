@@ -99,5 +99,24 @@ export interface MeResponse {
   timezone: string;
   locale: string;
   emailVerified: boolean;
+  mfaEnabled: boolean;
   memberships: { organizationId: string; status: string; roles: string[] }[];
+}
+
+/** `isSuperAdmin: true` means "treat as having every permission" —
+ * `permissionKeys` is intentionally empty in that case, matching
+ * `PermissionResolverService.resolve`'s own shape. */
+export interface MyPermissions {
+  organizationId: string | null;
+  permissionKeys: string[];
+  isSuperAdmin: boolean;
+}
+
+export interface ConfirmMfaEnrollmentRequest {
+  factorId: string;
+  code: string;
+}
+
+export interface DisableMfaRequest {
+  code: string;
 }

@@ -62,3 +62,18 @@ export class MfaVerifyDto {
   @Length(6, 8)
   code!: string;
 }
+
+export class ConfirmMfaEnrollmentDto {
+  @IsString()
+  factorId!: string;
+
+  @IsString()
+  @Length(6, 8)
+  code!: string;
+}
+
+export class DisableMfaDto {
+  @IsString()
+  @Length(6, 10)
+  code!: string;
+}

@@ -20,9 +20,15 @@ import {
 
 type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
+export type SessionMembership = MeResponse['memberships'][number];
+
 interface SessionContextValue {
   status: SessionStatus;
   user: PublicUser | null;
+  /** Retained from `GET /me` for the organization switcher — see
+   * contexts/organization-context.tsx, which derives the caller's active
+   * organization from this list. */
+  memberships: SessionMembership[];
   login: (email: string, password: string) => Promise<LoginResponse>;
   completeMfaLogin: (challengeToken: string, code: string) => Promise<LoginResponse>;
   logout: () => Promise<void>;
@@ -38,11 +44,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const accessTokenRef = useRef<string | null>(null);
   const [status, setStatus] = useState<SessionStatus>('loading');
   const [user, setUser] = useState<PublicUser | null>(null);
+  const [memberships, setMemberships] = useState<SessionMembership[]>([]);
 
   const applySuccessfulLogin = useCallback(
-    (response: Extract<LoginResponse, { mfaRequired: false }>) => {
+    async (response: Extract<LoginResponse, { mfaRequired: false }>) => {
       accessTokenRef.current = response.accessToken;
       setUser(response.user);
+      // The login response doesn't carry memberships (docs/api-specification.md
+      // §4.1) — fetched here and awaited before flipping to 'authenticated',
+      // so role-gated routes (e.g. RequireRole) never see a transient empty
+      // memberships array and bounce a legitimately-authorized caller to
+      // /unauthorized before their real roles have loaded.
+      try {
+        const me = await fetchMe();
+        setMemberships(me.memberships);
+      } catch {
+        setMemberships([]);
+      }
       setStatus('authenticated');
     },
     [],
@@ -51,6 +69,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const clearSession = useCallback(() => {
     accessTokenRef.current = null;
     setUser(null);
+    setMemberships([]);
     setStatus('unauthenticated');
   }, []);
 
@@ -70,15 +89,41 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
   }, [clearSession]);
 
+  // Caches the in-flight `refreshSession()` call across React 18/19
+  // StrictMode's intentional double-invocation of effects in development.
+  // Without this, two concurrent `refreshSession()` calls fire on mount,
+  // both carrying the same refresh-token cookie: the first rotates it
+  // successfully, the second then presents an already-rotated token, which
+  // the server's reuse detection correctly (but here, falsely) flags as
+  // theft and revokes the whole session. A plain "only run once" boolean
+  // guard does NOT work here: StrictMode's first invocation is cleaned up
+  // (its own `cancelled` flag flips true) before the second invocation
+  // runs, so skipping the second invocation's call entirely would leave the
+  // successful result applied only by the already-cancelled first instance
+  // — permanently stuck on `status: 'loading'`. Sharing the promise instead
+  // lets both invocations await the same network call while each still
+  // independently — and correctly — governs whether it applies the result.
+  const restoreSessionPromiseRef = useRef<ReturnType<typeof refreshSession> | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     async function restoreSession() {
       try {
-        const result = await refreshSession();
+        if (!restoreSessionPromiseRef.current) {
+          const promise = refreshSession();
+          restoreSessionPromiseRef.current = promise;
+          void promise.finally(() => {
+            if (restoreSessionPromiseRef.current === promise) {
+              restoreSessionPromiseRef.current = null;
+            }
+          });
+        }
+        const result = await restoreSessionPromiseRef.current;
         accessTokenRef.current = result.accessToken;
         const me = await fetchMe();
         if (!cancelled) {
           setUser(toPublicUser(me));
+          setMemberships(me.memberships);
           setStatus('authenticated');
         }
       } catch {
@@ -97,7 +142,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string) => {
       const response = await loginRequest({ email, password });
       if (!response.mfaRequired) {
-        applySuccessfulLogin(response);
+        await applySuccessfulLogin(response);
       }
       return response;
     },
@@ -108,7 +153,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     async (challengeToken: string, code: string) => {
       const response = await verifyMfa({ code }, challengeToken);
       if (!response.mfaRequired) {
-        applySuccessfulLogin(response);
+        await applySuccessfulLogin(response);
       }
       return response;
     },
@@ -124,8 +169,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [clearSession]);
 
   const value = useMemo<SessionContextValue>(
-    () => ({ status, user, login, completeMfaLogin, logout }),
-    [status, user, login, completeMfaLogin, logout],
+    () => ({ status, user, memberships, login, completeMfaLogin, logout }),
+    [status, user, memberships, login, completeMfaLogin, logout],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

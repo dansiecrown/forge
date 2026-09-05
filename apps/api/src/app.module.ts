@@ -8,7 +8,11 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { ResponseInterceptor } from './interceptors/response.interceptor';
 import { RequestIdMiddleware } from './middlewares/request-id.middleware';
+import { AdminModule } from './modules/admin/admin.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
+import { CohortsModule } from './modules/cohorts/cohorts.module';
 import { IdentityModule } from './modules/identity/identity.module';
+import { LearningModule } from './modules/learning/learning.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { HealthController } from './health.controller';
@@ -20,7 +24,11 @@ import { HealthController } from './health.controller';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     PlatformModule,
     OrganizationsModule,
+    CatalogModule,
+    CohortsModule,
+    LearningModule,
     IdentityModule,
+    AdminModule,
   ],
   controllers: [HealthController],
   providers: [

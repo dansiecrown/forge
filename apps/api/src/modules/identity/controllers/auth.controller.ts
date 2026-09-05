@@ -23,6 +23,7 @@ import {
   REFRESH_COOKIE_NAME,
   setRefreshCookie,
 } from '../../../shared/http/refresh-cookie';
+import { AuditLogService } from '../../platform/audit-log.service';
 import { AuthSessionsRepository } from '../repositories/auth-sessions.repository';
 import { AccessTokenService } from '../services/access-token.service';
 import { AuthService } from '../services/auth.service';
@@ -30,6 +31,8 @@ import { MfaService } from '../services/mfa.service';
 import { UsersService } from '../services/users.service';
 import {
   ChangePasswordDto,
+  ConfirmMfaEnrollmentDto,
+  DisableMfaDto,
   ForgotPasswordDto,
   LoginDto,
   LogoutDto,
@@ -55,6 +58,7 @@ export class AuthController {
     private readonly usersService: UsersService,
     private readonly accessTokenService: AccessTokenService,
     private readonly authSessionsRepository: AuthSessionsRepository,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   @Public()
@@ -197,6 +201,35 @@ export class AuthController {
     const currentUser = await this.usersService.getById(user.id);
     const enrollment = await this.mfaService.enroll(user.id, currentUser.emailCanonical);
     return enrollment;
+  }
+
+  @Post('mfa/confirm-enrollment')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async confirmMfaEnrollment(
+    @CurrentUser() user: { id: string },
+    @Body() dto: ConfirmMfaEnrollmentDto,
+  ) {
+    await this.mfaService.verifyEnrollment(user.id, dto.factorId, dto.code);
+    await this.auditLog.record({
+      action: 'mfa.enrollment_confirmed',
+      entityType: 'mfa_factor',
+      entityId: dto.factorId,
+      outcome: 'success',
+      actorUserId: user.id,
+    });
+  }
+
+  @Post('mfa/disable')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async disableMfa(@CurrentUser() user: { id: string }, @Body() dto: DisableMfaDto) {
+    await this.mfaService.disable(user.id, dto.code);
+    await this.auditLog.record({
+      action: 'mfa.disabled',
+      entityType: 'user',
+      entityId: user.id,
+      outcome: 'success',
+      actorUserId: user.id,
+    });
   }
 
   @Public()
