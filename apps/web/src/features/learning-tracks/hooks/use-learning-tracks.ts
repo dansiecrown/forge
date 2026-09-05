@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import type { LearningTrack } from '@forge/api-contract';
+import type { FellowshipTrackMentorAssignment, LearningTrack } from '@forge/api-contract';
 import { useActiveOrganization } from '@/contexts/organization-context';
-import { getLearningTrack, listLearningTracks } from '../api/learning-tracks-api';
+import { getLearningTrack, listLearningTracks, listTrackMentors } from '../api/learning-tracks-api';
 
 export function useLearningTracksList(fellowshipId: string | undefined, q: string, status: string) {
   const { activeOrganizationId } = useActiveOrganization();
@@ -61,5 +61,16 @@ export function useLearningTrack(id: string | undefined): UseQueryResult<Learnin
     queryKey: ['learning-tracks', 'detail', id, activeOrganizationId],
     queryFn: () => getLearningTrack(id as string, activeOrganizationId),
     enabled: Boolean(id) && Boolean(activeOrganizationId),
+  });
+}
+
+export function useTrackMentors(
+  trackId: string | undefined,
+): UseQueryResult<FellowshipTrackMentorAssignment[]> {
+  const { activeOrganizationId } = useActiveOrganization();
+  return useQuery({
+    queryKey: ['learning-tracks', 'mentors', trackId, activeOrganizationId],
+    queryFn: () => listTrackMentors(trackId as string, activeOrganizationId),
+    enabled: Boolean(trackId) && Boolean(activeOrganizationId),
   });
 }

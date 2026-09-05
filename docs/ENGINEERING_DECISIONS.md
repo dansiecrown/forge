@@ -263,6 +263,51 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   same plain-persisted-row model Announcements already uses. No `@mention` system was added (no
   unique user handle exists to match against — see DEBT-034).
 
+## Name-First Display, and List-Then-Edit Detail Pages (2026-09-05)
+
+- **No id-bearing list or detail response the frontend renders may show a bare id where a name is
+  available.** Where a real Prisma relation exists, resolve it via `include`; where none does by
+  design (`Enrollment`/`AuditLog` deliberately have no FK to `User`, so history survives account
+  removal), batch-resolve via `UsersService.listByIds()` in the service layer. See
+  `docs/adr/0015-name-first-display.md`.
+- **Any control that picks one resource from a list of names supports type-to-search** via the new
+  generic `EntitySearchField<T>` (people search already existed; this generalizes it) — never a
+  plain dropdown of hundreds of names, never a raw-id text filter.
+- **Every editable "detail" section is read-only by default**, with an Edit button opening the
+  existing form in a dialog — never an always-visible inline form. A new app-wide `useToast()`
+  confirms success/failure after every such save.
+
+## Cohort-Scoped Learning Tracks and Fellowship-Wide Track Mentors (2026-09-05)
+
+- **A Cohort now selects which of its Fellowship's Learning Tracks it actually offers** — tracks
+  stay authored once at the Fellowship level (no curriculum duplication); an empty selection falls
+  back to every Fellowship track, so every Cohort created before this feature keeps working
+  unchanged. See `docs/adr/0016-cohort-scoped-tracks.md`.
+- **Mentor-to-track assignment is Fellowship-wide, not Cohort-scoped, and additive to (never a
+  replacement for) Cohort-wide mentor assignment.** A track mentor genuinely sees only students on
+  their track — this is a real, disclosed authorization change to every mentor-facing per-student
+  read (roster, student workspace, mentor notes, portfolio, submission review), routed through one
+  shared resolver (`learning/support/mentor-cohort-scope.ts`) rather than five separate
+  reimplementations.
+- **A Cohort's explicit "offered tracks" list and a student's actual enrolled track are two
+  independent signals, and mentor discovery checks both.** Found via live verification: relying on
+  only the explicit offering let a track mentor's own roster query return correct data while "my
+  cohorts" failed to surface that Cohort at all. Fixed before shipping — see the ADR's Decision 4.
+
+## Per-Cohort Track Switch Grace Period (2026-09-05)
+
+- **A learner selects and may later switch their Learning Track themselves**, via a new
+  self-service `POST /enrollments/:id/actions/select-track` — the pre-existing staff-only
+  `PATCH /enrollments/:id` is unchanged. See `docs/adr/0017-track-switch-grace-period.md`.
+- **Switching is closed by a manual admin action, not a timer, and scoped per Cohort.**
+  `Cohort.trackSwitchClosedAt` is null (open) by default; an admin explicitly closes or reopens it
+  per Cohort — there is no duration, deadline, or background job, and closing one Cohort never
+  affects another.
+- **The grace period only ever gates a *change* away from an already-set track — a learner's first
+  pick is always allowed**, regardless of the Cohort's switching state. This was a specific,
+  confirmed product decision, not an oversight: closing the window stops mid-stream track-hopping,
+  never blocks a new or newly-onboarded learner from choosing at all.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

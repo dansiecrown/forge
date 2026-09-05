@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { FellowshipTrackMentorsService } from '../../catalog/services/fellowship-track-mentors.service';
 import { CohortsService } from '../../cohorts/services/cohorts.service';
 import { EnrollmentsService } from '../../cohorts/services/enrollments.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
@@ -7,7 +8,7 @@ import { AuditLogService } from '../../platform/audit-log.service';
 import { AppException } from '../../../shared/errors/app.exception';
 import type { TenantScope } from '../../../shared/tenancy/tenant-scope';
 import { assertOwnEnrollment } from '../support/enrollment-ownership';
-import { assertMentorAssignedToCohort } from '../support/mentor-cohort-scope';
+import { assertMentorCanAccessEnrollment } from '../support/mentor-cohort-scope';
 import {
   toPortfolioProjectEntity,
   type PortfolioProjectEntity,
@@ -32,6 +33,7 @@ export class PortfolioProjectsService {
     private readonly membershipsService: MembershipsService,
     private readonly permissionResolver: PermissionResolverService,
     private readonly auditLog: AuditLogService,
+    private readonly fellowshipTrackMentorsService: FellowshipTrackMentorsService,
   ) {}
 
   async list(
@@ -56,13 +58,14 @@ export class PortfolioProjectsService {
     callerId: string,
   ): Promise<PortfolioProjectEntity[]> {
     const enrollment = await this.enrollmentsService.get(scope, enrollmentId);
-    await assertMentorAssignedToCohort(
+    await assertMentorCanAccessEnrollment(
       this.cohortsService,
       this.membershipsService,
       this.permissionResolver,
+      this.fellowshipTrackMentorsService,
       scope,
       callerId,
-      enrollment.cohortId,
+      enrollment,
     );
     const rows = await this.portfolioProjectsRepository.list(scope, enrollmentId);
     return rows.map(toPortfolioProjectEntity);

@@ -49,3 +49,11 @@ export interface ListOrganizationsParams {
   cursor?: string;
   limit?: number;
 }
+
+export interface OrganizationAdmin {
+  id: string;
+  userId: string;
+  displayName: string;
+  email: string;
+  status: string;
+}

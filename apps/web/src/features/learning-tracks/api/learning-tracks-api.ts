@@ -1,5 +1,7 @@
 import type {
+  AssignFellowshipTrackMentorRequest,
   CreateLearningTrackRequest,
+  FellowshipTrackMentorAssignment,
   LearningTrack,
   ListLearningTracksParams,
   ReorderItem,
@@ -89,6 +91,38 @@ export function restoreLearningTrack(
   return apiRequest<LearningTrack>(`/learning-tracks/${id}/actions/restore`, {
     method: 'POST',
     body: { version },
+    organizationId,
+  });
+}
+
+export function listTrackMentors(
+  trackId: string,
+  organizationId?: string,
+): Promise<FellowshipTrackMentorAssignment[]> {
+  return apiRequest<FellowshipTrackMentorAssignment[]>(`/learning-tracks/${trackId}/mentors`, {
+    organizationId,
+  });
+}
+
+export function assignTrackMentor(
+  trackId: string,
+  body: AssignFellowshipTrackMentorRequest,
+  organizationId?: string,
+): Promise<FellowshipTrackMentorAssignment> {
+  return apiRequest<FellowshipTrackMentorAssignment>(`/learning-tracks/${trackId}/mentors`, {
+    method: 'POST',
+    body,
+    organizationId,
+  });
+}
+
+export function unassignTrackMentor(
+  trackId: string,
+  membershipId: string,
+  organizationId?: string,
+): Promise<void> {
+  return apiRequest<void>(`/learning-tracks/${trackId}/mentors/${membershipId}`, {
+    method: 'DELETE',
     organizationId,
   });
 }

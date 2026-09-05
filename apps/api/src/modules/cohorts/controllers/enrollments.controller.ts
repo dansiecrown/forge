@@ -3,7 +3,11 @@ import { ActiveOrganizationId } from '../../../decorators/active-organization-id
 import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { RequirePermissions } from '../../../decorators/require-permissions.decorator';
 import { requireIfMatchVersion, requireOrganizationId } from '../../../shared/http/request-helpers';
-import { CreateEnrollmentDto, UpdateEnrollmentDto } from '../dtos/enrollment.dto';
+import {
+  CreateEnrollmentDto,
+  SelectEnrollmentTrackDto,
+  UpdateEnrollmentDto,
+} from '../dtos/enrollment.dto';
 import { EnrollmentsService } from '../services/enrollments.service';
 
 @Controller()
@@ -85,6 +89,27 @@ export class EnrollmentsController {
       id,
       dto,
       requireIfMatchVersion(ifMatch),
+      user.id,
+    );
+  }
+
+  /** Self-service track pick/switch — ownership is enforced in the service
+   * (comparing `enrollment.userId` to the caller), not by permission key.
+   * Reuses `enrollment.progress.read` purely to satisfy `PermissionsGuard`,
+   * matching `GET /enrollments/me`'s own convention — it grants no broader
+   * access. See docs/adr/0017-track-switch-grace-period.md. */
+  @Post('enrollments/:id/actions/select-track')
+  @RequirePermissions('enrollment.progress.read')
+  selectTrack(
+    @Param('id') id: string,
+    @Body() dto: SelectEnrollmentTrackDto,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.enrollmentsService.selectTrack(
+      { organizationId: requireOrganizationId(organizationId) },
+      id,
+      dto.learningTrackId,
       user.id,
     );
   }

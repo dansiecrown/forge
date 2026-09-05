@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Pencil, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -9,13 +9,15 @@ import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-me
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Breadcrumb } from '@/components/admin/breadcrumb';
 import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
+import { DefinitionList } from '@/components/admin/definition-list';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ConfirmDialog } from '@/components/ui/dialog';
+import { ConfirmDialog, Dialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/toast';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useOrganization } from '@/features/organizations';
@@ -54,6 +56,8 @@ export function AcademyDetailPage() {
   const updateAcademy = useUpdateAcademy(academyId ?? '');
   const { archive, restore } = useAcademyLifecycleActions(academyId ?? '');
   const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const toast = useToast();
   const { activeOrganizationId } = useActiveOrganization();
   const permissions = usePermissions();
   const organization = useOrganization(academy?.organizationId, academy?.organizationId);
@@ -114,8 +118,10 @@ export function AcademyDetailPage() {
         },
         version: academy.version,
       });
-    } catch {
-      // surfaced below via updateAcademy.error
+      toast.success('Academy profile updated.');
+      setEditOpen(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to update academy.');
     }
   }
 
@@ -181,54 +187,79 @@ export function AcademyDetailPage() {
       ) : null}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle as="h2">Profile</CardTitle>
+          {permissions.has('academy.update') ? (
+            <Button
+              variant="secondary"
+              onClick={() => setEditOpen(true)}
+              aria-label="Edit academy profile"
+            >
+              <Pencil className="size-4" aria-hidden="true" />
+              Edit
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent>
-          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? (
-              <Alert variant="danger" className="w-full">
-                {updateErrorMessage}
-              </Alert>
-            ) : null}
-            <FormField
-              label="Name"
-              error={form.formState.errors.name?.message}
-              {...form.register('name')}
-            />
-            <FormField
-              label="Timezone"
-              error={form.formState.errors.timezone?.message}
-              {...form.register('timezone')}
-            />
-            <FormField
-              label="Description"
-              error={form.formState.errors.description?.message}
-              {...form.register('description')}
-            />
-            <FormField
-              label="Contact email"
-              type="email"
-              error={form.formState.errors.contactEmail?.message}
-              {...form.register('contactEmail')}
-            />
-            <div className="flex w-full items-center gap-2">
-              <input
-                id="isPublic"
-                type="checkbox"
-                className="size-4 rounded border-border"
-                {...form.register('isPublic')}
-              />
-              <Label htmlFor="isPublic">Visible in the public catalogue</Label>
-            </div>
-            <div className="flex w-full justify-end pt-2">
-              <Button type="submit" loading={updateAcademy.isPending}>
-                Save changes
-              </Button>
-            </div>
-          </form>
+          <DefinitionList
+            items={[
+              { label: 'Name', value: academy.name },
+              { label: 'Timezone', value: academy.timezone },
+              { label: 'Description', value: academy.description },
+              { label: 'Contact email', value: academy.contactEmail },
+              { label: 'Visible in public catalogue', value: academy.isPublic ? 'Yes' : 'No' },
+            ]}
+          />
         </CardContent>
       </Card>
+
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} title="Edit academy profile">
+        <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          {updateErrorMessage ? (
+            <Alert variant="danger" className="w-full">
+              {updateErrorMessage}
+            </Alert>
+          ) : null}
+          <FormField
+            label="Name"
+            error={form.formState.errors.name?.message}
+            {...form.register('name')}
+          />
+          <FormField
+            label="Timezone"
+            error={form.formState.errors.timezone?.message}
+            {...form.register('timezone')}
+          />
+          <FormField
+            label="Description"
+            error={form.formState.errors.description?.message}
+            {...form.register('description')}
+          />
+          <FormField
+            label="Contact email"
+            type="email"
+            error={form.formState.errors.contactEmail?.message}
+            {...form.register('contactEmail')}
+          />
+          <div className="flex w-full items-center gap-2">
+            <input
+              id="isPublic"
+              type="checkbox"
+              className="size-4 rounded border-border"
+              {...form.register('isPublic')}
+            />
+            <Label htmlFor="isPublic">Visible in the public catalogue</Label>
+          </div>
+          <div className="flex w-full justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={updateAcademy.isPending}>
+              Save changes
+            </Button>
+          </div>
+        </form>
+      </Dialog>
 
       <Card className="max-w-xl">
         <CardHeader>

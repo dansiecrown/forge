@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import type { Membership, MembershipRole, Role } from '@prisma/client';
+import type { Membership, MembershipRole, Role, User } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import type { TenantScope } from '../../../shared/tenancy/tenant-scope';
 
 export type MembershipWithRoles = Membership & {
   membershipRoles: (MembershipRole & { role: Role })[];
 };
+
+export type MembershipWithUser = Membership & { user: User };
 
 const ACTIVE_ROLES_INCLUDE = {
   membershipRoles: { where: { revokedAt: null } as const, include: { role: true } },
@@ -112,13 +114,16 @@ export class MembershipsRepository {
 
   /** Active memberships in this organization holding the given role key —
    * used by the Organization Management "organization administrators" list. */
-  listByRoleKey(scope: TenantScope, roleKey: string): Promise<MembershipWithRoles[]> {
+  /** Includes `user` (unlike the shared `ACTIVE_ROLES_INCLUDE`) — its one
+   * caller, the "organization administrators" list, must show a name, never
+   * a bare id (docs/adr/0015-name-first-display.md). */
+  listByRoleKey(scope: TenantScope, roleKey: string): Promise<MembershipWithUser[]> {
     return this.prisma.membership.findMany({
       where: {
         organizationId: scope.organizationId,
         membershipRoles: { some: { revokedAt: null, role: { key: roleKey } } },
       },
-      include: ACTIVE_ROLES_INCLUDE,
+      include: { user: true },
       orderBy: { createdAt: 'desc' },
     });
   }

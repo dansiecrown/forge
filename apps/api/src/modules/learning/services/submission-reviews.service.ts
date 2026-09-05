@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { SubmissionReviewDecision } from '@prisma/client';
 import { PracticalTasksService } from '../../catalog/services/practical-tasks.service';
+import { FellowshipTrackMentorsService } from '../../catalog/services/fellowship-track-mentors.service';
 import { CohortsService } from '../../cohorts/services/cohorts.service';
 import type { EnrollmentEntity } from '../../cohorts/entities/enrollment.entity';
 import { EnrollmentsService } from '../../cohorts/services/enrollments.service';
@@ -16,7 +17,10 @@ import {
 } from '../entities/submission-review.entity';
 import { PracticalTaskSubmissionsRepository } from '../repositories/practical-task-submissions.repository';
 import { SubmissionReviewsRepository } from '../repositories/submission-reviews.repository';
-import { assertMentorAssignedToCohort } from '../support/mentor-cohort-scope';
+import {
+  assertMentorCanAccessEnrollment,
+  resolveMentorCohortAccess,
+} from '../support/mentor-cohort-scope';
 
 export interface SubmissionReviewHistory {
   reviews: SubmissionReviewEntity[];
@@ -53,6 +57,7 @@ export class SubmissionReviewsService {
     private readonly usersService: UsersService,
     private readonly practicalTasksService: PracticalTasksService,
     private readonly auditLog: AuditLogService,
+    private readonly fellowshipTrackMentorsService: FellowshipTrackMentorsService,
   ) {}
 
   private async loadSubmissionAndEnrollment(
@@ -78,14 +83,28 @@ export class SubmissionReviewsService {
     comment: string | undefined,
   ): Promise<SubmissionReviewEntity> {
     const { submission, enrollment } = await this.loadSubmissionAndEnrollment(scope, submissionId);
-    await assertMentorAssignedToCohort(
+    // Deliberately no self-access bypass here (unlike listHistory/getDetail
+    // below) — a student reviewing/deciding on their own submission is
+    // never valid, regardless of track/cohort access.
+    const access = await resolveMentorCohortAccess(
       this.cohortsService,
       this.membershipsService,
       this.permissionResolver,
+      this.fellowshipTrackMentorsService,
       scope,
       callerId,
       enrollment.cohortId,
+      enrollment.fellowshipId,
     );
+    if (
+      !access.fullAccess &&
+      !(
+        enrollment.currentLearningTrackId &&
+        access.trackIds.includes(enrollment.currentLearningTrackId)
+      )
+    ) {
+      throw AppException.forbidden('You are not assigned to this cohort.');
+    }
 
     if (submission.status !== 'submitted') {
       throw AppException.conflict(
@@ -139,16 +158,15 @@ export class SubmissionReviewsService {
     callerId: string,
   ): Promise<SubmissionReviewHistory> {
     const { submission, enrollment } = await this.loadSubmissionAndEnrollment(scope, submissionId);
-    if (enrollment.userId !== callerId) {
-      await assertMentorAssignedToCohort(
-        this.cohortsService,
-        this.membershipsService,
-        this.permissionResolver,
-        scope,
-        callerId,
-        enrollment.cohortId,
-      );
-    }
+    await assertMentorCanAccessEnrollment(
+      this.cohortsService,
+      this.membershipsService,
+      this.permissionResolver,
+      this.fellowshipTrackMentorsService,
+      scope,
+      callerId,
+      enrollment,
+    );
 
     const rows = await this.submissionReviewsRepository.listForSubmission(submissionId);
     const lastRevisionRequest = [...rows].reverse().find((r) => r.status === 'revision_requested');
@@ -171,16 +189,15 @@ export class SubmissionReviewsService {
     callerId: string,
   ): Promise<SubmissionDetail> {
     const { submission, enrollment } = await this.loadSubmissionAndEnrollment(scope, submissionId);
-    if (enrollment.userId !== callerId) {
-      await assertMentorAssignedToCohort(
-        this.cohortsService,
-        this.membershipsService,
-        this.permissionResolver,
-        scope,
-        callerId,
-        enrollment.cohortId,
-      );
-    }
+    await assertMentorCanAccessEnrollment(
+      this.cohortsService,
+      this.membershipsService,
+      this.permissionResolver,
+      this.fellowshipTrackMentorsService,
+      scope,
+      callerId,
+      enrollment,
+    );
 
     const [user, cohort, task] = await Promise.all([
       this.usersService.getById(enrollment.userId),

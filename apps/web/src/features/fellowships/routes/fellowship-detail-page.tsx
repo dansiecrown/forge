@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { GraduationCap, Loader2, Plus } from 'lucide-react';
+import { GraduationCap, Loader2, Pencil, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -9,13 +9,15 @@ import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-me
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Breadcrumb } from '@/components/admin/breadcrumb';
 import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
+import { DefinitionList } from '@/components/admin/definition-list';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ConfirmDialog } from '@/components/ui/dialog';
+import { ConfirmDialog, Dialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/toast';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useOrganization } from '@/features/organizations';
@@ -74,6 +76,8 @@ export function FellowshipDetailPage() {
   const updateFellowship = useUpdateFellowship(fellowshipId ?? '');
   const { publish, retire } = useFellowshipLifecycleActions(fellowshipId ?? '');
   const [confirmingRetire, setConfirmingRetire] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const toast = useToast();
   const { activeOrganizationId } = useActiveOrganization();
   const permissions = usePermissions();
   const academy = useAcademy(fellowship?.academyId);
@@ -139,8 +143,10 @@ export function FellowshipDetailPage() {
         },
         version: fellowship.version,
       });
-    } catch {
-      // surfaced below via updateFellowship.error
+      toast.success('Fellowship profile updated.');
+      setEditOpen(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to update fellowship.');
     }
   }
 
@@ -196,78 +202,97 @@ export function FellowshipDetailPage() {
       />
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle as="h2" className="flex items-center gap-2">
             <GraduationCap className="size-5 text-muted-foreground" aria-hidden="true" />
             Programme details
           </CardTitle>
+          {isDraft && permissions.has('fellowship.update') ? (
+            <Button
+              variant="secondary"
+              onClick={() => setEditOpen(true)}
+              aria-label="Edit programme details"
+            >
+              <Pencil className="size-4" aria-hidden="true" />
+              Edit
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent>
-          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? (
-              <Alert variant="danger" className="w-full">
-                {updateErrorMessage}
-              </Alert>
-            ) : null}
-            <FormField
-              label="Title"
-              disabled={!isDraft}
-              error={form.formState.errors.title?.message}
-              {...form.register('title')}
-            />
-            <FormField
-              label="Duration (weeks)"
-              type="number"
-              min={1}
-              max={52}
-              disabled={!isDraft}
-              error={form.formState.errors.durationWeeks?.message}
-              {...form.register('durationWeeks')}
-            />
-            <FormField
-              label="Default capacity"
-              type="number"
-              min={1}
-              disabled={!isDraft}
-              error={form.formState.errors.defaultCapacity?.message}
-              {...form.register('defaultCapacity')}
-            />
-            <FormField
-              label="Summary"
-              disabled={!isDraft}
-              error={form.formState.errors.summary?.message}
-              {...form.register('summary')}
-            />
-            <FormField
-              label="Description"
-              disabled={!isDraft}
-              error={form.formState.errors.description?.message}
-              {...form.register('description')}
-            />
-            <div className="flex w-full items-center gap-2">
-              <input
-                id="isPublic"
-                type="checkbox"
-                disabled={!isDraft}
-                className="size-4 rounded border-border"
-                {...form.register('isPublic')}
-              />
-              <Label htmlFor="isPublic">Visible in the public catalogue</Label>
-            </div>
-            {isDraft ? (
-              <div className="flex w-full justify-end pt-2">
-                <Button type="submit" loading={updateFellowship.isPending}>
-                  Save changes
-                </Button>
-              </div>
-            ) : (
-              <p className="w-full text-sm text-muted-foreground">
-                Only draft fellowships can be edited.
-              </p>
-            )}
-          </form>
+          <DefinitionList
+            items={[
+              { label: 'Title', value: fellowship.title },
+              { label: 'Duration (weeks)', value: fellowship.durationWeeks },
+              { label: 'Default capacity', value: fellowship.defaultCapacity },
+              { label: 'Summary', value: fellowship.summary },
+              { label: 'Description', value: fellowship.description },
+              { label: 'Visible in public catalogue', value: fellowship.isPublic ? 'Yes' : 'No' },
+            ]}
+          />
+          {!isDraft ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Only draft fellowships can be edited.
+            </p>
+          ) : null}
         </CardContent>
       </Card>
+
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} title="Edit programme details">
+        <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          {updateErrorMessage ? (
+            <Alert variant="danger" className="w-full">
+              {updateErrorMessage}
+            </Alert>
+          ) : null}
+          <FormField
+            label="Title"
+            error={form.formState.errors.title?.message}
+            {...form.register('title')}
+          />
+          <FormField
+            label="Duration (weeks)"
+            type="number"
+            min={1}
+            max={52}
+            error={form.formState.errors.durationWeeks?.message}
+            {...form.register('durationWeeks')}
+          />
+          <FormField
+            label="Default capacity"
+            type="number"
+            min={1}
+            error={form.formState.errors.defaultCapacity?.message}
+            {...form.register('defaultCapacity')}
+          />
+          <FormField
+            label="Summary"
+            error={form.formState.errors.summary?.message}
+            {...form.register('summary')}
+          />
+          <FormField
+            label="Description"
+            error={form.formState.errors.description?.message}
+            {...form.register('description')}
+          />
+          <div className="flex w-full items-center gap-2">
+            <input
+              id="isPublic"
+              type="checkbox"
+              className="size-4 rounded border-border"
+              {...form.register('isPublic')}
+            />
+            <Label htmlFor="isPublic">Visible in the public catalogue</Label>
+          </div>
+          <div className="flex w-full justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={updateFellowship.isPending}>
+              Save changes
+            </Button>
+          </div>
+        </form>
+      </Dialog>
 
       {fellowship.status === 'retired' ? (
         <p className="text-sm text-muted-foreground">This fellowship is retired.</p>

@@ -60,9 +60,17 @@ export class MembershipsService {
     return this.membershipsRepository.listForUser(userId);
   }
 
-  /** Organization Management's "organization administrators" list. */
-  listAdmins(scope: TenantScope) {
-    return this.membershipsRepository.listByRoleKey(scope, 'ORG_ADMIN');
+  /** Organization Management's "organization administrators" list — names,
+   * never bare ids (docs/adr/0015-name-first-display.md). */
+  async listAdmins(scope: TenantScope) {
+    const memberships = await this.membershipsRepository.listByRoleKey(scope, 'ORG_ADMIN');
+    return memberships.map((membership) => ({
+      id: membership.id,
+      userId: membership.userId,
+      displayName: membership.user.displayName,
+      email: membership.user.emailCanonical,
+      status: membership.status,
+    }));
   }
 
   /** Organization Management's "membership overview" summary. */

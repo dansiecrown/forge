@@ -19,6 +19,10 @@ export interface Cohort {
   /** Frozen curriculum read-model — see docs/adr/0006-curriculum-learning-engine.md. */
   curriculumSnapshot: unknown;
   curriculumSnapshotAt: string | null;
+  /** Null (default) means a learner may still switch their own enrolled
+   * track after their first pick — see
+   * docs/adr/0017-track-switch-grace-period.md. */
+  trackSwitchClosedAt: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -60,6 +64,9 @@ export interface CohortMentorAssignment {
   id: string;
   cohortId: string;
   membershipId: string;
+  /** Resolved server-side — see docs/adr/0015-name-first-display.md. */
+  userDisplayName: string;
+  userEmail: string;
   assignedAt: string;
 }
 
@@ -70,6 +77,10 @@ export interface Enrollment {
   fellowshipId: string;
   cohortId: string;
   userId: string;
+  /** Resolved server-side — see docs/adr/0015-name-first-display.md. Null
+   * only in the edge case of a since-removed user record. */
+  userDisplayName: string | null;
+  userEmail: string | null;
   status: 'invited' | 'active' | 'paused' | 'completed' | 'withdrawn';
   /** The learner's single active Learning Track within this Fellowship. */
   currentLearningTrackId: string | null;
@@ -91,4 +102,18 @@ export interface UpdateEnrollmentRequest {
   status?: 'invited' | 'active' | 'paused' | 'completed' | 'withdrawn';
   currentLearningTrackId?: string;
   reason?: string;
+}
+
+/** Replace-all — see docs/adr/0016-cohort-scoped-tracks.md Decision 1. An
+ * empty list clears the cohort's selection, which falls back to offering
+ * every track under the Fellowship (the pre-existing behavior). */
+export interface SetCohortTracksRequest {
+  learningTrackIds: string[];
+}
+
+/** Self-service pick/switch — see docs/adr/0017-track-switch-grace-period.md.
+ * The first pick is never gated; a change away from an already-set track
+ * is rejected once the cohort's `trackSwitchClosedAt` is set. */
+export interface SelectEnrollmentTrackRequest {
+  learningTrackId: string;
 }

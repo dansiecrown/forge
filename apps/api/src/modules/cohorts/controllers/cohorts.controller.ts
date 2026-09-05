@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { ActiveOrganizationId } from '../../../decorators/active-organization-id.decorator';
@@ -19,6 +20,7 @@ import {
   AssignCohortMentorDto,
   CohortTransitionDto,
   CreateCohortDto,
+  SetCohortTracksDto,
   UpdateCohortDto,
 } from '../dtos/cohort.dto';
 import { CohortsService } from '../services/cohorts.service';
@@ -215,6 +217,73 @@ export class CohortsController {
       { organizationId: requireOrganizationId(organizationId) },
       id,
       mentorMembershipId,
+      user.id,
+    );
+  }
+
+  @Get('cohorts/:id/tracks')
+  @RequirePermissions('cohort.read')
+  listOfferedTracks(
+    @Param('id') id: string,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.cohortsService.listOfferedTracks(
+      { organizationId: requireOrganizationId(organizationId) },
+      id,
+      user.id,
+    );
+  }
+
+  @Put('cohorts/:id/tracks')
+  @RequirePermissions('cohort.update')
+  async setOfferedTracks(
+    @Param('id') id: string,
+    @Body() dto: SetCohortTracksDto,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    await this.cohortsService.setOfferedTracks(
+      { organizationId: requireOrganizationId(organizationId) },
+      id,
+      dto.learningTrackIds,
+      user.id,
+    );
+    return this.cohortsService.listOfferedTracks(
+      { organizationId: requireOrganizationId(organizationId) },
+      id,
+      user.id,
+    );
+  }
+
+  @Post('cohorts/:id/actions/close-track-switching')
+  @RequirePermissions('cohort.update')
+  closeTrackSwitching(
+    @Param('id') id: string,
+    @Body() dto: CohortTransitionDto,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.cohortsService.closeTrackSwitching(
+      { organizationId: requireOrganizationId(organizationId) },
+      id,
+      dto.version,
+      user.id,
+    );
+  }
+
+  @Post('cohorts/:id/actions/reopen-track-switching')
+  @RequirePermissions('cohort.update')
+  reopenTrackSwitching(
+    @Param('id') id: string,
+    @Body() dto: CohortTransitionDto,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.cohortsService.reopenTrackSwitching(
+      { organizationId: requireOrganizationId(organizationId) },
+      id,
+      dto.version,
       user.id,
     );
   }

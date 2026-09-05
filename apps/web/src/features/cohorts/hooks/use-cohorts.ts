@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import type { Cohort, CohortMentorAssignment, Enrollment } from '@forge/api-contract';
+import type {
+  Cohort,
+  CohortMentorAssignment,
+  Enrollment,
+  LearningTrack,
+} from '@forge/api-contract';
 import { useActiveOrganization } from '@/contexts/organization-context';
-import { getCohort, listCohortMentors, listCohorts, listEnrollments } from '../api/cohorts-api';
+import {
+  getCohort,
+  listCohortMentors,
+  listCohorts,
+  listEnrollments,
+  listOfferedTracks,
+} from '../api/cohorts-api';
 
 /** `fellowshipId` scopes the list to one fellowship's own cohorts — used by
  * the Fellowship detail page's contextual "Cohorts" section so it never
@@ -62,6 +73,17 @@ export function useCohortMentors(
   return useQuery({
     queryKey: ['cohorts', 'mentors', cohortId, activeOrganizationId],
     queryFn: () => listCohortMentors(cohortId as string, activeOrganizationId),
+    enabled: Boolean(cohortId) && Boolean(activeOrganizationId),
+  });
+}
+
+export function useCohortOfferedTracks(
+  cohortId: string | undefined,
+): UseQueryResult<LearningTrack[]> {
+  const { activeOrganizationId } = useActiveOrganization();
+  return useQuery({
+    queryKey: ['cohorts', 'tracks', cohortId, activeOrganizationId],
+    queryFn: () => listOfferedTracks(cohortId as string, activeOrganizationId),
     enabled: Boolean(cohortId) && Boolean(activeOrganizationId),
   });
 }

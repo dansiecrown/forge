@@ -32,6 +32,16 @@
 
     --background: var(--canvas);
     --foreground: var(--ink);
+
+    /* Tells the browser's own native-UI rendering (most relevantly here:
+       a <select>'s popped-open option list, which no cross-browser CSS can
+       otherwise restyle — see docs/adr/0015-name-first-display.md Decision
+       3) to use a dark baseline instead of defaulting to light-on-light.
+       Without this, Chromium/Firefox render that popup with a light
+       background regardless of the page's own dark theme, while the
+       `<option>` text below still inherits this page's light `color` —
+       the literal white-text-on-white-background bug this fixes. */
+    color-scheme: dark;
   }
 
   /* Light mode is fully supported, following the OS preference. These are
@@ -54,6 +64,7 @@
       --focus: 220 100% 57%;
 
       --shadow-color: 220 34% 13%;
+      color-scheme: light;
     }
   }
 
@@ -84,6 +95,7 @@
     --focus: 217 100% 65%;
 
     --shadow-color: 0 0% 0%;
+    color-scheme: dark;
   }
 
   :root[data-theme='light'] {
@@ -103,6 +115,7 @@
     --focus: 220 100% 57%;
 
     --shadow-color: 220 34% 13%;
+    color-scheme: light;
   }
 
   /* Thin, theme-matched scrollbar — replaces the default chunky OS
@@ -135,6 +148,20 @@
 
   ::-webkit-scrollbar-corner {
     background: transparent;
+  }
+
+  /* `color-scheme` above fixes most of a <select>'s native popup, but
+     Chromium/Firefox also respect an explicit `background-color`/`color`
+     set directly on `<option>` — set here so the popup actually matches
+     this app's tokens rather than a browser-generic dark/light default. */
+  select {
+    color: hsl(var(--foreground));
+    background-color: hsl(var(--surface-2));
+  }
+
+  select option {
+    color: hsl(var(--foreground));
+    background-color: hsl(var(--surface-2));
   }
 
   body {

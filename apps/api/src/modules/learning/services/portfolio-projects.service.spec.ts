@@ -1,4 +1,5 @@
 import type { PortfolioProject, PracticalTaskSubmission } from '@prisma/client';
+import type { FellowshipTrackMentorsService } from '../../catalog/services/fellowship-track-mentors.service';
 import type { CohortsService } from '../../cohorts/services/cohorts.service';
 import type { EnrollmentEntity } from '../../cohorts/entities/enrollment.entity';
 import type { EnrollmentsService } from '../../cohorts/services/enrollments.service';
@@ -130,6 +131,10 @@ function buildService(options: {
     hasPermission: jest.fn(async () => options.canManageAnyEnrollment ?? false),
   } as unknown as PermissionResolverService;
 
+  const fellowshipTrackMentorsService = {
+    listActiveAssignmentsForMembership: jest.fn(async () => []),
+  } as unknown as FellowshipTrackMentorsService;
+
   const service = new PortfolioProjectsService(
     portfolioProjectsRepository,
     practicalTaskSubmissionsRepository,
@@ -138,6 +143,7 @@ function buildService(options: {
     membershipsService,
     permissionResolver,
     auditLog,
+    fellowshipTrackMentorsService,
   );
   return { service, portfolioProjectsRepository, stored };
 }

@@ -2,9 +2,11 @@ import type { Cohort } from '@prisma/client';
 import type { FellowshipEntity } from '../../catalog/entities/fellowship.entity';
 import type { FellowshipsService } from '../../catalog/services/fellowships.service';
 import type { CurriculumSnapshotService } from '../../catalog/services/curriculum-snapshot.service';
+import type { LearningTracksService } from '../../catalog/services/learning-tracks.service';
 import type { AuditLogService } from '../../platform/audit-log.service';
+import type { UsersService } from '../../identity/services/users.service';
 import type { MembershipsService } from '../../organizations/services/memberships.service';
-import { CohortsRepository } from '../repositories/cohorts.repository';
+import { CohortsRepository, CohortVersionConflictError } from '../repositories/cohorts.repository';
 import { CohortsService } from './cohorts.service';
 
 function fakeCohort(overrides: Partial<Cohort> = {}): Cohort {
@@ -24,6 +26,7 @@ function fakeCohort(overrides: Partial<Cohort> = {}): Cohort {
     enrollmentDeadline: null,
     curriculumSnapshot: null,
     curriculumSnapshotAt: null,
+    trackSwitchClosedAt: null,
     version: 1,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -67,6 +70,22 @@ function fakeAuditLog(): AuditLogService {
   return { record: jest.fn(async () => undefined) } as unknown as AuditLogService;
 }
 
+function fakeUsersService(): UsersService {
+  return {
+    listByIds: jest.fn(async () => []),
+    getById: jest.fn(async () => ({
+      displayName: 'Test Mentor',
+      emailCanonical: 'mentor@test.local',
+    })),
+  } as unknown as UsersService;
+}
+
+function fakeLearningTracksService(): LearningTracksService {
+  return {
+    get: jest.fn(async () => ({ id: 'track-1', fellowshipId: 'fellowship-1' })),
+  } as unknown as LearningTracksService;
+}
+
 describe('CohortsService', () => {
   it('treats a cohort from another organization as not found', async () => {
     const repository: Partial<CohortsRepository> = {
@@ -78,6 +97,8 @@ describe('CohortsService', () => {
       fakeMembershipsService(),
       fakeCurriculumSnapshotService(),
       fakeAuditLog(),
+      fakeUsersService(),
+      fakeLearningTracksService(),
     );
 
     await expect(
@@ -99,6 +120,8 @@ describe('CohortsService', () => {
       }),
       fakeCurriculumSnapshotService(),
       fakeAuditLog(),
+      fakeUsersService(),
+      fakeLearningTracksService(),
     );
 
     await expect(
@@ -119,6 +142,8 @@ describe('CohortsService', () => {
       fakeMembershipsService(),
       fakeCurriculumSnapshotService(),
       fakeAuditLog(),
+      fakeUsersService(),
+      fakeLearningTracksService(),
     );
 
     await expect(
@@ -149,6 +174,8 @@ describe('CohortsService', () => {
       fakeMembershipsService(),
       fakeCurriculumSnapshotService(),
       fakeAuditLog(),
+      fakeUsersService(),
+      fakeLearningTracksService(),
     );
 
     await expect(
@@ -173,6 +200,8 @@ describe('CohortsService', () => {
       fakeMembershipsService(),
       fakeCurriculumSnapshotService(),
       fakeAuditLog(),
+      fakeUsersService(),
+      fakeLearningTracksService(),
     );
 
     await expect(
@@ -204,6 +233,8 @@ describe('CohortsService', () => {
       fakeMembershipsService(),
       curriculumSnapshotService,
       fakeAuditLog(),
+      fakeUsersService(),
+      fakeLearningTracksService(),
     );
 
     const result = await service.syncCurriculum(
@@ -227,10 +258,104 @@ describe('CohortsService', () => {
       fakeMembershipsService(),
       fakeCurriculumSnapshotService(),
       fakeAuditLog(),
+      fakeUsersService(),
+      fakeLearningTracksService(),
     );
 
     await expect(
       service.syncCurriculum({ organizationId: 'org-1' }, 'cohort-1', 1, 'caller-1'),
+    ).rejects.toMatchObject({ response: { code: 'VERSION_CONFLICT' } });
+  });
+});
+
+describe('CohortsService — track switch grace period', () => {
+  it('closeTrackSwitching sets trackSwitchClosedAt and audit-logs it', async () => {
+    const update = jest.fn(async () => fakeCohort({ trackSwitchClosedAt: new Date(), version: 2 }));
+    const repository: Partial<CohortsRepository> = {
+      findById: jest.fn(async () => fakeCohort({ version: 1 })),
+      update,
+    };
+    const auditLog = fakeAuditLog();
+    const service = new CohortsService(
+      repository as CohortsRepository,
+      fakeFellowshipsService(),
+      fakeMembershipsService(),
+      fakeCurriculumSnapshotService(),
+      auditLog,
+      fakeUsersService(),
+      fakeLearningTracksService(),
+    );
+
+    const result = await service.closeTrackSwitching(
+      { organizationId: 'org-1' },
+      'cohort-1',
+      1,
+      'caller-1',
+    );
+
+    expect(result.trackSwitchClosedAt).not.toBeNull();
+    expect(update).toHaveBeenCalledWith(
+      { organizationId: 'org-1' },
+      'cohort-1',
+      { trackSwitchClosedAt: expect.any(Date) },
+      1,
+    );
+    expect(auditLog.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'cohort.track_switching_closed' }),
+    );
+  });
+
+  it('reopenTrackSwitching clears trackSwitchClosedAt', async () => {
+    const update = jest.fn(async () => fakeCohort({ trackSwitchClosedAt: null, version: 2 }));
+    const repository: Partial<CohortsRepository> = {
+      findById: jest.fn(async () => fakeCohort({ trackSwitchClosedAt: new Date(), version: 1 })),
+      update,
+    };
+    const service = new CohortsService(
+      repository as CohortsRepository,
+      fakeFellowshipsService(),
+      fakeMembershipsService(),
+      fakeCurriculumSnapshotService(),
+      fakeAuditLog(),
+      fakeUsersService(),
+      fakeLearningTracksService(),
+    );
+
+    const result = await service.reopenTrackSwitching(
+      { organizationId: 'org-1' },
+      'cohort-1',
+      1,
+      'caller-1',
+    );
+
+    expect(result.trackSwitchClosedAt).toBeNull();
+    expect(update).toHaveBeenCalledWith(
+      { organizationId: 'org-1' },
+      'cohort-1',
+      { trackSwitchClosedAt: null },
+      1,
+    );
+  });
+
+  it('rejects closing with a stale version', async () => {
+    const repository: Partial<CohortsRepository> = {
+      findById: jest.fn(async () => fakeCohort({ version: 3 })),
+      update: jest.fn(async () => {
+        throw new CohortVersionConflictError(3);
+      }),
+    };
+    const service = new CohortsService(
+      repository as CohortsRepository,
+      fakeFellowshipsService(),
+      fakeMembershipsService(),
+      fakeCurriculumSnapshotService(),
+      fakeAuditLog(),
+      fakeUsersService(),
+      fakeLearningTracksService(),
+    );
+
+    await expect(
+      service.closeTrackSwitching({ organizationId: 'org-1' }, 'cohort-1', 1, 'caller-1'),
     ).rejects.toMatchObject({ response: { code: 'VERSION_CONFLICT' } });
   });
 });

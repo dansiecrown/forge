@@ -1,4 +1,5 @@
 import type { CurriculumSnapshot } from '../../catalog/services/curriculum-snapshot.service';
+import type { FellowshipTrackMentorsService } from '../../catalog/services/fellowship-track-mentors.service';
 import type { LessonsService } from '../../catalog/services/lessons.service';
 import type { LearningResourcesService } from '../../catalog/services/learning-resources.service';
 import type { PracticalTasksService } from '../../catalog/services/practical-tasks.service';
@@ -164,6 +165,8 @@ function fakeEnrollment(overrides: Partial<EnrollmentEntity> = {}): EnrollmentEn
     fellowshipId: 'fellowship-1',
     cohortId: 'cohort-1',
     userId: 'student-1',
+    userDisplayName: null,
+    userEmail: null,
     status: 'active',
     currentLearningTrackId: TRACK_ID,
     invitedAt: new Date(),
@@ -193,6 +196,7 @@ function fakeCohort(overrides: Partial<CohortEntity> = {}): CohortEntity {
     enrollmentDeadline: null,
     curriculumSnapshot: fakeSnapshot(),
     curriculumSnapshotAt: new Date(),
+    trackSwitchClosedAt: null,
     version: 1,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -216,6 +220,10 @@ function buildService(options: {
   /** Whether that membership is an active mentor assignment on the
    * enrollment's cohort. */
   mentorAssignedToCohort?: boolean;
+  /** Active FellowshipTrackMentor assignments for the caller's membership —
+   * the Fellowship-wide, per-track access path alongside cohort-wide
+   * assignment (docs/adr/0016-cohort-scoped-tracks.md). */
+  trackMentorAssignments?: { fellowshipId: string; learningTrackId: string }[];
 }) {
   const lessonCompletionsRepository = {
     listForEnrollment: jest.fn(async () =>
@@ -284,6 +292,10 @@ function buildService(options: {
 
   const auditLog = { record: jest.fn(async () => undefined) } as unknown as AuditLogService;
 
+  const fellowshipTrackMentorsService = {
+    listActiveAssignmentsForMembership: jest.fn(async () => options.trackMentorAssignments ?? []),
+  } as unknown as FellowshipTrackMentorsService;
+
   return new ProgressionService(
     lessonCompletionsRepository,
     resourceAcknowledgmentsRepository,
@@ -296,6 +308,7 @@ function buildService(options: {
     permissionResolver,
     membershipsService,
     auditLog,
+    fellowshipTrackMentorsService,
   );
 }
 

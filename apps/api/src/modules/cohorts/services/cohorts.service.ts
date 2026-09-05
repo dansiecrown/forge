@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { CurriculumSnapshotService } from '../../catalog/services/curriculum-snapshot.service';
 import { FellowshipsService } from '../../catalog/services/fellowships.service';
+import { LearningTracksService } from '../../catalog/services/learning-tracks.service';
+import { UsersService } from '../../identity/services/users.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
 import { AuditLogService } from '../../platform/audit-log.service';
 import { AppException } from '../../../shared/errors/app.exception';
@@ -29,6 +31,8 @@ export class CohortsService {
     private readonly membershipsService: MembershipsService,
     private readonly curriculumSnapshotService: CurriculumSnapshotService,
     private readonly auditLog: AuditLogService,
+    private readonly usersService: UsersService,
+    private readonly learningTracksService: LearningTracksService,
   ) {}
 
   async list(
@@ -310,7 +314,7 @@ export class CohortsService {
         `Cohort has moved to version ${existing.version}.`,
       );
     }
-    const snapshot = await this.curriculumSnapshotService.build(scope, existing.fellowshipId);
+    const snapshot = await this.curriculumSnapshotService.build(scope, existing.fellowshipId, id);
     const updated = await this.cohortsRepository.updateCurriculumSnapshot(
       id,
       snapshot as unknown as Prisma.InputJsonValue,
@@ -335,7 +339,7 @@ export class CohortsService {
   ): Promise<CohortMentorEntity[]> {
     await this.get(scope, cohortId, callerId);
     const rows = await this.cohortsRepository.listMentors(cohortId);
-    return rows.map(toCohortMentorEntity);
+    return rows.map((row) => toCohortMentorEntity(row, row.membership.user));
   }
 
   async assignMentor(
@@ -376,7 +380,8 @@ export class CohortsService {
       actorUserId,
       metadata: { membershipId },
     });
-    return toCohortMentorEntity(assignment);
+    const user = await this.usersService.getById(membership.userId);
+    return toCohortMentorEntity(assignment, user);
   }
 
   async unassignMentor(
@@ -417,5 +422,130 @@ export class CohortsService {
   async listMyCohorts(membershipId: string): Promise<CohortEntity[]> {
     const rows = await this.cohortsRepository.listActiveForMentor(membershipId);
     return rows.map(toCohortEntity);
+  }
+
+  /** The Fellowship-wide-track-mentor half of "my cohorts" — cohorts this
+   * caller has no `CohortMentor` row for at all, reachable only because one
+   * of the given tracks is among what that cohort offers. See
+   * docs/adr/0016-cohort-scoped-tracks.md Decision 3. */
+  async listOfferingTracks(
+    scope: TenantScope,
+    learningTrackIds: string[],
+  ): Promise<CohortEntity[]> {
+    const rows = await this.cohortsRepository.listOfferingAnyTrack(
+      scope.organizationId,
+      learningTrackIds,
+    );
+    return rows.map(toCohortEntity);
+  }
+
+  // --- Track offerings (docs/adr/0016-cohort-scoped-tracks.md) -----------
+
+  async listOfferedTracks(scope: TenantScope, cohortId: string, callerId: string) {
+    const cohort = await this.get(scope, cohortId, callerId);
+    const trackIds = await this.cohortsRepository.listOfferedTrackIds(cohort.id);
+    if (trackIds.length === 0) return [];
+    return Promise.all(trackIds.map((trackId) => this.learningTracksService.get(scope, trackId)));
+  }
+
+  /** Replace-all — every id must belong to this cohort's own Fellowship, the
+   * same check every other cross-entity reference in this module enforces
+   * (e.g. `assertOpenForCohortCreation`). An empty list is valid: it clears
+   * the cohort's selection, which `CurriculumSnapshotService.build()` reads
+   * as "fall back to every Fellowship track" (its pre-existing behavior),
+   * not "offer nothing." */
+  async setOfferedTracks(
+    scope: TenantScope,
+    cohortId: string,
+    learningTrackIds: string[],
+    actorUserId: string,
+  ): Promise<void> {
+    const cohort = await this.get(scope, cohortId, actorUserId);
+    const tracks = await Promise.all(
+      learningTrackIds.map((trackId) => this.learningTracksService.get(scope, trackId)),
+    );
+    const foreign = tracks.find((track) => track.fellowshipId !== cohort.fellowshipId);
+    if (foreign) {
+      throw AppException.validation([
+        {
+          field: 'learningTrackIds',
+          code: 'TRACK_NOT_IN_FELLOWSHIP',
+          message: `Track "${foreign.name}" does not belong to this cohort's Fellowship.`,
+        },
+      ]);
+    }
+
+    await this.cohortsRepository.setOfferedTracks(cohortId, learningTrackIds);
+    await this.auditLog.record({
+      action: 'cohort.tracks_updated',
+      entityType: 'cohort',
+      entityId: cohortId,
+      outcome: 'success',
+      organizationId: scope.organizationId,
+      actorUserId,
+      metadata: { learningTrackIds },
+    });
+  }
+
+  // --- Track switch grace period (docs/adr/0017-track-switch-grace-period.md) --
+
+  /** Manual, admin-driven close — no automatic timer. Only gates a learner
+   * *changing* an already-set `Enrollment.currentLearningTrackId`; their
+   * first pick is never affected (see `EnrollmentsService.selectTrack`). */
+  async closeTrackSwitching(
+    scope: TenantScope,
+    cohortId: string,
+    expectedVersion: number,
+    actorUserId: string,
+  ): Promise<CohortEntity> {
+    return this.setTrackSwitchClosedAt(scope, cohortId, new Date(), expectedVersion, actorUserId);
+  }
+
+  async reopenTrackSwitching(
+    scope: TenantScope,
+    cohortId: string,
+    expectedVersion: number,
+    actorUserId: string,
+  ): Promise<CohortEntity> {
+    return this.setTrackSwitchClosedAt(scope, cohortId, null, expectedVersion, actorUserId);
+  }
+
+  private async setTrackSwitchClosedAt(
+    scope: TenantScope,
+    cohortId: string,
+    trackSwitchClosedAt: Date | null,
+    expectedVersion: number,
+    actorUserId: string,
+  ): Promise<CohortEntity> {
+    // Academy-scope enforcement, matching `update()`'s own convention —
+    // `CohortsRepository.update()` below only checks organizationId.
+    await this.get(scope, cohortId, actorUserId);
+    try {
+      const updated = await this.cohortsRepository.update(
+        scope,
+        cohortId,
+        { trackSwitchClosedAt },
+        expectedVersion,
+      );
+      await this.auditLog.record({
+        action: trackSwitchClosedAt
+          ? 'cohort.track_switching_closed'
+          : 'cohort.track_switching_reopened',
+        entityType: 'cohort',
+        entityId: cohortId,
+        outcome: 'success',
+        organizationId: scope.organizationId,
+        actorUserId,
+      });
+      return toCohortEntity(updated);
+    } catch (error) {
+      if (error instanceof CohortVersionConflictError) {
+        throw AppException.conflict(
+          'VERSION_CONFLICT',
+          `Cohort has moved to version ${error.currentVersion}.`,
+        );
+      }
+      throw error;
+    }
   }
 }

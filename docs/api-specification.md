@@ -183,8 +183,10 @@ Each endpoint line supplies description, authentication/authorization, body sche
 | `GET /cohorts` / `POST /cohorts` | list/create cohort; scoped read / Admin `cohort.create` | POST `{ "fellowshipId":"uuid","name":"Cohort 2026","slug":"cohort-2026","startsAt":"2026-09-01T08:00:00Z","endsAt":"2027-02-28T17:00:00Z","timezone":"Africa/Lagos","capacity":100 }`; valid chronology/capacity | `200` / `201 {data:{id:"uuid",status:"draft"}}`; `409/422` |
 | `GET /cohorts/:id` / `PATCH /cohorts/:id` | detail/update; scoped / Admin `cohort.update` | PATCH `{ "status":"enrolling","capacity":120,"version":1 }`; lifecycle and `If-Match` | `200`; `409 INVALID_STATE_TRANSITION` |
 | `POST /cohorts/:id/actions/activate` / `complete` / `pause` | change delivery state; Admin matching scope | `{ "reason":"…","version":2 }`; curriculum snapshot and dates valid | `200 {data:{status:"active"}}`; `422/409` |
+| `POST /cohorts/:id/actions/close-track-switching` / `reopen-track-switching` | manually close/reopen this Cohort's track-switch grace period; Admin `cohort.update` | `{ "version":2 }` | `200 {data:{id:"uuid",trackSwitchClosedAt:"2026-09-05T…Z"}}` / `{…trackSwitchClosedAt:null}`; `409 VERSION_CONFLICT` |
 | `GET /cohorts/:id/enrollments` / `POST /cohorts/:id/enrollments` | list/invite or enrol learner; Mentor read assigned, Admin create | POST `{ "studentUserId":"uuid","status":"invited" }`; capacity, progression rule, learner membership | `200` / `201 {data:{id:"uuid",status:"invited"}}`; `409 CAPACITY_REACHED/ACTIVE_ENROLLMENT_EXISTS` |
 | `PATCH /enrollments/:id` | update enrollment state/exception; Admin `enrollment.manage` | `{ "status":"active","reason":"approved","version":1 }`; documented exception where required | `200 {data:{id:"uuid",status:"active"}}`; `422/409` |
+| `POST /enrollments/:id/actions/select-track` | learner self-service track pick/switch; owner only (`enrollment.progress.read` satisfies the guard, ownership enforced in-service) | `{ "learningTrackId":"uuid" }`; track must belong to the Enrollment's own Fellowship | `200 {data:{id:"uuid",currentLearningTrackId:"uuid"}}`; `404` (not owner) / `409 TRACK_SWITCHING_CLOSED,VERSION_CONFLICT` / `422 TRACK_NOT_IN_FELLOWSHIP` |
 | `GET /cohorts/:id/mentors` / `POST /cohorts/:id/mentors` / `DELETE /cohorts/:id/mentors/:mentorId` | manage mentor assignment; Admin manage, mentor read own | POST `{ "mentorUserId":"uuid","role":"primary","capacityAllocation":25 }`; valid mentor member, no duplicate | `200` / `201` / `204`; `409` |
 | `GET /cohorts/:id/huddles` / `POST /cohorts/:id/huddles` | list/schedule mentor huddle; cohort member read, Mentor/Admin create | POST `{ "title":"Weekly huddle","startsAt":"2026-09-08T17:00:00Z","endsAt":"2026-09-08T18:00:00Z","mentorUserId":"uuid","meetingType":"online" }`; assigned mentor and chronology | `200` / `201 {data:{id:"uuid",status:"scheduled"}}`; `422` |
 | `GET /huddles/:id` / `PATCH /huddles/:id` / `POST /huddles/:id/actions/cancel` | huddle detail/change/cancel; cohort scoped, Mentor owner/Admin write | PATCH `{ "agenda":"…","version":1 }`; cancellation reason if after publish | `200`; cancel `200 {data:{status:"cancelled"}}`; `403/409` |
@@ -306,6 +308,26 @@ every other module uses, with no new "Fellowship Admin" role. See
 entity payloads, matching the REST shapes above). The gateway never accepts a write over the
 socket — every mutation goes through the REST endpoints; the socket only subscribes and receives.
 See the ADR for authorization re-evaluation, Redis's role, and reconnection behavior.
+
+### 4.14 Cohort-scoped Learning Tracks and Fellowship-wide track mentors
+
+See `docs/adr/0016-cohort-scoped-tracks.md`. Track authoring/curriculum stays under §4.4's
+`/fellowships/:id/learning-tracks` — these endpoints only manage which tracks a Cohort offers and
+which mentors are assigned to a track.
+
+| Method / path | Description, auth/permission | Request sample & validation | Success response / errors |
+| --- | --- | --- | --- |
+| `GET /cohorts/:id/tracks` / `PUT /cohorts/:id/tracks` | this Cohort's offered tracks (empty means "every Fellowship track," the pre-existing default) / replace-all; `cohort.read` / `cohort.update` | PUT `{ "learningTrackIds":["uuid"] }`; every id must belong to this Cohort's own Fellowship | `200 {data:[{id:"uuid",name:"…"}]}`; `403/404/422 TRACK_NOT_IN_FELLOWSHIP` |
+| `GET /learning-tracks/:id/mentors` / `POST …` | Fellowship-wide track mentor roster / assign; `curriculum.read` / `cohort.mentor.manage` | POST `{ "membershipId":"uuid" }`; membership must belong to the active organization | `200 {data:[{id:"uuid",userDisplayName:"…"}]}` / `201`; `403/404/409 ALREADY_ASSIGNED` |
+| `DELETE /learning-tracks/:id/mentors/:membershipId` | unassign; `cohort.mentor.manage` | no body | `204`; `403/404` |
+
+### 4.15 Per-Cohort track switch grace period
+
+See `docs/adr/0017-track-switch-grace-period.md`. `Cohort.trackSwitchClosedAt` (surfaced on the
+`Cohort` resource, §4.6) is null by default — a learner's first Learning Track pick is always
+allowed regardless of its value; only a later *change* away from an already-set track is gated. The
+mutating endpoints (`close-track-switching`/`reopen-track-switching` on the Cohort, `select-track`
+on the Enrollment) are listed with the rest of §4.6 above, not duplicated here.
 
 ## 5. Super-admin and platform operations
 

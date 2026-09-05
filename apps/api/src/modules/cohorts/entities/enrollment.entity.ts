@@ -7,6 +7,12 @@ export interface EnrollmentEntity {
   fellowshipId: string;
   cohortId: string;
   userId: string;
+  /** Resolved server-side so the frontend never has to show a bare id — see
+   * docs/adr/0015-name-first-display.md. Null only if the user record has
+   * somehow been removed (Enrollment has no cascading FK to User); every
+   * caller should still fall back to `userId` in that edge case. */
+  userDisplayName: string | null;
+  userEmail: string | null;
   status: string;
   /** The learner's single active Learning Track within this Fellowship —
    * see docs/adr/0006-curriculum-learning-engine.md. */
@@ -19,7 +25,10 @@ export interface EnrollmentEntity {
   updatedAt: Date;
 }
 
-export function toEnrollmentEntity(row: Enrollment): EnrollmentEntity {
+export function toEnrollmentEntity(
+  row: Enrollment,
+  user?: { displayName: string; emailCanonical: string } | null,
+): EnrollmentEntity {
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -27,6 +36,8 @@ export function toEnrollmentEntity(row: Enrollment): EnrollmentEntity {
     fellowshipId: row.fellowshipId,
     cohortId: row.cohortId,
     userId: row.userId,
+    userDisplayName: user?.displayName ?? null,
+    userEmail: user?.emailCanonical ?? null,
     status: row.status,
     currentLearningTrackId: row.currentLearningTrackId,
     invitedAt: row.invitedAt,

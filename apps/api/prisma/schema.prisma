@@ -512,11 +512,12 @@ model Membership {
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization             Organization       @relation(fields: [organizationId], references: [id])
-  user                     User               @relation(fields: [userId], references: [id])
-  academy                  Academy?           @relation(fields: [academyId], references: [id])
+  organization             Organization            @relation(fields: [organizationId], references: [id])
+  user                     User                    @relation(fields: [userId], references: [id])
+  academy                  Academy?                @relation(fields: [academyId], references: [id])
   membershipRoles          MembershipRole[]
   cohortMentorships        CohortMentor[]
+  trackMentorships         FellowshipTrackMentor[]
   submissionReviews        SubmissionReview[]
   createdHuddleSessions    HuddleSession[]
   recordedHuddleAttendance HuddleAttendance[]
@@ -664,6 +665,7 @@ model Fellowship {
   certificates         Certificate[]
   cohortApplications   CohortApplication[]
   chatChannels         FellowshipChatChannel[]
+  trackMentors         FellowshipTrackMentor[]
 
   @@index([academyId, status])
   @@map("fellowships")
@@ -694,20 +696,28 @@ model Cohort {
   /// docs/adr/0006-curriculum-learning-engine.md Decision 1.
   curriculumSnapshot   Json?        @map("curriculum_snapshot")
   curriculumSnapshotAt DateTime?    @map("curriculum_snapshot_at") @db.Timestamptz(3)
+  /// Null (the default) means a learner may still switch their own
+  /// `Enrollment.currentLearningTrackId` after their first pick; a manual
+  /// admin action sets this timestamp to close that window for this Cohort
+  /// specifically — see docs/adr/0017-track-switch-grace-period.md. Never
+  /// gates the *first* pick (application-time or immediately after
+  /// joining), only a change away from an already-set track.
+  trackSwitchClosedAt  DateTime?    @map("track_switch_closed_at") @db.Timestamptz(3)
   version              Int          @default(1)
   createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt            DateTime?    @map("deleted_at") @db.Timestamptz(3)
 
-  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  academy            Academy             @relation(fields: [academyId], references: [id], onDelete: Restrict)
-  fellowship         Fellowship          @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  academy            Academy               @relation(fields: [academyId], references: [id], onDelete: Restrict)
+  fellowship         Fellowship            @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
   mentors            CohortMentor[]
   enrollments        Enrollment[]
   huddleSessions     HuddleSession[]
   mentorNotes        MentorNote[]
   announcements      Announcement[]
   cohortApplications CohortApplication[]
+  offeredTracks      CohortLearningTrack[]
 
   @@index([organizationId, status, startsAt])
   @@index([fellowshipId, status])
@@ -729,6 +739,49 @@ model CohortMentor {
 
   @@index([membershipId])
   @@map("cohort_mentors")
+}
+
+// Which of the parent Fellowship's Learning Tracks this Cohort actually
+// offers — see docs/adr/0016-cohort-scoped-tracks.md Decision 1. Plain
+// many-to-many (no "active" dimension the way CohortMentor has — a track is
+// simply offered or not); `CurriculumSnapshotService.build()` now snapshots
+// only these tracks for a cohort, not every track under the Fellowship.
+model CohortLearningTrack {
+  id              String   @id @default(uuid())
+  cohortId        String   @map("cohort_id")
+  learningTrackId String   @map("learning_track_id")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  cohort        Cohort        @relation(fields: [cohortId], references: [id], onDelete: Restrict)
+  learningTrack LearningTrack @relation(fields: [learningTrackId], references: [id], onDelete: Restrict)
+
+  @@unique([cohortId, learningTrackId])
+  @@index([learningTrackId])
+  @@map("cohort_learning_tracks")
+}
+
+// A mentor assigned to a Learning Track across the whole Fellowship —
+// independent of, and additive to, CohortMentor ("mentor for this whole
+// cohort"). See docs/adr/0016-cohort-scoped-tracks.md Decision 2. Same
+// "active row" convention as CohortMentor: a hand-written partial unique
+// index (WHERE unassigned_at IS NULL) enforces one active assignment per
+// (fellowship, track, membership); the plain @@index below is not that
+// constraint.
+model FellowshipTrackMentor {
+  id              String    @id @default(uuid())
+  fellowshipId    String    @map("fellowship_id")
+  learningTrackId String    @map("learning_track_id")
+  membershipId    String    @map("membership_id")
+  assignedAt      DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(3)
+  unassignedAt    DateTime? @map("unassigned_at") @db.Timestamptz(3)
+
+  fellowship    Fellowship    @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  learningTrack LearningTrack @relation(fields: [learningTrackId], references: [id], onDelete: Restrict)
+  membership    Membership    @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+
+  @@index([membershipId])
+  @@index([learningTrackId])
+  @@map("fellowship_track_mentors")
 }
 
 // One row per (cohort, weekNumber) — keyed off the stable scalar weekNumber,
@@ -890,11 +943,13 @@ model LearningTrack {
   updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt             DateTime?        @map("deleted_at") @db.Timestamptz(3)
 
-  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  fellowship         Fellowship          @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  fellowship         Fellowship              @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
   courses            Course[]
   enrollments        Enrollment[]
   cohortApplications CohortApplication[]
+  cohortOfferings    CohortLearningTrack[]
+  trackMentors       FellowshipTrackMentor[]
 
   @@index([fellowshipId, status, displayOrder])
   @@map("learning_tracks")

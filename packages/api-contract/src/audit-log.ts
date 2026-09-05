@@ -5,6 +5,9 @@ export interface AuditLogEntry {
   id: string;
   organizationId: string | null;
   actorUserId: string | null;
+  /** Resolved server-side — see docs/adr/0015-name-first-display.md. Null
+   * for a system action or an actor whose account no longer exists. */
+  actorDisplayName: string | null;
   action: string;
   entityType: string;
   entityId: string | null;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Pencil, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -9,16 +9,18 @@ import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-me
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Breadcrumb } from '@/components/admin/breadcrumb';
 import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
+import { DefinitionList } from '@/components/admin/definition-list';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ConfirmDialog } from '@/components/ui/dialog';
+import { ConfirmDialog, Dialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
+import { useToast } from '@/components/ui/toast';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useAcademiesList } from '@/features/academies';
-import type { Academy } from '@forge/api-contract';
+import type { Academy, OrganizationAdmin } from '@forge/api-contract';
 import {
   useOrganizationLifecycleActions,
   useUpdateOrganization,
@@ -75,6 +77,8 @@ export function OrganizationDetailPage() {
   const updateOrganization = useUpdateOrganization(orgId ?? '', orgId);
   const { suspend, archive, restore } = useOrganizationLifecycleActions(orgId ?? '');
   const [pendingAction, setPendingAction] = useState<'suspend' | 'archive' | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const toast = useToast();
   const permissions = usePermissions();
   const stats = useQuery({
     queryKey: ['admin-organization-stats', orgId],
@@ -91,7 +95,7 @@ export function OrganizationDetailPage() {
   const admins = useQuery({
     queryKey: ['admin-organization-admins', orgId],
     queryFn: () =>
-      apiRequest<{ id: string; userId: string }[]>(`/organizations/${orgId}/admins`, {
+      apiRequest<OrganizationAdmin[]>(`/organizations/${orgId}/admins`, {
         organizationId: orgId,
       }),
     enabled: Boolean(orgId),
@@ -143,8 +147,11 @@ export function OrganizationDetailPage() {
         },
         version: organization.version,
       });
-    } catch {
-      // surfaced below via updateOrganization.error
+      toast.success('Organization profile updated.');
+      setEditOpen(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to update organization.');
+      // Also surfaced inline below (updateOrganization.error) while the dialog stays open.
     }
   }
 
@@ -213,51 +220,76 @@ export function OrganizationDetailPage() {
       ) : null}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle as="h2">Profile</CardTitle>
+          {permissions.has('organization.update') ? (
+            <Button
+              variant="secondary"
+              onClick={() => setEditOpen(true)}
+              aria-label="Edit organization profile"
+            >
+              <Pencil className="size-4" aria-hidden="true" />
+              Edit
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent>
-          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? (
-              <Alert variant="danger" className="w-full">
-                {updateErrorMessage}
-              </Alert>
-            ) : null}
-            <FormField
-              label="Name"
-              error={form.formState.errors.name?.message}
-              {...form.register('name')}
-            />
-            <FormField
-              label="Legal name"
-              error={form.formState.errors.legalName?.message}
-              {...form.register('legalName')}
-            />
-            <FormField
-              label="Default timezone"
-              error={form.formState.errors.defaultTimezone?.message}
-              {...form.register('defaultTimezone')}
-            />
-            <FormField
-              label="Country (ISO code)"
-              maxLength={2}
-              error={form.formState.errors.country?.message}
-              {...form.register('country')}
-            />
-            <FormField
-              label="Support email"
-              type="email"
-              error={form.formState.errors.supportEmail?.message}
-              {...form.register('supportEmail')}
-            />
-            <div className="flex w-full justify-end pt-2">
-              <Button type="submit" loading={updateOrganization.isPending}>
-                Save changes
-              </Button>
-            </div>
-          </form>
+          <DefinitionList
+            items={[
+              { label: 'Name', value: organization.name },
+              { label: 'Legal name', value: organization.legalName },
+              { label: 'Default timezone', value: organization.defaultTimezone },
+              { label: 'Country', value: organization.country },
+              { label: 'Support email', value: organization.supportEmail },
+            ]}
+          />
         </CardContent>
       </Card>
+
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} title="Edit organization profile">
+        <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          {updateErrorMessage ? (
+            <Alert variant="danger" className="w-full">
+              {updateErrorMessage}
+            </Alert>
+          ) : null}
+          <FormField
+            label="Name"
+            error={form.formState.errors.name?.message}
+            {...form.register('name')}
+          />
+          <FormField
+            label="Legal name"
+            error={form.formState.errors.legalName?.message}
+            {...form.register('legalName')}
+          />
+          <FormField
+            label="Default timezone"
+            error={form.formState.errors.defaultTimezone?.message}
+            {...form.register('defaultTimezone')}
+          />
+          <FormField
+            label="Country (ISO code)"
+            maxLength={2}
+            error={form.formState.errors.country?.message}
+            {...form.register('country')}
+          />
+          <FormField
+            label="Support email"
+            type="email"
+            error={form.formState.errors.supportEmail?.message}
+            {...form.register('supportEmail')}
+          />
+          <div className="flex w-full justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={updateOrganization.isPending}>
+              Save changes
+            </Button>
+          </div>
+        </form>
+      </Dialog>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -312,8 +344,9 @@ export function OrganizationDetailPage() {
             {admins.data && admins.data.length > 0 ? (
               <ul className="space-y-2 text-sm">
                 {admins.data.map((admin) => (
-                  <li key={admin.id} className="font-mono text-xs text-muted-foreground">
-                    {admin.userId}
+                  <li key={admin.id} className="truncate">
+                    <span className="font-medium text-foreground">{admin.displayName}</span>{' '}
+                    <span className="text-xs text-muted-foreground">{admin.email}</span>
                   </li>
                 ))}
               </ul>

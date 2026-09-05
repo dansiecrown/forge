@@ -1,4 +1,5 @@
 import { type ReactNode, type SelectHTMLAttributes, forwardRef } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { cn } from '@/utils';
 
 export interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
@@ -29,21 +30,27 @@ export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(
           <label htmlFor={name} className="block text-[11px] font-medium text-muted-foreground">
             {label}
           </label>
-          <select
-            ref={ref}
-            id={name}
-            name={name}
-            disabled={disabled}
-            aria-invalid={Boolean(error)}
-            aria-describedby={error ? errorId : undefined}
-            className={cn(
-              'mt-0.5 w-full bg-transparent text-sm text-foreground focus:outline-none',
-              className,
-            )}
-            {...selectProps}
-          >
-            {children}
-          </select>
+          <div className="relative">
+            <select
+              ref={ref}
+              id={name}
+              name={name}
+              disabled={disabled}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? errorId : undefined}
+              className={cn(
+                'mt-0.5 w-full appearance-none bg-transparent pr-6 text-sm text-foreground focus:outline-none',
+                className,
+              )}
+              {...selectProps}
+            >
+              {children}
+            </select>
+            <ChevronDown
+              className="pointer-events-none absolute right-0 top-1/2 mt-0.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+          </div>
         </div>
         {error ? (
           <p id={errorId} className="mt-1.5 text-sm text-danger" aria-live="polite">

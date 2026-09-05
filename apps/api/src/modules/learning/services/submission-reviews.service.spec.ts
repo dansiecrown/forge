@@ -1,5 +1,6 @@
 import type { PracticalTaskSubmission, SubmissionReview } from '@prisma/client';
 import type { PracticalTasksService } from '../../catalog/services/practical-tasks.service';
+import type { FellowshipTrackMentorsService } from '../../catalog/services/fellowship-track-mentors.service';
 import type { CohortsService } from '../../cohorts/services/cohorts.service';
 import type { EnrollmentEntity } from '../../cohorts/entities/enrollment.entity';
 import type { EnrollmentsService } from '../../cohorts/services/enrollments.service';
@@ -50,6 +51,7 @@ function buildService(options: {
   mentorAssignedToCohort?: boolean;
   canManageAnyEnrollment?: boolean;
   hasMembership?: boolean;
+  trackMentorAssignments?: { fellowshipId: string; learningTrackId: string }[];
 }) {
   const submissionReviewsRepository = {
     listForSubmission: jest.fn(async () => options.reviews ?? []),
@@ -102,6 +104,10 @@ function buildService(options: {
     get: jest.fn(async () => ({ id: 'task-1', title: 'Build a page' }) as never),
   } as unknown as PracticalTasksService;
 
+  const fellowshipTrackMentorsService = {
+    listActiveAssignmentsForMembership: jest.fn(async () => options.trackMentorAssignments ?? []),
+  } as unknown as FellowshipTrackMentorsService;
+
   const service = new SubmissionReviewsService(
     submissionReviewsRepository,
     practicalTaskSubmissionsRepository,
@@ -112,6 +118,7 @@ function buildService(options: {
     usersService,
     practicalTasksService,
     auditLog,
+    fellowshipTrackMentorsService,
   );
   return { service, submissionReviewsRepository };
 }

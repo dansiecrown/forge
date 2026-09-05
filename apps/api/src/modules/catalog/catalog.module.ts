@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ChatModule } from '../chat/chat.module';
+import { IdentityModule } from '../identity/identity.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PlatformModule } from '../platform/platform.module';
 import { FellowshipsController } from './controllers/fellowships.controller';
+import { FellowshipTrackMentorsController } from './controllers/fellowship-track-mentors.controller';
 import { LearningTracksController } from './controllers/learning-tracks.controller';
 import { CoursesController } from './controllers/courses.controller';
 import { WeeklyModulesController } from './controllers/weekly-modules.controller';
@@ -10,6 +12,7 @@ import { LessonsController } from './controllers/lessons.controller';
 import { LearningResourcesController } from './controllers/learning-resources.controller';
 import { PracticalTasksController } from './controllers/practical-tasks.controller';
 import { FellowshipsRepository } from './repositories/fellowships.repository';
+import { FellowshipTrackMentorsRepository } from './repositories/fellowship-track-mentors.repository';
 import { LearningTracksRepository } from './repositories/learning-tracks.repository';
 import { CoursesRepository } from './repositories/courses.repository';
 import { WeeklyModulesRepository } from './repositories/weekly-modules.repository';
@@ -17,6 +20,7 @@ import { LessonsRepository } from './repositories/lessons.repository';
 import { LearningResourcesRepository } from './repositories/learning-resources.repository';
 import { PracticalTasksRepository } from './repositories/practical-tasks.repository';
 import { FellowshipsService } from './services/fellowships.service';
+import { FellowshipTrackMentorsService } from './services/fellowship-track-mentors.service';
 import { LearningTracksService } from './services/learning-tracks.service';
 import { CoursesService } from './services/courses.service';
 import { WeeklyModulesService } from './services/weekly-modules.service';
@@ -35,10 +39,11 @@ import { FellowshipCloneService } from './services/fellowship-clone.service';
  * shape reconciles with that doc's fuller (versioned, Module+Week,
  * graded-Assignment) design. */
 @Module({
-  imports: [OrganizationsModule, PlatformModule, ChatModule],
+  imports: [OrganizationsModule, PlatformModule, ChatModule, IdentityModule],
   controllers: [
     FellowshipsController,
     LearningTracksController,
+    FellowshipTrackMentorsController,
     CoursesController,
     WeeklyModulesController,
     LessonsController,
@@ -48,6 +53,7 @@ import { FellowshipCloneService } from './services/fellowship-clone.service';
   providers: [
     FellowshipsRepository,
     LearningTracksRepository,
+    FellowshipTrackMentorsRepository,
     CoursesRepository,
     WeeklyModulesRepository,
     LessonsRepository,
@@ -55,6 +61,7 @@ import { FellowshipCloneService } from './services/fellowship-clone.service';
     PracticalTasksRepository,
     FellowshipsService,
     LearningTracksService,
+    FellowshipTrackMentorsService,
     CoursesService,
     WeeklyModulesService,
     LessonsService,
@@ -66,6 +73,7 @@ import { FellowshipCloneService } from './services/fellowship-clone.service';
   exports: [
     FellowshipsService,
     LearningTracksService,
+    FellowshipTrackMentorsService,
     CoursesService,
     WeeklyModulesService,
     LessonsService,

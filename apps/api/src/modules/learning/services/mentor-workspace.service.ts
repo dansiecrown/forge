@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { FellowshipTrackMentorsService } from '../../catalog/services/fellowship-track-mentors.service';
 import { CohortsService } from '../../cohorts/services/cohorts.service';
 import { EnrollmentsService } from '../../cohorts/services/enrollments.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
@@ -17,7 +18,7 @@ import { toPortfolioProjectEntity } from '../entities/portfolio-project.entity';
 import { HuddleAttendanceRepository } from '../repositories/huddle-attendance.repository';
 import { MentorNotesRepository } from '../repositories/mentor-notes.repository';
 import { PortfolioProjectsRepository } from '../repositories/portfolio-projects.repository';
-import { assertMentorAssignedToCohort } from '../support/mentor-cohort-scope';
+import { resolveMentorCohortAccess } from '../support/mentor-cohort-scope';
 import {
   computeLastActivityAt,
   isFallingBehindCohortMedian,
@@ -87,18 +88,8 @@ export class MentorWorkspaceService {
     private readonly portfolioProjectsRepository: PortfolioProjectsRepository,
     private readonly mentorNotesRepository: MentorNotesRepository,
     private readonly huddleAttendanceRepository: HuddleAttendanceRepository,
+    private readonly fellowshipTrackMentorsService: FellowshipTrackMentorsService,
   ) {}
-
-  private assertMentor(scope: TenantScope, callerId: string, cohortId: string): Promise<void> {
-    return assertMentorAssignedToCohort(
-      this.cohortsService,
-      this.membershipsService,
-      this.permissionResolver,
-      scope,
-      callerId,
-      cohortId,
-    );
-  }
 
   async requireMembership(scope: TenantScope, callerId: string): Promise<{ id: string }> {
     const membership = await this.membershipsService.getActiveMembership(scope, callerId);
@@ -114,12 +105,26 @@ export class MentorWorkspaceService {
     return membership;
   }
 
-  /** Cohorts the caller is actively assigned to as a mentor — org/academy
-   * admins acting on a cohort outside their own assignments use the
-   * cohort-scoped routes directly, not this "my cohorts" list. */
+  /** Cohorts the caller is actively assigned to as a mentor — either
+   * cohort-wide (`CohortMentor`) or, for a Fellowship-wide track mentor
+   * with no cohort-wide row at all, any cohort that offers one of their
+   * assigned tracks (docs/adr/0016-cohort-scoped-tracks.md Decision 3).
+   * Org/academy admins acting on a cohort outside their own assignments
+   * use the cohort-scoped routes directly, not this "my cohorts" list. */
   async listMyCohorts(scope: TenantScope, callerId: string): Promise<MentorCohortSummary[]> {
     const membership = await this.requireMembership(scope, callerId);
-    const cohorts = await this.cohortsService.listMyCohorts(membership.id);
+    const cohortWide = await this.cohortsService.listMyCohorts(membership.id);
+    const trackAssignments =
+      await this.fellowshipTrackMentorsService.listActiveAssignmentsForMembership(membership.id);
+    const trackCohorts =
+      trackAssignments.length > 0
+        ? await this.cohortsService.listOfferingTracks(
+            scope,
+            trackAssignments.map((a) => a.learningTrackId),
+          )
+        : [];
+    const cohortsById = new Map([...cohortWide, ...trackCohorts].map((c) => [c.id, c]));
+    const cohorts = [...cohortsById.values()];
 
     return Promise.all(
       cohorts.map(async (cohort) => {
@@ -142,9 +147,32 @@ export class MentorWorkspaceService {
     callerId: string,
     filters: { q?: string; status?: string; sort?: 'name' | 'progress' | 'status' },
   ): Promise<MentorStudentSummary[]> {
-    await this.assertMentor(scope, callerId, cohortId);
+    const cohort = await this.cohortsService.get(scope, cohortId, callerId);
+    const access = await resolveMentorCohortAccess(
+      this.cohortsService,
+      this.membershipsService,
+      this.permissionResolver,
+      this.fellowshipTrackMentorsService,
+      scope,
+      callerId,
+      cohortId,
+      cohort.fellowshipId,
+    );
 
-    const enrollments = await this.enrollmentsService.list(scope, { cohortId, limit: '100' });
+    const allEnrollments = await this.enrollmentsService.list(scope, { cohortId, limit: '100' });
+    // A track-only mentor (no cohort-wide CohortMentor row) sees only
+    // students on their assigned track(s) — see
+    // docs/adr/0016-cohort-scoped-tracks.md Decision 3. `buildContext`
+    // below independently re-checks this per student anyway, but filtering
+    // here avoids that throwing mid-batch for an out-of-scope student.
+    const enrollments = access.fullAccess
+      ? allEnrollments
+      : {
+          ...allEnrollments,
+          items: allEnrollments.items.filter(
+            (e) => e.currentLearningTrackId && access.trackIds.includes(e.currentLearningTrackId),
+          ),
+        };
     if (enrollments.items.length === 0) {
       return [];
     }

@@ -1,14 +1,17 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Pencil } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { ApiError } from '@/api/client';
 import { AvatarPlaceholder } from '@/components/mentor/avatar-placeholder';
+import { DefinitionList } from '@/components/admin/definition-list';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { TextareaField } from '@/components/textarea-field';
+import { useToast } from '@/components/ui/toast';
 import { useSession } from '@/contexts/session-context';
 import { useMyProfile, useUpdateMyProfile } from '../hooks/use-profile';
 import { profileSchema, type ProfileFormValues } from '../schemas/profile-schemas';
@@ -23,6 +26,8 @@ export function ProfileForm({ variant = 'student' }: { variant?: 'student' | 'me
   const { user } = useSession();
   const { data: profile, isLoading } = useMyProfile();
   const updateProfile = useUpdateMyProfile();
+  const [editOpen, setEditOpen] = useState(false);
+  const toast = useToast();
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -51,49 +56,85 @@ export function ProfileForm({ variant = 'student' }: { variant?: 'student' | 'me
   }
 
   async function onSubmit(values: ProfileFormValues) {
-    await updateProfile.mutateAsync({
-      bio: values.bio || undefined,
-      skills: values.skills
-        ? values.skills
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : [],
-      interests: values.interests
-        ? values.interests
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : [],
-      githubUrl: values.githubUrl || undefined,
-      linkedinUrl: values.linkedinUrl || undefined,
-      websiteUrl: values.websiteUrl || undefined,
-      availability: variant === 'mentor' ? values.availability || undefined : undefined,
-    });
+    try {
+      await updateProfile.mutateAsync({
+        bio: values.bio || undefined,
+        skills: values.skills
+          ? values.skills
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [],
+        interests: values.interests
+          ? values.interests
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [],
+        githubUrl: values.githubUrl || undefined,
+        linkedinUrl: values.linkedinUrl || undefined,
+        websiteUrl: values.websiteUrl || undefined,
+        availability: variant === 'mentor' ? values.availability || undefined : undefined,
+      });
+      toast.success('Profile updated.');
+      setEditOpen(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to update profile.');
+    }
   }
 
   const errorMessage = updateProfile.error instanceof ApiError ? updateProfile.error.message : null;
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-3">
           {variant === 'mentor' && user ? (
             <AvatarPlaceholder name={user.displayName} size={48} />
           ) : null}
           <CardTitle as="h2">Your details</CardTitle>
         </div>
+        <Button
+          variant="secondary"
+          onClick={() => setEditOpen(true)}
+          aria-label="Edit your details"
+        >
+          <Pencil className="size-4" aria-hidden="true" />
+          Edit
+        </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        <DefinitionList
+          items={[
+            {
+              label: variant === 'mentor' ? 'Areas of expertise' : 'Skills',
+              value: profile?.skills.length ? profile.skills.join(', ') : null,
+            },
+            {
+              label: 'Interests',
+              value: profile?.interests.length ? profile.interests.join(', ') : null,
+            },
+            { label: 'GitHub', value: profile?.githubUrl },
+            { label: 'LinkedIn', value: profile?.linkedinUrl },
+            { label: 'Website', value: profile?.websiteUrl },
+            ...(variant === 'mentor'
+              ? [{ label: 'Availability', value: profile?.availability }]
+              : []),
+          ]}
+        />
+        <div>
+          <p className="text-sm text-muted-foreground">Bio</p>
+          <p className="mt-0.5 whitespace-pre-wrap text-sm font-medium text-foreground">
+            {profile?.bio || '—'}
+          </p>
+        </div>
+      </CardContent>
+
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} title="Edit your details">
         <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
           {errorMessage ? (
             <Alert variant="danger" className="w-full">
               {errorMessage}
-            </Alert>
-          ) : null}
-          {updateProfile.isSuccess ? (
-            <Alert variant="success" className="w-full">
-              Profile saved.
             </Alert>
           ) : null}
           <FormField
@@ -141,13 +182,16 @@ export function ProfileForm({ variant = 'student' }: { variant?: 'student' | 'me
             error={form.formState.errors.bio?.message}
             {...form.register('bio')}
           />
-          <div className="flex w-full justify-end pt-2">
+          <div className="flex w-full justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
             <Button type="submit" loading={updateProfile.isPending}>
               Save profile
             </Button>
           </div>
         </form>
-      </CardContent>
+      </Dialog>
     </Card>
   );
 }

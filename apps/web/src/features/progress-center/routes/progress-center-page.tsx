@@ -1,11 +1,21 @@
-import { BookOpen, CheckCircle2, ClipboardCheck, FileText, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { BookOpen, CheckCircle2, ClipboardCheck, FileText, Loader2, Route } from 'lucide-react';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/dialog';
+import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/portal/empty-state';
 import { ProgressRing } from '@/components/portal/progress-ring';
 import { Timeline } from '@/components/portal/timeline';
 import type { StudentActivityItem } from '@forge/api-contract';
+import { ApiError } from '@/api/client';
+import { useMyEnrollment } from '@/contexts/enrollment-context';
+import { useCohort, useCohortOfferedTracks } from '@/features/cohorts/hooks/use-cohorts';
+import { useSelectEnrollmentTrack } from '@/features/cohorts/hooks/use-cohort-mutations';
+import { useLearningTracksOptions } from '@/features/learning-tracks';
 import {
   useActivity,
   useDashboard,
@@ -31,11 +41,130 @@ const ACTIVITY_ICON: Record<StudentActivityItem['type'], typeof BookOpen> = {
   task: ClipboardCheck,
 };
 
+/** Self-service pick/switch — see docs/adr/0017-track-switch-grace-period.md.
+ * Shared between the first-pick empty state and the later "Switch track"
+ * action; the server enforces the actual grace-period rule regardless of
+ * what this dialog shows, but showing the cohort's own state here avoids
+ * sending a learner into a switch that's certain to be rejected. */
+function TrackPickerDialog({
+  open,
+  onClose,
+  mode,
+  currentTrackId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  mode: 'select' | 'switch';
+  currentTrackId: string | null;
+}) {
+  const { enrollment } = useMyEnrollment();
+  const cohort = useCohort(enrollment?.cohortId);
+  const offeredTracks = useCohortOfferedTracks(enrollment?.cohortId);
+  const fellowshipTracks = useLearningTracksOptions(enrollment?.fellowshipId);
+  const selectTrack = useSelectEnrollmentTrack(enrollment?.id ?? '');
+  const toast = useToast();
+  const [pickedTrackId, setPickedTrackId] = useState<string | null>(null);
+
+  const availableTracks = (
+    offeredTracks.data && offeredTracks.data.length > 0
+      ? offeredTracks.data
+      : (fellowshipTracks.data?.items ?? [])
+  ).filter((track) => track.status === 'published');
+
+  const switchingClosed = mode === 'switch' && Boolean(cohort.data?.trackSwitchClosedAt);
+  const isLoading = offeredTracks.isLoading || fellowshipTracks.isLoading;
+
+  async function onConfirm() {
+    if (!pickedTrackId) return;
+    try {
+      await selectTrack.mutateAsync({ learningTrackId: pickedTrackId });
+      toast.success(mode === 'switch' ? 'Learning track switched.' : 'Learning track selected.');
+      setPickedTrackId(null);
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to update your learning track.');
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={mode === 'switch' ? 'Switch your learning track' : 'Choose your learning track'}
+      description={
+        mode === 'select'
+          ? "This is a one-time pick — you'll be able to switch later unless an admin closes switching for your cohort."
+          : undefined
+      }
+    >
+      {switchingClosed ? (
+        <Alert variant="danger" className="mb-4">
+          Track switching is closed for your cohort. Contact an admin if you need to change tracks.
+        </Alert>
+      ) : null}
+      {selectTrack.error instanceof ApiError ? (
+        <Alert variant="danger" className="mb-4">
+          {selectTrack.error.message}
+        </Alert>
+      ) : null}
+      {isLoading ? (
+        <div className="flex min-h-24 items-center justify-center">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden="true" />
+        </div>
+      ) : availableTracks.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No learning tracks are available yet.</p>
+      ) : (
+        <div className="max-h-72 space-y-2 overflow-y-auto">
+          {availableTracks.map((track) => (
+            <label
+              key={track.id}
+              className="flex items-center gap-2.5 rounded-control border border-border bg-surface-2 px-3 py-2 text-sm"
+            >
+              <input
+                type="radio"
+                name="learning-track"
+                className="size-4 border-border"
+                checked={pickedTrackId === track.id}
+                disabled={switchingClosed}
+                onChange={() => setPickedTrackId(track.id)}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium text-foreground">{track.name}</span>
+                {track.description ? (
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {track.description}
+                  </span>
+                ) : null}
+              </span>
+              {track.id === currentTrackId ? <Badge tone="neutral">Current</Badge> : null}
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="mt-5 flex justify-end gap-3">
+        <Button type="button" variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          loading={selectTrack.isPending}
+          disabled={!pickedTrackId || pickedTrackId === currentTrackId || switchingClosed}
+          onClick={() => void onConfirm()}
+        >
+          {mode === 'switch' ? 'Switch track' : 'Confirm selection'}
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
 export function ProgressCenterPage() {
   const { data: dashboard, isLoading: dashboardLoading } = useDashboard();
   const { data: modules, isLoading: modulesLoading } = useWeeklyModules();
   const { data: activity, isLoading: activityLoading } = useActivity(30);
   const { data: attendance, isLoading: attendanceLoading } = useMyAttendance();
+  const { enrollment } = useMyEnrollment();
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const isLoading = dashboardLoading || modulesLoading || activityLoading || attendanceLoading;
 
@@ -51,14 +180,39 @@ export function ProgressCenterPage() {
     return (
       <div>
         <AdminPageHeader title="Progress" />
-        <EmptyState title="No active learning track yet" />
+        <EmptyState
+          title="No active learning track yet"
+          description="Choose a learning track to start your curriculum."
+          action={<Button onClick={() => setPickerOpen(true)}>Choose your learning track</Button>}
+        />
+        <TrackPickerDialog
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          mode="select"
+          currentTrackId={null}
+        />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <AdminPageHeader title="Progress" description="Your learning journey, week by week." />
+      <AdminPageHeader
+        title="Progress"
+        description="Your learning journey, week by week."
+        action={
+          <Button variant="secondary" onClick={() => setPickerOpen(true)}>
+            <Route className="size-4" aria-hidden="true" />
+            Switch track
+          </Button>
+        }
+      />
+      <TrackPickerDialog
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        mode="switch"
+        currentTrackId={enrollment?.currentLearningTrackId ?? null}
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card className="flex flex-col items-center gap-2 py-6 text-center">

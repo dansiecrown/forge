@@ -55,6 +55,8 @@ function fakeEnrollment(overrides: Partial<EnrollmentEntity> = {}): EnrollmentEn
     fellowshipId: 'fellowship-1',
     cohortId: 'cohort-1',
     userId: 'user-1',
+    userDisplayName: null,
+    userEmail: null,
     status: 'invited',
     currentLearningTrackId: null,
     invitedAt: new Date(),

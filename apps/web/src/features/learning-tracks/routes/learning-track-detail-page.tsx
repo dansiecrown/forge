@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Route } from 'lucide-react';
+import { Loader2, Plus, Route, UserCheck, X } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import { ActionsMenu } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
+import { PersonSearchField } from '@/components/admin/person-search-field';
 import { buildPublishLifecycleItems } from '@/components/admin/publish-lifecycle-items';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -16,13 +17,17 @@ import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { SelectField } from '@/components/select-field';
 import { TextareaField } from '@/components/textarea-field';
+import { useToast } from '@/components/ui/toast';
+import { usePermissions } from '@/hooks/use-permissions';
+import type { AdminUser } from '@/features/admin-users/api/admin-users-api';
 import { useCoursesList } from '@/features/courses';
 import type { Course } from '@forge/api-contract';
 import {
   useLearningTrackLifecycleActions,
+  useTrackMentorAssignment,
   useUpdateLearningTrack,
 } from '../hooks/use-learning-track-mutations';
-import { useLearningTrack } from '../hooks/use-learning-tracks';
+import { useLearningTrack, useTrackMentors } from '../hooks/use-learning-tracks';
 import {
   updateLearningTrackSchema,
   type UpdateLearningTrackFormValues,
@@ -55,7 +60,13 @@ export function LearningTrackDetailPage() {
   const updateTrack = useUpdateLearningTrack(trackId ?? '');
   const { publish, archive, restore } = useLearningTrackLifecycleActions(trackId ?? '');
   const courses = useCoursesList(trackId);
+  const trackMentors = useTrackMentors(trackId);
+  const { assign, unassign } = useTrackMentorAssignment(trackId ?? '');
+  const [mentorPick, setMentorPick] = useState<AdminUser | null>(null);
+  const [unassigningMembershipId, setUnassigningMembershipId] = useState<string | null>(null);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const toast = useToast();
+  const permissions = usePermissions();
 
   const form = useForm<UpdateLearningTrackFormValues>({
     resolver: zodResolver(updateLearningTrackSchema),
@@ -121,6 +132,28 @@ export function LearningTrackDetailPage() {
 
   const updateErrorMessage =
     updateTrack.error instanceof ApiError ? updateTrack.error.message : null;
+
+  async function onAssignMentor() {
+    if (!mentorPick) return;
+    try {
+      await assign.mutateAsync(mentorPick);
+      toast.success(`${mentorPick.displayName} assigned to this track.`);
+      setMentorPick(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to assign mentor.');
+    }
+  }
+
+  async function onConfirmUnassignMentor() {
+    if (!unassigningMembershipId) return;
+    try {
+      await unassign.mutateAsync(unassigningMembershipId);
+      toast.success('Mentor unassigned from this track.');
+      setUnassigningMembershipId(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to unassign mentor.');
+    }
+  }
 
   async function onConfirmArchive() {
     if (!track) return;
@@ -250,6 +283,83 @@ export function LearningTrackDetailPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle as="h2" className="flex items-center gap-2">
+            <UserCheck className="size-5 text-muted-foreground" aria-hidden="true" />
+            Track mentors
+          </CardTitle>
+          <Badge tone="neutral">{trackMentors.data?.length ?? 0}</Badge>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Assigned Fellowship-wide — a mentor here can see and review students on this track
+            across every cohort that offers it, even without being assigned to those cohorts
+            directly.
+          </p>
+          <ul className="space-y-2">
+            {(trackMentors.data ?? []).map((mentor) => (
+              <li
+                key={mentor.id}
+                className="flex items-center justify-between gap-3 rounded-control border border-border bg-surface-2 px-3 py-2 text-sm"
+              >
+                <div className="min-w-0 truncate">
+                  <span className="font-medium text-foreground">{mentor.userDisplayName}</span>{' '}
+                  <span className="text-xs text-muted-foreground">{mentor.userEmail}</span>
+                </div>
+                {permissions.has('cohort.mentor.manage') ? (
+                  <button
+                    type="button"
+                    aria-label="Unassign mentor from this track"
+                    onClick={() => setUnassigningMembershipId(mentor.membershipId)}
+                    className="shrink-0 text-muted-foreground transition-colors hover:text-danger"
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </button>
+                ) : null}
+              </li>
+            ))}
+            {trackMentors.data?.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No mentors assigned to this track yet.
+              </p>
+            ) : null}
+          </ul>
+          {permissions.has('cohort.mentor.manage') ? (
+            <>
+              {assign.error instanceof ApiError ? (
+                <Alert variant="danger" className="mb-3 mt-4">
+                  {assign.error.message}
+                </Alert>
+              ) : null}
+              <form
+                className="mt-4 space-y-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void onAssignMentor();
+                }}
+                noValidate
+              >
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <PersonSearchField
+                      label="Mentor"
+                      placeholder="Search mentor by name or email…"
+                      selected={mentorPick}
+                      onSelect={setMentorPick}
+                      onClear={() => setMentorPick(null)}
+                    />
+                  </div>
+                  <Button type="submit" disabled={!mentorPick} loading={assign.isPending}>
+                    Assign
+                  </Button>
+                </div>
+              </form>
+            </>
+          ) : null}
+        </CardContent>
+      </Card>
+
       <ConfirmDialog
         open={confirmingArchive}
         onClose={() => setConfirmingArchive(false)}
@@ -259,6 +369,17 @@ export function LearningTrackDetailPage() {
         title="Archive this learning track?"
         description="You can restore it back to draft later if needed."
         confirmLabel="Archive"
+      />
+
+      <ConfirmDialog
+        open={unassigningMembershipId !== null}
+        onClose={() => setUnassigningMembershipId(null)}
+        onConfirm={onConfirmUnassignMentor}
+        loading={unassign.isPending}
+        error={unassign.error instanceof ApiError ? unassign.error.message : null}
+        title="Unassign this mentor from the track?"
+        description="They will lose access to this track's students in every cohort, unless separately assigned to those cohorts."
+        confirmLabel="Unassign"
       />
     </div>
   );

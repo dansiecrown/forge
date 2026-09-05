@@ -1,11 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import type { AuditOutcome } from '@prisma/client';
+import type { AuditLog, AuditOutcome } from '@prisma/client';
+import { UsersService } from '../../identity/services/users.service';
 import { PermissionResolverService } from '../../organizations/services/permission-resolver.service';
 import { AuditLogService } from '../../platform/audit-log.service';
 import { AppException } from '../../../shared/errors/app.exception';
-import { parseLimit } from '../../../shared/pagination/collection-result';
+import { CollectionResult, parseLimit } from '../../../shared/pagination/collection-result';
 import type { TenantScope } from '../../../shared/tenancy/tenant-scope';
 import { assertPlatformSuperAdmin } from '../support/assert-platform-super-admin';
+
+export interface AuditLogEntryWithActor extends AuditLog {
+  /** Resolved server-side — `AuditLog` has no FK relation to `User` to
+   * `include` (audit history must survive an actor's account being
+   * removed), so this batch-resolves it here instead. Null for a system
+   * action or an actor whose account no longer exists — see
+   * docs/adr/0015-name-first-display.md. */
+  actorDisplayName: string | null;
+}
 
 export interface AuditSearchFilters {
   actorUserId?: string;
@@ -31,10 +41,28 @@ export class AdminAuditService {
   constructor(
     private readonly auditLogService: AuditLogService,
     private readonly permissionResolver: PermissionResolverService,
+    private readonly usersService: UsersService,
   ) {}
 
-  search(scope: TenantScope, filters: AuditSearchFilters) {
-    return this.auditLogService.search({
+  private async withActors(
+    result: CollectionResult<AuditLog>,
+  ): Promise<CollectionResult<AuditLogEntryWithActor>> {
+    const actorIds = [
+      ...new Set(result.items.map((row) => row.actorUserId).filter((id): id is string => !!id)),
+    ];
+    const users = actorIds.length > 0 ? await this.usersService.listByIds(actorIds) : [];
+    const byId = new Map(users.map((u) => [u.id, u.displayName]));
+    return new CollectionResult(
+      result.items.map((row) => ({
+        ...row,
+        actorDisplayName: row.actorUserId ? (byId.get(row.actorUserId) ?? null) : null,
+      })),
+      result.page,
+    );
+  }
+
+  async search(scope: TenantScope, filters: AuditSearchFilters) {
+    const result = await this.auditLogService.search({
       organizationId: scope.organizationId,
       actorUserId: filters.actorUserId,
       entityType: filters.entityType,
@@ -46,6 +74,7 @@ export class AdminAuditService {
       cursor: filters.cursor,
       limit: parseLimit(filters.limit),
     });
+    return this.withActors(result);
   }
 
   /** Platform-wide search across every organization — SUPER_ADMIN only. */
@@ -54,7 +83,7 @@ export class AdminAuditService {
     filters: AuditSearchFilters & { organizationId?: string },
   ) {
     await assertPlatformSuperAdmin(this.permissionResolver, callerId);
-    return this.auditLogService.search({
+    const result = await this.auditLogService.search({
       organizationId: filters.organizationId,
       actorUserId: filters.actorUserId,
       entityType: filters.entityType,
@@ -66,6 +95,7 @@ export class AdminAuditService {
       cursor: filters.cursor,
       limit: parseLimit(filters.limit),
     });
+    return this.withActors(result);
   }
 
   async getById(scope: TenantScope | undefined, callerId: string, id: string) {

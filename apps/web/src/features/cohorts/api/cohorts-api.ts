@@ -4,7 +4,10 @@ import type {
   CreateCohortRequest,
   CreateEnrollmentRequest,
   Enrollment,
+  LearningTrack,
   ListCohortsParams,
+  SelectEnrollmentTrackRequest,
+  SetCohortTracksRequest,
   UpdateCohortRequest,
   UpdateEnrollmentRequest,
 } from '@forge/api-contract';
@@ -69,6 +72,12 @@ export const completeCohort = (id: string, version: number, organizationId?: str
  * now" action (docs/adr/0006-curriculum-learning-engine.md). */
 export const syncCohortCurriculum = (id: string, version: number, organizationId?: string) =>
   transitionCohort(id, 'sync-curriculum', version, organizationId);
+/** See docs/adr/0017-track-switch-grace-period.md — a manual per-cohort
+ * switch, not a timer. */
+export const closeCohortTrackSwitching = (id: string, version: number, organizationId?: string) =>
+  transitionCohort(id, 'close-track-switching', version, organizationId);
+export const reopenCohortTrackSwitching = (id: string, version: number, organizationId?: string) =>
+  transitionCohort(id, 'reopen-track-switching', version, organizationId);
 
 export function listCohortMentors(
   cohortId: string,
@@ -96,6 +105,25 @@ export function unassignCohortMentor(
 ): Promise<void> {
   return apiRequest<void>(`/cohorts/${cohortId}/mentors/${membershipId}`, {
     method: 'DELETE',
+    organizationId,
+  });
+}
+
+export function listOfferedTracks(
+  cohortId: string,
+  organizationId?: string,
+): Promise<LearningTrack[]> {
+  return apiRequest<LearningTrack[]>(`/cohorts/${cohortId}/tracks`, { organizationId });
+}
+
+export function setOfferedTracks(
+  cohortId: string,
+  body: SetCohortTracksRequest,
+  organizationId?: string,
+): Promise<LearningTrack[]> {
+  return apiRequest<LearningTrack[]>(`/cohorts/${cohortId}/tracks`, {
+    method: 'PUT',
+    body,
     organizationId,
   });
 }
@@ -130,5 +158,19 @@ export function updateEnrollment(
     body,
     organizationId,
     ifMatch: version,
+  });
+}
+
+/** Student self-service pick/switch — see
+ * docs/adr/0017-track-switch-grace-period.md. */
+export function selectEnrollmentTrack(
+  id: string,
+  body: SelectEnrollmentTrackRequest,
+  organizationId?: string,
+): Promise<Enrollment> {
+  return apiRequest<Enrollment>(`/enrollments/${id}/actions/select-track`, {
+    method: 'POST',
+    body,
+    organizationId,
   });
 }

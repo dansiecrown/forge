@@ -1,6 +1,7 @@
 import type { Enrollment } from '@prisma/client';
 import type { LearningTrackEntity } from '../../catalog/entities/learning-track.entity';
 import type { LearningTracksService } from '../../catalog/services/learning-tracks.service';
+import type { UsersService } from '../../identity/services/users.service';
 import type { CohortEntity } from '../entities/cohort.entity';
 import type { CohortsService } from './cohorts.service';
 import type { MembershipsService } from '../../organizations/services/memberships.service';
@@ -48,6 +49,7 @@ function fakeCohort(overrides: Partial<CohortEntity> = {}): CohortEntity {
     enrollmentDeadline: null,
     curriculumSnapshot: null,
     curriculumSnapshotAt: null,
+    trackSwitchClosedAt: null,
     version: 1,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -56,7 +58,10 @@ function fakeCohort(overrides: Partial<CohortEntity> = {}): CohortEntity {
 }
 
 function fakeCohortsService(cohort: CohortEntity): CohortsService {
-  return { assertExists: jest.fn(async () => cohort) } as unknown as CohortsService;
+  return {
+    assertExists: jest.fn(async () => cohort),
+    get: jest.fn(async () => cohort),
+  } as unknown as CohortsService;
 }
 
 function fakeMembershipsService(isMember: boolean): MembershipsService {
@@ -75,6 +80,10 @@ function fakeAuditLog(): AuditLogService {
   return { record: jest.fn(async () => undefined) } as unknown as AuditLogService;
 }
 
+function fakeUsersService(): UsersService {
+  return { listByIds: jest.fn(async () => []) } as unknown as UsersService;
+}
+
 describe('EnrollmentsService', () => {
   it('rejects enrolling a user who is not an active member of the organization', async () => {
     const repository: Partial<EnrollmentsRepository> = {};
@@ -84,6 +93,7 @@ describe('EnrollmentsService', () => {
       fakeMembershipsService(false),
       fakeLearningTracksService(),
       fakeAuditLog(),
+      fakeUsersService(),
     );
 
     await expect(
@@ -101,6 +111,7 @@ describe('EnrollmentsService', () => {
       fakeMembershipsService(true),
       fakeLearningTracksService(),
       fakeAuditLog(),
+      fakeUsersService(),
     );
 
     await expect(
@@ -121,6 +132,7 @@ describe('EnrollmentsService', () => {
       fakeMembershipsService(true),
       fakeLearningTracksService(),
       fakeAuditLog(),
+      fakeUsersService(),
     );
 
     await expect(
@@ -140,6 +152,7 @@ describe('EnrollmentsService', () => {
       fakeMembershipsService(true),
       fakeLearningTracksService(),
       fakeAuditLog(),
+      fakeUsersService(),
     );
 
     await expect(
@@ -159,6 +172,7 @@ describe('EnrollmentsService', () => {
       fakeMembershipsService(true),
       fakeLearningTracksService(),
       fakeAuditLog(),
+      fakeUsersService(),
     );
 
     await expect(service.get({ organizationId: 'org-2' }, 'enrollment-1')).rejects.toMatchObject({
@@ -182,6 +196,7 @@ describe('EnrollmentsService', () => {
       fakeMembershipsService(true),
       learningTracksService,
       fakeAuditLog(),
+      fakeUsersService(),
     );
 
     await expect(
@@ -207,6 +222,7 @@ describe('EnrollmentsService', () => {
       fakeMembershipsService(true),
       fakeLearningTracksService(),
       fakeAuditLog(),
+      fakeUsersService(),
     );
 
     await expect(
@@ -231,6 +247,7 @@ describe('EnrollmentsService', () => {
       fakeMembershipsService(true),
       fakeLearningTracksService(),
       fakeAuditLog(),
+      fakeUsersService(),
     );
 
     const result = await service.listMine({ organizationId: 'org-1' }, 'student-1', {});
@@ -240,5 +257,142 @@ describe('EnrollmentsService', () => {
       expect.objectContaining({ limit: expect.any(Number) }),
     );
     expect(result.items).toHaveLength(1);
+  });
+});
+
+describe('EnrollmentsService.selectTrack — self-service pick/switch', () => {
+  it("rejects a caller who is not the enrollment's own student", async () => {
+    const repository: Partial<EnrollmentsRepository> = {
+      findById: jest.fn(async () => fakeEnrollment({ userId: 'student-1' })),
+    };
+    const service = new EnrollmentsService(
+      repository as EnrollmentsRepository,
+      fakeCohortsService(fakeCohort()),
+      fakeMembershipsService(true),
+      fakeLearningTracksService(),
+      fakeAuditLog(),
+      fakeUsersService(),
+    );
+
+    await expect(
+      service.selectTrack({ organizationId: 'org-1' }, 'enrollment-1', 'track-1', 'someone-else'),
+    ).rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+  });
+
+  it('always allows a first-time pick, even if the cohort has closed track switching', async () => {
+    const repository: Partial<EnrollmentsRepository> = {
+      findById: jest.fn(async () =>
+        fakeEnrollment({ userId: 'student-1', currentLearningTrackId: null }),
+      ),
+      update: jest.fn(async () =>
+        fakeEnrollment({ currentLearningTrackId: 'track-1', version: 2 }),
+      ),
+    };
+    const service = new EnrollmentsService(
+      repository as EnrollmentsRepository,
+      fakeCohortsService(fakeCohort({ trackSwitchClosedAt: new Date() })),
+      fakeMembershipsService(true),
+      fakeLearningTracksService(),
+      fakeAuditLog(),
+      fakeUsersService(),
+    );
+
+    await expect(
+      service.selectTrack({ organizationId: 'org-1' }, 'enrollment-1', 'track-1', 'student-1'),
+    ).resolves.toMatchObject({ currentLearningTrackId: 'track-1' });
+    expect(repository.update).toHaveBeenCalled();
+  });
+
+  it('allows switching an already-set track while the cohort keeps switching open', async () => {
+    const repository: Partial<EnrollmentsRepository> = {
+      findById: jest.fn(async () =>
+        fakeEnrollment({ userId: 'student-1', currentLearningTrackId: 'track-1' }),
+      ),
+      update: jest.fn(async () =>
+        fakeEnrollment({ currentLearningTrackId: 'track-2', version: 2 }),
+      ),
+    };
+    const service = new EnrollmentsService(
+      repository as EnrollmentsRepository,
+      fakeCohortsService(fakeCohort({ trackSwitchClosedAt: null })),
+      fakeMembershipsService(true),
+      fakeLearningTracksService(),
+      fakeAuditLog(),
+      fakeUsersService(),
+    );
+
+    await expect(
+      service.selectTrack({ organizationId: 'org-1' }, 'enrollment-1', 'track-1', 'student-1'),
+    ).resolves.toBeDefined();
+  });
+
+  it('rejects switching away from an already-set track once the cohort has closed switching', async () => {
+    const repository: Partial<EnrollmentsRepository> = {
+      findById: jest.fn(async () =>
+        fakeEnrollment({ userId: 'student-1', currentLearningTrackId: 'track-1' }),
+      ),
+      update: jest.fn(),
+    };
+    const learningTracksService = {
+      get: jest.fn(async () => ({ id: 'track-2', fellowshipId: 'fellowship-1' })),
+    } as unknown as LearningTracksService;
+    const service = new EnrollmentsService(
+      repository as EnrollmentsRepository,
+      fakeCohortsService(fakeCohort({ trackSwitchClosedAt: new Date() })),
+      fakeMembershipsService(true),
+      learningTracksService,
+      fakeAuditLog(),
+      fakeUsersService(),
+    );
+
+    await expect(
+      service.selectTrack({ organizationId: 'org-1' }, 'enrollment-1', 'track-2', 'student-1'),
+    ).rejects.toMatchObject({ response: { code: 'TRACK_SWITCHING_CLOSED' } });
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op (no repository write) when re-selecting the already-current track', async () => {
+    const repository: Partial<EnrollmentsRepository> = {
+      findById: jest.fn(async () =>
+        fakeEnrollment({ userId: 'student-1', currentLearningTrackId: 'track-1' }),
+      ),
+      update: jest.fn(),
+    };
+    const service = new EnrollmentsService(
+      repository as EnrollmentsRepository,
+      fakeCohortsService(fakeCohort({ trackSwitchClosedAt: new Date() })),
+      fakeMembershipsService(true),
+      fakeLearningTracksService(),
+      fakeAuditLog(),
+      fakeUsersService(),
+    );
+
+    await expect(
+      service.selectTrack({ organizationId: 'org-1' }, 'enrollment-1', 'track-1', 'student-1'),
+    ).resolves.toMatchObject({ currentLearningTrackId: 'track-1' });
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a track that does not belong to the enrollments own fellowship', async () => {
+    const repository: Partial<EnrollmentsRepository> = {
+      findById: jest.fn(async () =>
+        fakeEnrollment({ userId: 'student-1', fellowshipId: 'fellowship-1' }),
+      ),
+    };
+    const learningTracksService = {
+      get: jest.fn(async () => ({ id: 'track-1', fellowshipId: 'a-different-fellowship' })),
+    } as unknown as LearningTracksService;
+    const service = new EnrollmentsService(
+      repository as EnrollmentsRepository,
+      fakeCohortsService(fakeCohort()),
+      fakeMembershipsService(true),
+      learningTracksService,
+      fakeAuditLog(),
+      fakeUsersService(),
+    );
+
+    await expect(
+      service.selectTrack({ organizationId: 'org-1' }, 'enrollment-1', 'track-1', 'student-1'),
+    ).rejects.toMatchObject({ response: { code: 'VALIDATION_ERROR' } });
   });
 });
