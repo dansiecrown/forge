@@ -12,9 +12,12 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
+import { SelectField } from '@/components/select-field';
+import { useToast } from '@/components/ui/toast';
+import { useAcademyOptions } from '@/features/academies';
 import { useRolesList } from '@/features/roles';
 import { usePermissions } from '@/hooks/use-permissions';
-import { useAdminUsersList, useInviteUser } from '../hooks/use-admin-users';
+import { useAdminUsersList, useCreateUser, useInviteUser } from '../hooks/use-admin-users';
 
 const STATUS_TONE: Record<string, BadgeProps['tone']> = {
   invited: 'neutral',
@@ -55,6 +58,17 @@ export function AdminUsersListPage() {
   const roles = useRolesList();
   const inviteUser = useInviteUser();
 
+  const [adding, setAdding] = useState(false);
+  const [addEmail, setAddEmail] = useState('');
+  const [addUsername, setAddUsername] = useState('');
+  const [addPassword, setAddPassword] = useState('');
+  const [addDisplayName, setAddDisplayName] = useState('');
+  const [addRoles, setAddRoles] = useState<Set<string>>(new Set());
+  const [addAcademyId, setAddAcademyId] = useState('');
+  const createUser = useCreateUser();
+  const academies = useAcademyOptions();
+  const toast = useToast();
+
   function closeInvite() {
     setInviting(false);
     setEmail('');
@@ -85,6 +99,46 @@ export function AdminUsersListPage() {
     (role) => role.scopeType !== 'platform' && role.status === 'active',
   );
 
+  function closeAdd() {
+    setAdding(false);
+    setAddEmail('');
+    setAddUsername('');
+    setAddPassword('');
+    setAddDisplayName('');
+    setAddRoles(new Set());
+    setAddAcademyId('');
+    createUser.reset();
+  }
+
+  function toggleAddRole(key: string) {
+    setAddRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      if (key !== 'ACADEMY_ADMIN' && !next.has('ACADEMY_ADMIN')) setAddAcademyId('');
+      return next;
+    });
+  }
+
+  const needsAcademy = addRoles.has('ACADEMY_ADMIN');
+
+  async function onAdd() {
+    try {
+      const result = await createUser.mutateAsync({
+        email: addEmail,
+        username: addUsername,
+        password: addPassword,
+        displayName: addDisplayName,
+        roleKeys: Array.from(addRoles),
+        academyId: needsAcademy ? addAcademyId : undefined,
+      });
+      toast.success(`${result.displayName} can log in immediately with the password you set.`);
+      closeAdd();
+    } catch {
+      // surfaced below via createUser.error
+    }
+  }
+
   return (
     <div>
       <AdminPageHeader
@@ -92,7 +146,12 @@ export function AdminUsersListPage() {
         description="Search, suspend, reactivate, and manage sessions for any user."
         action={
           permissions.has('membership.invite') ? (
-            <Button onClick={() => setInviting(true)}>Invite user</Button>
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => setInviting(true)}>
+                Invite user
+              </Button>
+              <Button onClick={() => setAdding(true)}>Add user</Button>
+            </div>
           ) : null
         }
       />
@@ -167,6 +226,117 @@ export function AdminUsersListPage() {
             </Button>
             <Button type="submit" loading={inviteUser.isPending} disabled={!email || !displayName}>
               Send invite
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={adding}
+        onClose={closeAdd}
+        title="Add a new user"
+        description="You set their password directly — they can log in immediately, no email required."
+      >
+        <form
+          className="flex flex-wrap gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onAdd();
+          }}
+          noValidate
+        >
+          {createUser.error instanceof ApiError ? (
+            <Alert variant="danger" className="w-full">
+              {createUser.error.message}
+            </Alert>
+          ) : null}
+          <FormField
+            label="Display name"
+            name="addDisplayName"
+            autoFocus
+            required
+            value={addDisplayName}
+            onChange={(event) => setAddDisplayName(event.target.value)}
+          />
+          <FormField
+            label="Email"
+            name="addEmail"
+            type="email"
+            required
+            value={addEmail}
+            onChange={(event) => setAddEmail(event.target.value)}
+          />
+          <FormField
+            label="Username"
+            name="addUsername"
+            required
+            placeholder="lowercase, no spaces"
+            value={addUsername}
+            onChange={(event) => setAddUsername(event.target.value.toLowerCase())}
+          />
+          <FormField
+            label="Password"
+            name="addPassword"
+            type="password"
+            required
+            minLength={8}
+            value={addPassword}
+            onChange={(event) => setAddPassword(event.target.value)}
+          />
+          {assignableRoles.length > 0 ? (
+            <div className="w-full space-y-1.5">
+              <Label>Roles</Label>
+              <div className="space-y-2">
+                {assignableRoles.map((role) => (
+                  <label key={role.key} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="size-4 rounded border-border"
+                      checked={addRoles.has(role.key)}
+                      onChange={() => toggleAddRole(role.key)}
+                    />
+                    {role.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {needsAcademy ? (
+            <SelectField
+              label="Academy (jurisdiction)"
+              name="addAcademyId"
+              fullWidth
+              required
+              value={addAcademyId}
+              onChange={(event) => setAddAcademyId(event.target.value)}
+            >
+              <option value="" disabled>
+                Select an academy…
+              </option>
+              {(academies.data?.items ?? []).map((academy) => (
+                <option key={academy.id} value={academy.id}>
+                  {academy.name}
+                </option>
+              ))}
+            </SelectField>
+          ) : null}
+          <div className="flex w-full justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={closeAdd}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={createUser.isPending}
+              disabled={
+                !addEmail ||
+                !addUsername ||
+                !addPassword ||
+                !addDisplayName ||
+                addRoles.size === 0 ||
+                (needsAcademy && !addAcademyId)
+              }
+            >
+              Create account
             </Button>
           </div>
         </form>

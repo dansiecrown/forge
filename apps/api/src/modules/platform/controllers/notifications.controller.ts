@@ -28,4 +28,18 @@ export class NotificationsController {
   async markRead(@Param('id') id: string, @CurrentUser() user: { id: string }) {
     await this.notificationsService.markRead(user.id, id);
   }
+
+  /** The explicit, manual "set it back to unread" exception — see
+   * NotificationsService.markUnread's doc comment. */
+  @Post('me/notifications/:id/actions/mark-unread')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async markUnread(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    await this.notificationsService.markUnread(user.id, id);
+  }
+
+  @Post('me/notifications/actions/mark-all-read')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async markAllRead(@CurrentUser() user: { id: string }) {
+    await this.notificationsService.markAllRead(user.id);
+  }
 }

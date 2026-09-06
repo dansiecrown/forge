@@ -110,6 +110,10 @@ const SettingsPage = lazyNamed<{ variant?: 'student' | 'mentor' }>(
   'SettingsPage',
 );
 const NotificationsPage = lazyNamed(() => import('@/features/notifications'), 'NotificationsPage');
+const DirectMessagesPage = lazyNamed(
+  () => import('@/features/direct-messages'),
+  'DirectMessagesPage',
+);
 const StudentChatPage = lazyNamed(() => import('@/features/chat'), 'StudentChatPage');
 const MentorChatPage = lazyNamed(() => import('@/features/chat'), 'MentorChatPage');
 const StudentRegisterPage = lazyNamed(
@@ -194,6 +198,8 @@ const router = createBrowserRouter([
               { path: 'audit', element: <AuditCenterPage /> },
               { path: 'reports', element: <ReportsPage /> },
               { path: 'announcements', element: <AnnouncementsPage /> },
+              { path: 'notifications', element: suspended(<NotificationsPage role="admin" />) },
+              { path: 'messages', element: suspended(<DirectMessagesPage />) },
               { path: 'certificates', element: <CertificatesPage /> },
               { path: 'applications', element: <AdminCohortApplicationsListPage /> },
               { path: 'applications/:id', element: <AdminCohortApplicationDetailPage /> },
@@ -225,7 +231,8 @@ const router = createBrowserRouter([
               { path: 'portfolio/:id', element: suspended(<PortfolioProjectEditPage />) },
               { path: 'profile', element: suspended(<ProfilePage />) },
               { path: 'settings', element: suspended(<SettingsPage />) },
-              { path: 'notifications', element: suspended(<NotificationsPage />) },
+              { path: 'notifications', element: suspended(<NotificationsPage role="student" />) },
+              { path: 'messages', element: suspended(<DirectMessagesPage />) },
               { path: 'chat', element: suspended(<StudentChatPage />) },
               { path: 'register', element: suspended(<StudentRegisterPage />) },
             ],
@@ -247,6 +254,8 @@ const router = createBrowserRouter([
               { path: 'submissions/:submissionId', element: suspended(<SubmissionReviewPage />) },
               { path: 'huddles', element: suspended(<MentorHuddlesPage />) },
               { path: 'chat', element: suspended(<MentorChatPage />) },
+              { path: 'messages', element: suspended(<DirectMessagesPage />) },
+              { path: 'notifications', element: suspended(<NotificationsPage role="mentor" />) },
               { path: 'settings', element: suspended(<SettingsPage variant="mentor" />) },
             ],
           },

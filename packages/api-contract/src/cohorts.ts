@@ -84,6 +84,16 @@ export interface Enrollment {
   status: 'invited' | 'active' | 'paused' | 'completed' | 'withdrawn';
   /** The learner's single active Learning Track within this Fellowship. */
   currentLearningTrackId: string | null;
+  /** Resolved server-side, and — unlike `userDisplayName`/`userEmail` above
+   * — only ever populated by `GET /enrollments/me`, never the staff-facing
+   * cohort roster (`GET /cohorts/:id/enrollments`); null there. Powers the
+   * student Profile/Dashboard "which Org/Academy/Fellowship/Cohort/Track am
+   * I in" display — see docs/adr/0015-name-first-display.md. */
+  organizationName: string | null;
+  academyName: string | null;
+  fellowshipTitle: string | null;
+  cohortName: string | null;
+  currentLearningTrackName: string | null;
   invitedAt: string;
   joinedAt: string | null;
   endedAt: string | null;

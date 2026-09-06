@@ -188,6 +188,12 @@ enum CohortApplicationStatus {
 model User {
   id              String     @id @default(uuid())
   emailCanonical  String     @unique @map("email_canonical")
+  /// Optional, unique when set — a plain (non-partial) `@unique` on Postgres
+  /// already permits any number of NULL rows, so no hand-written partial
+  /// index is needed here (unlike the WHERE-null-only convention used
+  /// elsewhere in this schema). Admin-set at creation or self-set later from
+  /// Settings — see docs/adr/0009-administration-platform.md's addendum.
+  username        String?    @unique @map("username")
   displayName     String     @map("display_name")
   givenName       String?    @map("given_name")
   familyName      String?    @map("family_name")
@@ -218,6 +224,9 @@ model User {
   chatMessageReactions        FellowshipChatMessageReaction[]
   chatChannelMemberships      FellowshipChatChannelMember[]
   chatReadStates              FellowshipChatReadState[]
+  directConversationsAsUser1  DirectConversation[]             @relation("DirectConversationUser1")
+  directConversationsAsUser2  DirectConversation[]             @relation("DirectConversationUser2")
+  directMessages              DirectMessage[]
 
   @@index([status, lastLoginAt])
   @@map("users")
@@ -427,6 +436,7 @@ model Organization {
   certificates         Certificate[]
   cohortApplications   CohortApplication[]
   chatChannels         FellowshipChatChannel[]
+  directConversations  DirectConversation[]
 
   @@index([status, createdAt])
   @@map("organizations")
@@ -1577,4 +1587,58 @@ model FellowshipChatReadState {
   @@id([userId, channelId])
   @@index([channelId])
   @@map("fellowship_chat_read_states")
+}
+
+// ---------------------------------------------------------------------------
+// Direct (user-to-user) messaging — see docs/adr/0014-fellowship-chat.md's
+// 2026-09-06 addendum, formally reversing that ADR's original "DMs out of
+// scope" decision. Deliberately organization-scoped (never platform-wide,
+// even though `User`/`username` are global) and deliberately minimal: no
+// reactions, no reply-threading, no dedicated read-state table (unread
+// signaling reuses the existing Notification model instead — a
+// `dm.message.received` row per message, exactly like a Fellowship chat
+// reply already does). Real-time delivery is REST + client polling, not the
+// WebSocket gateway — DMs have a far simpler authorization shape ("is the
+// caller one of exactly two participants") than Fellowship chat's
+// Cohort/Enrollment/CohortMentor/academy-scope resolution, and extending
+// that already-intricate gateway for a materially different access model
+// was judged a bigger risk than this feature is worth in one pass.
+
+/// One row per unordered pair of users who have ever exchanged a DM, within
+/// one organization. `user1Id`/`user2Id` are always stored with the
+/// lexicographically smaller id first (enforced in
+/// `DirectConversationsService`, never trusted from the caller) so the
+/// unique constraint below catches the pair regardless of who started it.
+model DirectConversation {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  user1Id        String   @map("user1_id")
+  user2Id        String   @map("user2_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// Bumped on every new message — the inbox's own sort-by-recent key, so
+  /// listing conversations never needs a separate "latest message" query.
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user1        User            @relation("DirectConversationUser1", fields: [user1Id], references: [id], onDelete: Restrict)
+  user2        User            @relation("DirectConversationUser2", fields: [user2Id], references: [id], onDelete: Restrict)
+  messages     DirectMessage[]
+
+  @@unique([organizationId, user1Id, user2Id])
+  @@index([organizationId, user2Id])
+  @@map("direct_conversations")
+}
+
+model DirectMessage {
+  id             String   @id @default(uuid())
+  conversationId String   @map("conversation_id")
+  authorId       String   @map("author_id")
+  content        String
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  conversation DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  author       User               @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([conversationId, createdAt])
+  @@map("direct_messages")
 }

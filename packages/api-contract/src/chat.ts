@@ -148,3 +148,48 @@ export interface ChatClientEvents {
   'chat.typing.started': ChatTypingEvent;
   'chat.typing.stopped': ChatTypingEvent;
 }
+
+// ---------------------------------------------------------------------------
+// Direct (user-to-user) messaging — see docs/adr/0014-fellowship-chat.md's
+// 2026-09-06 addendum, formally reversing that ADR's original "DMs out of
+// scope" decision. Organization-scoped only (never platform-wide, even
+// though usernames are globally unique); no reactions, no reply-threading,
+// no dedicated read-state — see the addendum for why. Real-time delivery is
+// REST + client polling, not the WebSocket gateway `ChatClientEvents` above
+// is for.
+
+export interface PersonSearchResult {
+  id: string;
+  displayName: string;
+  /** Null until that person has set one — see
+   * docs/adr/0009-administration-platform.md's addendum. Still findable by
+   * display name either way; a username is a searchable handle, not a
+   * hard gate on being messageable. */
+  username: string | null;
+}
+
+export interface DirectConversation {
+  id: string;
+  organizationId: string;
+  otherParticipant: PersonSearchResult;
+  lastMessage: { content: string; createdAt: string; authorId: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StartDirectConversationRequest {
+  userId: string;
+}
+
+export interface DirectMessage {
+  id: string;
+  conversationId: string;
+  authorId: string;
+  authorDisplayName: string | null;
+  content: string;
+  createdAt: string;
+}
+
+export interface CreateDirectMessageRequest {
+  content: string;
+}

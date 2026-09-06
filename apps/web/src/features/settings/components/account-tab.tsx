@@ -12,6 +12,7 @@ interface AccountFormValues {
   displayName: string;
   timezone: string;
   locale: string;
+  username: string;
 }
 
 export function AccountTab() {
@@ -21,7 +22,12 @@ export function AccountTab() {
 
   useEffect(() => {
     if (me) {
-      form.reset({ displayName: me.displayName, timezone: me.timezone, locale: me.locale });
+      form.reset({
+        displayName: me.displayName,
+        timezone: me.timezone,
+        locale: me.locale,
+        username: me.username ?? '',
+      });
     }
   }, [me, form]);
 
@@ -38,7 +44,14 @@ export function AccountTab() {
       <CardContent>
         <form
           className="flex flex-wrap gap-4"
-          onSubmit={form.handleSubmit((values) => updateMe.mutate(values))}
+          onSubmit={form.handleSubmit((values) =>
+            updateMe.mutate({
+              displayName: values.displayName,
+              timezone: values.timezone,
+              locale: values.locale,
+              username: values.username || undefined,
+            }),
+          )}
           noValidate
         >
           {errorMessage ? (
@@ -52,6 +65,15 @@ export function AccountTab() {
             </Alert>
           ) : null}
           <FormField label="Display name" {...form.register('displayName')} />
+          <FormField
+            label="Username"
+            placeholder="lowercase, no spaces"
+            {...form.register('username', {
+              onChange: (event) => {
+                event.target.value = event.target.value.toLowerCase();
+              },
+            })}
+          />
           <FormField label="Timezone" {...form.register('timezone')} />
           <FormField label="Locale" {...form.register('locale')} />
           <div className="flex w-full justify-end">

@@ -5,6 +5,7 @@ import { useSession } from '@/contexts/session-context';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert } from '@/components/ui/alert';
+import { cn } from '@/utils';
 import { useChatSocket } from '../hooks/use-chat-socket';
 import { useChatChannels, useChatChannelsLiveRefresh } from '../hooks/use-chat-channels';
 import { useChatMessages } from '../hooks/use-chat-messages';
@@ -17,11 +18,22 @@ import { MessageComposer } from './message-composer';
 import { ConnectionStatus } from './connection-status';
 
 /** The Fellowship Chat workspace — Channels | Messages | Members, per
- * Phase 10's wireframe. Mounted once per role at `/portal/chat` and
- * `/mentor/chat` with the caller's own Fellowship already resolved (never
- * from a route param), and reused as-is: nothing here is student- or
- * mentor-specific. */
-export function ChatWorkspace({ fellowshipId }: { fellowshipId: string }) {
+ * Phase 10's wireframe. Mounted at `/portal/chat` and `/mentor/chat` with
+ * the caller's own Fellowship already resolved (never from a route param),
+ * and on the Admin Fellowship detail page with that Fellowship's own id —
+ * reused as-is across all three: nothing here is role-specific, only
+ * `ChannelSidebar`'s "Create channel" action conditionally appears based on
+ * the caller's real `chat.channel.manage` permission. */
+export function ChatWorkspace({
+  fellowshipId,
+  className,
+}: {
+  fellowshipId: string;
+  /** Overrides the default near-full-viewport height — the Admin Fellowship
+   * detail page embeds this alongside several other sections, not as the
+   * whole page, so it needs a bounded height instead. */
+  className?: string;
+}) {
   const { user } = useSession();
   const { activeOrganizationId } = useActiveOrganization();
   const [activeChannel, setActiveChannel] = useState<ChatChannel | null>(null);
@@ -91,10 +103,16 @@ export function ChatWorkspace({ fellowshipId }: { fellowshipId: string }) {
   }
 
   return (
-    <div className="flex h-[calc(100vh-8.5rem)] min-h-[420px] overflow-hidden rounded-card border border-border bg-canvas md:h-[calc(100vh-9rem)]">
+    <div
+      className={cn(
+        'flex h-[calc(100vh-8.5rem)] min-h-[420px] overflow-hidden rounded-card border border-border bg-canvas md:h-[calc(100vh-9rem)]',
+        className,
+      )}
+    >
       {/* Desktop channel sidebar */}
       <div className="hidden md:flex">
         <ChannelSidebar
+          fellowshipId={fellowshipId}
           channels={channels}
           activeChannelId={activeChannel?.id}
           onSelect={(channel) => {
@@ -117,6 +135,7 @@ export function ChatWorkspace({ fellowshipId }: { fellowshipId: string }) {
           />
           <div className="relative h-full w-64">
             <ChannelSidebar
+              fellowshipId={fellowshipId}
               channels={channels}
               activeChannelId={activeChannel?.id}
               onSelect={(channel) => {

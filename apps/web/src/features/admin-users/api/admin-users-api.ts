@@ -57,6 +57,38 @@ export function inviteUser(
   });
 }
 
+export interface CreateUserInput {
+  email: string;
+  username: string;
+  password: string;
+  displayName: string;
+  givenName?: string;
+  familyName?: string;
+  roleKeys: string[];
+  /** Required only when `roleKeys` includes `ACADEMY_ADMIN`. */
+  academyId?: string;
+}
+
+export interface CreateUserResult {
+  id: string;
+  displayName: string;
+  email: string;
+}
+
+/** Admin-set-password creation, alongside (not instead of) `inviteUser`
+ * above — see docs/adr/0009-administration-platform.md's addendum. The
+ * person can log in immediately with the password the admin set here. */
+export function createUser(
+  body: CreateUserInput,
+  organizationId?: string,
+): Promise<CreateUserResult> {
+  return apiRequest<CreateUserResult>('/admin/users', {
+    method: 'POST',
+    body,
+    organizationId,
+  });
+}
+
 export function suspendUser(userId: string, organizationId: string): Promise<void> {
   return apiRequest(`/admin/users/${userId}/actions/suspend`, { method: 'POST', organizationId });
 }

@@ -1,4 +1,12 @@
-import { ArrayUnique, IsArray, IsEmail, IsOptional, IsString, Length } from 'class-validator';
+import {
+  ArrayUnique,
+  IsArray,
+  IsEmail,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+} from 'class-validator';
 
 export class UpdateMeDto {
   @IsOptional()
@@ -13,6 +21,16 @@ export class UpdateMeDto {
   @IsOptional()
   @IsString()
   locale?: string;
+
+  /** Self-service — same shape as the admin-set-at-creation field (see
+   * CreateAdminUserDto); uniqueness enforced in UsersService.updateMe. */
+  @IsOptional()
+  @IsString()
+  @Length(3, 30)
+  @Matches(/^[a-z0-9_-]+$/, {
+    message: 'Username may only contain lowercase letters, numbers, "_", and "-".',
+  })
+  username?: string;
 }
 
 export class InviteUserDto {

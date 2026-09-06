@@ -23,6 +23,7 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { useOrganization } from '@/features/organizations';
 import { useAcademy } from '@/features/academies';
 import { useCohortsList } from '@/features/cohorts';
+import { ChatWorkspace } from '@/features/chat/components/chat-workspace';
 import type { Cohort } from '@forge/api-contract';
 import { duplicateFellowship } from '../api/fellowships-api';
 import {
@@ -399,6 +400,19 @@ export function FellowshipDetailPage() {
             emptyDescription="Schedule a cohort to start enrolling learners into this fellowship."
             onRowClick={(row) => navigate(`/admin/cohorts/${row.id}`)}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle as="h2">Chat</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            The same Fellowship Chat your mentors and students use — see and send messages in any
+            channel, moderate, and create new channels.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <ChatWorkspace fellowshipId={fellowship.id} className="h-[600px]" />
         </CardContent>
       </Card>
     </div>

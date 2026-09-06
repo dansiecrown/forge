@@ -52,8 +52,19 @@ export function fetchMyPermissions(organizationId: string): Promise<MyPermission
   return apiRequest<MyPermissions>(`/me/permissions?organizationId=${organizationId}`);
 }
 
-export function updateMe(body: { displayName?: string; timezone?: string; locale?: string }) {
-  return apiRequest<{ id: string; displayName: string; timezone: string; locale: string }>('/me', {
+export function updateMe(body: {
+  displayName?: string;
+  timezone?: string;
+  locale?: string;
+  username?: string;
+}) {
+  return apiRequest<{
+    id: string;
+    displayName: string;
+    timezone: string;
+    locale: string;
+    username: string | null;
+  }>('/me', {
     method: 'PATCH',
     body,
   });

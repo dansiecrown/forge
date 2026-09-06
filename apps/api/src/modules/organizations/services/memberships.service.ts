@@ -78,6 +78,24 @@ export class MembershipsService {
     return this.membershipsRepository.getOverview(scope);
   }
 
+  /** The DM "who do you want to message" search — see
+   * `MembershipsRepository.searchActiveMembers`'s own doc comment for why
+   * this is a separate, broadly-callable path rather than the admin
+   * directory. */
+  async searchActiveMembers(scope: TenantScope, query: string, excludeUserId: string) {
+    const memberships = await this.membershipsRepository.searchActiveMembers(
+      scope,
+      query,
+      excludeUserId,
+      10,
+    );
+    return memberships.map((membership) => ({
+      id: membership.userId,
+      displayName: membership.user.displayName,
+      username: membership.user.username,
+    }));
+  }
+
   /** Existence + org-scope check for other modules (cohorts) validating a
    * caller-supplied membershipId — e.g. confirming a mentor assignment
    * target is actually a member of this organization. */
@@ -103,12 +121,16 @@ export class MembershipsService {
   /** Creates the membership for a newly invited user — who may be a brand
    * new identity or an existing one joining an additional organization,
    * see docs/adr/0003 Part A addendum — and grants the requested system
-   * roles, all within the inviter's active organization. */
+   * roles, all within the inviter's active organization. `options` is only
+   * ever passed by the admin-set-password creation flow
+   * (`AdminUsersService.create`); the original email-invite call site
+   * (`UsersController.invite`) omits it, keeping its behavior unchanged. */
   async inviteIntoOrganization(
     scope: TenantScope,
     userId: string,
     roleKeys: string[],
     invitedBy?: string,
+    options?: { status?: 'invited' | 'active'; academyId?: string },
   ): Promise<void> {
     const existingMembership = await this.membershipsRepository.findByOrganizationAndUser(
       scope.organizationId,
@@ -121,7 +143,7 @@ export class MembershipsService {
       );
     }
 
-    const membership = await this.membershipsRepository.create(scope, userId);
+    const membership = await this.membershipsRepository.create(scope, userId, options);
 
     for (const roleKey of roleKeys) {
       const role = await this.rolesRepository.findByKey(roleKey);

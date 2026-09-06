@@ -180,3 +180,28 @@ feature's placement depends on, before the per-feature reconciliations.
   an implementation detail: any future milestone needing a capability that spans two modules in the
   existing chain without an already-established import path should extend `AdminModule` (or a
   similarly-scoped new leaf module) rather than adding a new inter-module import that risks a cycle.
+
+## Addendum (2026-09-06): reversing "no direct password editing"
+
+Decision 6's "no direct password editing" was an explicit brief requirement at the time — its stated
+purpose was to keep an admin from ever knowing a live user password, so the only supported path was
+a token-based reset link delivered by email. That assumption no longer holds: this environment's
+email adapter is a dev-mode console stub (`ConsoleEmailAdapter`) with no real delivery, so an
+invited/reset user has no working way to receive the link and finish setting a password — in
+practice, the reset-link-only flow leaves a new account unusable until real email delivery is
+built (a separate, not-yet-scoped flaw). A login-blocking invitation is a worse security and product
+outcome than an admin directly setting a working password, so this reverses Decision 6 for exactly
+one new capability:
+
+- `AdminUsersService.create()` / `UsersService.createWithPassword()` (`POST /admin/users`) sets a
+  password directly, chosen by the creating admin. The account is created `active` and
+  email-verified immediately — no accept-invitation step. The original email-only flow
+  (`POST /users/invitations` → `UsersService.invite()`) is untouched and still available side by
+  side, for an admin who prefers it once real email delivery exists.
+- Every other mutation in `AdminUsersService` still never touches a password — `forcePasswordReset`
+  still only issues a reset-link token, unchanged. This addendum narrows Decision 6, it does not
+  repeal it: an admin still cannot view or silently overwrite an *existing* user's password
+  (`createWithPassword` rejects an email that already exists rather than resetting it).
+- This creation flow also introduces a new, permanent `User.username` (nullable, unique) — the
+  admin sets it at creation; a person can also self-set/change it later via `PATCH /me` (Settings).
+  Not itself part of this password-policy reversal, but landed in the same milestone slice.

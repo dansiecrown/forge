@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { User } from '@prisma/client';
+import { FellowshipsService } from '../../catalog/services/fellowships.service';
 import { LearningTracksService } from '../../catalog/services/learning-tracks.service';
 import { UsersService } from '../../identity/services/users.service';
+import { AcademiesService } from '../../organizations/services/academies.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
+import { OrganizationsService } from '../../organizations/services/organizations.service';
 import { AuditLogService } from '../../platform/audit-log.service';
 import { AppException } from '../../../shared/errors/app.exception';
 import { CollectionResult, parseLimit } from '../../../shared/pagination/collection-result';
@@ -33,6 +36,9 @@ export class EnrollmentsService {
     private readonly learningTracksService: LearningTracksService,
     private readonly auditLog: AuditLogService,
     private readonly usersService: UsersService,
+    private readonly organizationsService: OrganizationsService,
+    private readonly academiesService: AcademiesService,
+    private readonly fellowshipsService: FellowshipsService,
   ) {}
 
   /** Batch-resolves display names for a page of enrollments in one query —
@@ -67,7 +73,11 @@ export class EnrollmentsService {
   }
 
   /** Self-lookup for a Student discovering their own enrollment(s) — see
-   * EnrollmentsRepository.findByUserId. */
+   * EnrollmentsRepository.findByUserId. Also resolves the full
+   * Organization/Academy/Fellowship/Cohort/Track hierarchy by name, for the
+   * student Profile/Dashboard "which program am I in" display — see
+   * `EnrollmentEntity`'s hierarchy fields and
+   * docs/adr/0015-name-first-display.md. */
   async listMine(
     scope: TenantScope,
     callerId: string,
@@ -78,12 +88,60 @@ export class EnrollmentsService {
       cursor: options.cursor,
       limit,
     });
-    return new CollectionResult(await this.withUsers(rows), {
+    const users = await this.usersService.listByIds([...new Set(rows.map((r) => r.userId))]);
+    const usersById = new Map<string, User>(users.map((u) => [u.id, u]));
+    const entities = await Promise.all(
+      rows.map(async (row) => {
+        const hierarchy = await this.resolveHierarchyNames(scope, row, callerId);
+        return toEnrollmentEntity(row, usersById.get(row.userId), hierarchy);
+      }),
+    );
+    return new CollectionResult(entities, {
       nextCursor: hasMore ? rows[rows.length - 1].id : null,
       previousCursor: options.cursor ?? null,
       limit,
       hasMore,
     });
+  }
+
+  /** Never throws — an enrollment whose Organization/Academy/Fellowship/
+   * Cohort/Track has since been hard-deleted (or a Track since unset) must
+   * not take down the caller's entire `GET /enrollments/me` (every page in
+   * the student portal depends on it, not just the Profile display it was
+   * built for). Falls back to all-null hierarchy names for that one row,
+   * the same "since-removed record" convention `userDisplayName`/
+   * `userEmail` already use above. */
+  private async resolveHierarchyNames(
+    scope: TenantScope,
+    row: import('@prisma/client').Enrollment,
+    callerId: string,
+  ) {
+    try {
+      const [organization, academy, fellowship, cohort, track] = await Promise.all([
+        this.organizationsService.get(callerId, scope.organizationId, row.organizationId),
+        this.academiesService.get(scope, row.academyId, callerId),
+        this.fellowshipsService.get(scope, row.fellowshipId, callerId),
+        this.cohortsService.get(scope, row.cohortId, callerId),
+        row.currentLearningTrackId
+          ? this.learningTracksService.get(scope, row.currentLearningTrackId)
+          : Promise.resolve(null),
+      ]);
+      return {
+        organizationName: organization.name,
+        academyName: academy.name,
+        fellowshipTitle: fellowship.title,
+        cohortName: cohort.name,
+        currentLearningTrackName: track?.name ?? null,
+      };
+    } catch {
+      return {
+        organizationName: null,
+        academyName: null,
+        fellowshipTitle: null,
+        cohortName: null,
+        currentLearningTrackName: null,
+      };
+    }
   }
 
   async get(scope: TenantScope, id: string): Promise<EnrollmentEntity> {

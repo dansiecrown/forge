@@ -6,8 +6,10 @@ import { EMAIL_ADAPTER, type EmailAdapter } from '../../../shared/email/email-ad
 import { AppException } from '../../../shared/errors/app.exception';
 import type { CollectionResult } from '../../../shared/pagination/collection-result';
 import { AuditLogService } from '../../platform/audit-log.service';
+import { PasswordCredentialsRepository } from '../repositories/password-credentials.repository';
 import { PasswordResetTokensRepository } from '../repositories/verification-tokens.repository';
 import { UsersRepository } from '../repositories/users.repository';
+import { PasswordService } from './password.service';
 
 export interface UpdateMeInput {
   displayName?: string;
@@ -15,6 +17,16 @@ export interface UpdateMeInput {
   familyName?: string;
   timezone?: string;
   locale?: string;
+  username?: string;
+}
+
+export interface CreateUserWithPasswordInput {
+  email: string;
+  username: string;
+  password: string;
+  displayName: string;
+  givenName?: string;
+  familyName?: string;
 }
 
 export interface InviteResult {
@@ -30,6 +42,8 @@ export class UsersService {
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly passwordResetTokensRepository: PasswordResetTokensRepository,
+    private readonly passwordCredentialsRepository: PasswordCredentialsRepository,
+    private readonly passwordService: PasswordService,
     private readonly auditLog: AuditLogService,
     private readonly config: AppConfigService,
     @Inject(EMAIL_ADAPTER) private readonly emailAdapter: EmailAdapter,
@@ -48,6 +62,12 @@ export class UsersService {
   }
 
   async updateMe(userId: string, input: UpdateMeInput): Promise<User> {
+    if (input.username) {
+      const existing = await this.usersRepository.findByUsername(input.username);
+      if (existing && existing.id !== userId) {
+        throw AppException.conflict('USERNAME_TAKEN', 'This username is already taken.');
+      }
+    }
     return this.usersRepository.update(userId, input);
   }
 
@@ -127,5 +147,64 @@ export class UsersService {
     });
 
     return { user, isNewUser: true };
+  }
+
+  /** Admin-set-password account creation — a deliberate, disclosed reversal
+   * of ADR-0009's original "no direct password editing" brief requirement
+   * (see that ADR's 2026-09-06 addendum): unreliable email delivery made a
+   * login-blocking invite a worse outcome than an admin directly setting a
+   * working password. Unlike `invite()`, an existing email is rejected
+   * outright rather than silently reused — silently resetting a stranger's
+   * password would be a real security defect, not a convenience. The
+   * account is created `active` with `emailVerifiedAt` set immediately
+   * (the admin is vouching for it), so the person can log in right away;
+   * the invitation email is still sent best-effort, purely informational —
+   * its failure (e.g. the dev console-stub adapter) never blocks creation. */
+  async createWithPassword(
+    input: CreateUserWithPasswordInput,
+    actorUserId?: string,
+  ): Promise<User> {
+    const emailCanonical = input.email.toLowerCase();
+    const existingByEmail = await this.usersRepository.findByEmail(emailCanonical);
+    if (existingByEmail) {
+      throw AppException.conflict('EMAIL_ALREADY_EXISTS', 'A user with this email already exists.');
+    }
+    const existingByUsername = await this.usersRepository.findByUsername(input.username);
+    if (existingByUsername) {
+      throw AppException.conflict('USERNAME_TAKEN', 'This username is already taken.');
+    }
+
+    const passwordHash = await this.passwordService.hash(input.password);
+    const user = await this.usersRepository.create({
+      emailCanonical,
+      displayName: input.displayName,
+      givenName: input.givenName,
+      familyName: input.familyName,
+      username: input.username,
+      status: 'active',
+      emailVerifiedAt: new Date(),
+    });
+    await this.passwordCredentialsRepository.create(user.id, passwordHash);
+
+    try {
+      await this.emailAdapter.send({
+        to: user.emailCanonical,
+        subject: 'Your Project Forge account is ready',
+        templateKey: 'account-created',
+        variables: { displayName: user.displayName },
+      });
+    } catch {
+      // Best-effort only — the admin-set password already works.
+    }
+
+    await this.auditLog.record({
+      action: 'user.created',
+      entityType: 'user',
+      entityId: user.id,
+      outcome: 'success',
+      actorUserId,
+    });
+
+    return user;
   }
 }

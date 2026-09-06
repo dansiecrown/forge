@@ -3,14 +3,17 @@ import { IdentityModule } from '../identity/identity.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PlatformModule } from '../platform/platform.module';
 import { ChatMessagesController } from './controllers/chat-messages.controller';
+import { DirectMessagesController } from './controllers/direct-messages.controller';
 import { FellowshipChatChannelsController } from './controllers/fellowship-chat-channels.controller';
 import { ChatGateway } from './gateways/chat.gateway';
 import { ChatChannelsRepository } from './repositories/chat-channels.repository';
 import { ChatMessagesRepository } from './repositories/chat-messages.repository';
 import { ChatReadStateRepository } from './repositories/chat-read-state.repository';
+import { DirectMessagesRepository } from './repositories/direct-messages.repository';
 import { ChatAccessService } from './services/chat-access.service';
 import { ChatChannelsService } from './services/chat-channels.service';
 import { ChatMessagesService } from './services/chat-messages.service';
+import { DirectMessagesService } from './services/direct-messages.service';
 import { RedisEventsService } from './services/redis-events.service';
 
 /** `ChatChannelsService` is exported so `CatalogModule` can import
@@ -21,14 +24,16 @@ import { RedisEventsService } from './services/redis-events.service';
  * cycle. */
 @Module({
   imports: [OrganizationsModule, PlatformModule, IdentityModule],
-  controllers: [FellowshipChatChannelsController, ChatMessagesController],
+  controllers: [FellowshipChatChannelsController, ChatMessagesController, DirectMessagesController],
   providers: [
     ChatChannelsRepository,
     ChatMessagesRepository,
     ChatReadStateRepository,
+    DirectMessagesRepository,
     ChatAccessService,
     ChatChannelsService,
     ChatMessagesService,
+    DirectMessagesService,
     RedisEventsService,
     ChatGateway,
   ],

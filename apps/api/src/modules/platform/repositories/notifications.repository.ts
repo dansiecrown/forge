@@ -58,4 +58,17 @@ export class NotificationsRepository {
   markRead(id: string): Promise<Notification> {
     return this.prisma.notification.update({ where: { id }, data: { readAt: new Date() } });
   }
+
+  /** The explicit "set it back to unread" the flaw item calls for — a
+   * notification never silently reverts on its own, only via this. */
+  markUnread(id: string): Promise<Notification> {
+    return this.prisma.notification.update({ where: { id }, data: { readAt: null } });
+  }
+
+  markAllRead(userId: string): Promise<{ count: number }> {
+    return this.prisma.notification.updateMany({
+      where: { recipientUserId: userId, readAt: null },
+      data: { readAt: new Date() },
+    });
+  }
 }

@@ -286,7 +286,7 @@ machine-interpreted**
   for author-private notes emerges.
 - **Planned milestone:** Not currently planned; revisit on product request.
 
-**DEBT-026 — Notification Center and Notification Preferences are frontend-only placeholders — PARTIALLY CLOSED (2026-07-30)**
+**DEBT-026 — Notification Center and Notification Preferences are frontend-only placeholders — CLOSED for the Notification Center (2026-09-06); Preferences remains open**
 - **Description:** The header bell, the full `/portal/notifications` page, and Settings ->
   Notifications all render hardcoded placeholder data with local component/`localStorage` state only.
   Previously no `Notification` Prisma model, no `GET /notifications`, no
@@ -298,10 +298,22 @@ machine-interpreted**
   `/portal/notifications` page, and Settings -> Notifications tab were **not** rewired to this new
   backend this milestone (out of explicit scope — Milestone 7 is the Administration Platform, not a
   portal-UI pass) and still render placeholder data; no `GET/PATCH /notification-preferences` exists.
-- **Priority:** Low
-- **Reason for deferral:** The remaining frontend-wiring gap is a portal-UI task, not an
-  Administration Platform one; `NotificationsService` is a ready-to-call primitive waiting for it.
-- **Planned milestone:** Whichever milestone next touches the student/mentor portal notification UI.
+- **Status (2026-09-06): Notification Center closed.** The bell and full Notification Center page
+  (now mounted in all three role layouts — Admin/Mentor/Student, not just Student) are wired to real
+  data. Added `POST /me/notifications/:id/actions/mark-unread` and
+  `POST /me/notifications/actions/mark-all-read` (only `mark-read` existed before). Clicking a
+  notification navigates to its source when one exists for the caller's role, or opens a popup with
+  the full title/body when it doesn't (no recipient-facing announcement page, and no Admin chat
+  surface, exist yet — see `resolveNotificationTarget`). **Still open:** Settings -> Notifications
+  remains client-only `localStorage` toggles with no backend enforcement, and its preference keys
+  don't correspond to any real notification `type` string — genuinely unrelated to what this closed
+  (the flaw item that prompted this work was about the Notification Center display/interaction, not
+  preference filtering).
+- **Priority:** Low (Preferences only; Notification Center is closed)
+- **Reason for deferral (Preferences only):** No `GET/PATCH /notification-preferences` endpoint or
+  server-side filtering exists; building real preference enforcement is a separate, unscoped feature.
+- **Planned milestone:** Not currently planned; revisit on product request for real notification
+  preference enforcement.
 
 **DEBT-027 — System Settings policy fields are stored/editable but not enforced**
 - **Description:** `SystemSettings.passwordPolicy`/`sessionPolicy`/`mfaPolicy`/`featureFlags` are
@@ -397,30 +409,32 @@ without first visiting that organization's own detail page**
 - **Planned milestone:** If direct deep-linking into another organization's hierarchy (rather than
   drilling down from its own Organizations entry) becomes a real Super Admin workflow.
 
-**DEBT-034 — Fellowship chat has no `@mention` notifications**
+**DEBT-034 — Fellowship chat has no `@mention` notifications — username blocker CLOSED (2026-09-06), `@mention` parsing itself still not built**
 - **Description:** `ChatMessagesService.notifyReply()` (ADR-0014 Decision 5) notifies a message's
   author when someone replies to it, via `replyToMessageId` — an unambiguous, already-real relation.
-  It does not implement `@mention` parsing/notification. `User` has no handle/username field to
+  It does not implement `@mention` parsing/notification. `User` had no handle/username field to
   match a `@foo` token against (only `displayName`, which isn't unique, and `emailCanonical`, which
   isn't something you'd type in a message).
+- **Status (2026-09-06):** `User.username` (unique, nullable) now exists — added for admin user
+  creation and self-service Settings, see `docs/adr/0009-administration-platform.md`'s addendum —
+  removing the schema blocker this entry originally cited. `@mention` parsing/notification itself
+  (scanning message content for `@handle` tokens and matching them) is still not built; that
+  remains a distinct, not-yet-requested feature on top of the field that now exists.
 - **Priority:** Low
-- **Reason for deferral:** Doing this properly means adding a real, unique, user-facing identifier
-  to `User` — new schema and almost certainly a new profile-settings surface — which is
-  architecture well beyond what a chat notification nicety should introduce as a side effect.
-- **Planned milestone:** If/when `User` gains a real handle/username concept for other reasons
-  (profile pages, search, etc.), `@mention` notifications become a small addition on top of it.
+- **Reason for deferral:** Implementing message-content `@mention` parsing is its own scoped feature,
+  not a side effect of any task that's added `username` so far.
+- **Planned milestone:** Not currently planned; the schema is ready whenever it's requested.
 
-**DEBT-035 — Fellowship chat channel management has no frontend UI**
+**DEBT-035 — Fellowship chat channel management has no frontend UI — CLOSED (2026-09-06)**
 - **Description:** `chat.channel.manage` (create, rename, describe, archive, restore, optionally
   private) is fully built and tested on the backend — REST endpoints, permissions, audit logging —
   but no admin screen calls any of it. `#general` is created automatically for every Fellowship, so
   every Fellowship has a working chat from day one; creating a *second* channel currently requires
   a direct API call.
-- **Priority:** Medium — the core participant chat experience (Student/Mentor) is fully functional;
-  this only blocks an admin who wants channels beyond `#general`.
-- **Reason for deferral:** The two roles that can manage channels (ORG_ADMIN/ACADEMY_ADMIN) have no
-  existing per-Fellowship page to host this in — the closest fit,
-  `FellowshipDetailPage` (ADR-0012), would need a new "Chat" section added to it, which is admin-UI
-  scope beyond this task's own Student/Mentor-focused chat experience.
-- **Planned milestone:** A short follow-up adding a "Channels" section to `FellowshipDetailPage`
-  that reuses the same `chat-api.ts` client functions already written for the participant UI.
+- **Status (2026-09-06):** Closed. `FellowshipDetailPage` (Admin) now has a "Chat" section reusing
+  the existing `ChatWorkspace` component, and `ChannelSidebar` gained a "Create channel" action
+  (visible only to a caller who actually holds `chat.channel.manage` for that Fellowship) calling
+  the `useCreateChatChannel` mutation that already existed, fully wired, but unused. Rename/archive/
+  restore still have no dedicated UI (no product ask for them yet) — only creation was in scope.
+- **Priority:** N/A (closed)
+- **Planned milestone:** N/A (closed); rename/archive/restore UI if a future task asks for it.

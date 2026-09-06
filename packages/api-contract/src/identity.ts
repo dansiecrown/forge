@@ -95,6 +95,9 @@ export interface MeResponse {
   id: string;
   displayName: string;
   email: string;
+  /** Admin-set at creation, or self-set here from Settings — see
+   * docs/adr/0009-administration-platform.md's addendum. Null until set. */
+  username: string | null;
   status: string;
   timezone: string;
   locale: string;

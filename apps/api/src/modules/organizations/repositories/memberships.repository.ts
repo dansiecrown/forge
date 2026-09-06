@@ -80,9 +80,25 @@ export class MembershipsRepository {
     });
   }
 
-  create(scope: TenantScope, userId: string): Promise<Membership> {
+  /** `options` defaults preserve the original email-invite behavior exactly
+   * (status `invited`, no academy) — the admin-set-password creation flow
+   * (`AdminUsersService.create`) is the only caller that passes `status:
+   * 'active'` (no accept-invitation step needed, the password already
+   * works) and/or `academyId` (an Academy Admin's jurisdiction — see
+   * docs/adr/0009-administration-platform.md's addendum). */
+  create(
+    scope: TenantScope,
+    userId: string,
+    options?: { status?: 'invited' | 'active'; academyId?: string },
+  ): Promise<Membership> {
     return this.prisma.membership.create({
-      data: { organizationId: scope.organizationId, userId, status: 'invited' },
+      data: {
+        organizationId: scope.organizationId,
+        userId,
+        status: options?.status ?? 'invited',
+        academyId: options?.academyId,
+        ...(options?.status === 'active' ? { joinedAt: new Date() } : {}),
+      },
     });
   }
 
@@ -125,6 +141,37 @@ export class MembershipsRepository {
       },
       include: { user: true },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Any active member of this organization matching `query` by name or
+   * username — the DM "who do you want to message" search
+   * (`DirectMessagesController`). Deliberately not the admin `user.read`-
+   * gated directory (`AdminUsersRepository`): every org member can search
+   * every other org member here, not just an admin. Excludes the caller
+   * themselves and anyone without an active membership (an invited-but-
+   * not-yet-active or suspended member isn't a valid DM partner). */
+  searchActiveMembers(
+    scope: TenantScope,
+    query: string,
+    excludeUserId: string,
+    limit: number,
+  ): Promise<MembershipWithUser[]> {
+    return this.prisma.membership.findMany({
+      where: {
+        organizationId: scope.organizationId,
+        status: 'active',
+        userId: { not: excludeUserId },
+        user: {
+          OR: [
+            { displayName: { contains: query, mode: 'insensitive' } },
+            { username: { contains: query.toLowerCase() } },
+          ],
+        },
+      },
+      include: { user: true },
+      take: limit,
+      orderBy: { user: { displayName: 'asc' } },
     });
   }
 

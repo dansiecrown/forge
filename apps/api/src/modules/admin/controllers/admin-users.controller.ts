@@ -15,11 +15,30 @@ import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { RequirePermissions } from '../../../decorators/require-permissions.decorator';
 import { requireOrganizationId } from '../../../shared/http/request-helpers';
 import { UpdateAdminUserProfileDto, UpdateAdminUserRolesDto } from '../dtos/admin-user.dto';
+import { CreateAdminUserDto } from '../dtos/create-admin-user.dto';
 import { AdminUsersService } from '../services/admin-users.service';
 
 @Controller('admin/users')
 export class AdminUsersController {
   constructor(private readonly adminUsersService: AdminUsersService) {}
+
+  /** Admin-set-password creation, alongside (not instead of) the older
+   * email-only `POST /users/invitations` — same `membership.invite` guard,
+   * since both are "who can add people to this organization" actions. See
+   * docs/adr/0009-administration-platform.md's addendum. */
+  @Post()
+  @RequirePermissions('membership.invite')
+  create(
+    @Body() dto: CreateAdminUserDto,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.adminUsersService.create(
+      { organizationId: requireOrganizationId(organizationId) },
+      user.id,
+      dto,
+    );
+  }
 
   @Get()
   @RequirePermissions('user.read')

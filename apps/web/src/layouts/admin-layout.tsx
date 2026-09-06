@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   LogOut,
+  Mail,
   Menu,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -16,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { NotificationBell } from '@/components/portal/notification-bell';
 import { Select } from '@/components/ui/select';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { useSession } from '@/contexts/session-context';
@@ -59,6 +61,12 @@ const NAV_ITEMS = [
     label: 'Communications',
     icon: Bell,
     requiresPermission: 'announcement.read',
+  },
+  {
+    to: '/admin/messages',
+    label: 'Messages',
+    icon: Mail,
+    requiresPermission: 'chat.message.create',
   },
   {
     to: '/admin/certificates',
@@ -238,17 +246,18 @@ export function AdminLayout() {
       ) : null}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-3 md:hidden">
+        <header className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-3 md:px-8">
           <button
             type="button"
             aria-label="Open menu"
             onClick={() => setDrawerOpen(true)}
-            className="text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground md:hidden"
           >
             <Menu className="size-5" aria-hidden="true" />
           </button>
-          <span className="text-sm font-medium text-foreground">Admin</span>
-          <span aria-hidden="true" />
+          <span className="text-sm font-medium text-foreground md:hidden">Admin</span>
+          <span aria-hidden="true" className="hidden flex-1 md:block" />
+          <NotificationBell role="admin" />
         </header>
         <main className="flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
           <div className="mx-auto max-w-6xl">

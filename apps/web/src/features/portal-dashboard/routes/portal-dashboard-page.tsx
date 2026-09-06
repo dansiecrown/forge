@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Breadcrumb } from '@/components/admin/breadcrumb';
 import { EmptyState } from '@/components/portal/empty-state';
 import { ProgressRing } from '@/components/portal/progress-ring';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DashboardErrorPanel, DashboardState } from '@/components/dashboard-state';
 import { useSession } from '@/contexts/session-context';
+import { useMyEnrollment } from '@/contexts/enrollment-context';
 import { useDashboard } from '@/features/student-curriculum/hooks/use-student-curriculum';
 import { cn } from '@/utils';
 
@@ -57,14 +59,37 @@ function DashboardSkeleton() {
 
 export function PortalDashboardPage() {
   const { user } = useSession();
+  const { enrollment } = useMyEnrollment();
   const { data: dashboard, isLoading, error, refetch } = useDashboard();
 
   const isEmpty = dashboard ? !dashboard.hasActiveTrack : false;
   const status = isLoading ? 'loading' : error ? 'error' : isEmpty ? 'empty' : 'success';
 
+  // "Which Org / Academy / Fellowship / Cohort / Track am I in" — resolved
+  // server-side onto `GET /enrollments/me` (docs/adr/0015-name-first-display.md).
+  // Plain labels, no links: a student has no admin detail page to land on.
+  const hierarchyItems = [
+    enrollment?.organizationName,
+    enrollment?.academyName,
+    enrollment?.fellowshipTitle,
+    enrollment?.cohortName,
+    enrollment?.currentLearningTrackName,
+  ]
+    .filter((label): label is string => Boolean(label))
+    .map((label) => ({ label }));
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight text-foreground">{user?.displayName}</h1>
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          {user?.displayName}
+        </h1>
+        {hierarchyItems.length > 0 ? (
+          <div className="text-sm text-muted-foreground">
+            <Breadcrumb items={hierarchyItems} />
+          </div>
+        ) : null}
+      </div>
 
       <DashboardState status={status}>
         <DashboardState.Loading>

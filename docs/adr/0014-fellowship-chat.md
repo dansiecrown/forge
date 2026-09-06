@@ -10,9 +10,10 @@ Milestone scope item: a production-quality real-time chat system, with **Fellows
 Cohort, not Organization — as the communication boundary. Hierarchy: `SUPER_ADMIN →
 ORGANIZATION_ADMIN → ACADEMY_ADMIN → FELLOWSHIP → COHORT → MENTOR/STUDENT`, Fellowship → Channels →
 Messages, with **no `FELLOWSHIP_ADMIN` role** — explicitly forbidden by the brief and not created.
-Out of scope, and not built: DMs/1:1 messaging, file uploads, voice/video, external integrations,
-AI chat, a full presence service, a full notification rewrite, and any new org/Academy/Fellowship/
-Cohort architecture.
+Out of scope, and not built: file uploads, voice/video, external integrations, AI chat, a full
+presence service, a full notification rewrite, and any new org/Academy/Fellowship/Cohort
+architecture. DMs/1:1 messaging were originally on this "not built" list too — see the 2026-09-06
+addendum below, which formally reverses that and documents what was built instead.
 
 Phase 1 architecture review found: no WebSocket layer existed anywhere in the codebase; Redis was
 provisioned in `docker-compose.yml` but intentionally not wired into the API (a code comment there
@@ -121,3 +122,33 @@ architecture rather than replacing any of it.
   the private-channel-specific `FellowshipChatChannelMember`).
 
 See `docs/KNOWN_TECHNICAL_DEBT.md` (DEBT-034, DEBT-035) for what this ADR deliberately deferred.
+
+## Addendum (2026-09-06): admin chat UI, channel creation UI, and reversing "no DMs"
+
+Two closures and one reversal, all from the same follow-up task:
+
+1. **Admin chat access was already fully authorized (Decision 1's Super/Org/Academy Admin matrix
+   already covered viewing, sending, moderating, and creating channels) — only the frontend surface
+   was missing.** `FellowshipDetailPage` (Admin) now has a "Chat" section reusing `ChatWorkspace`
+   as-is, and `ChannelSidebar` gained the previously-missing "Create channel" action (see
+   `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-035, now closed). Zero backend changes were needed for this
+   part.
+2. **DMs/1:1 messaging — originally "out of scope, and not built" — are now built**, per explicit
+   product decision. Organization-scoped only (deliberately narrower than `User`/`username`'s
+   platform-wide identity — a student in one organization must never be able to discover or contact
+   someone in an unrelated one just by knowing their username). Deliberately minimal relative to
+   Fellowship chat: no reactions, no reply-threading, no dedicated read-state table (unread
+   signaling reuses the Notification model instead — a `dm.message.received` row per message,
+   exactly like a Fellowship chat reply already creates one). Two new tables
+   (`DirectConversation`, normalized `user1Id < user2Id` pair unique per organization;
+   `DirectMessage`), a new `GET /me/people/search` (any active org member can search any other,
+   by name or username — deliberately not the admin `user.read`-gated directory), and
+   `GET/POST /me/conversations`, `GET/POST /me/conversations/:id/messages`, all gated by the
+   already-broadly-granted `chat.message.create` (ownership enforced in-service, matching the
+   `GET /enrollments/me` convention).
+3. **Real-time delivery for DMs is REST + client polling, not the WebSocket gateway.** `ChatGateway`
+   (Decision 3) is intricate — a 30s revalidation sweep, per-channel Fellowship/Cohort/Enrollment/
+   academy-scope authorization. DMs have a categorically simpler authorization shape ("is the caller
+   one of exactly two participants"). Extending the existing gateway for a materially different
+   access model was judged a bigger risk to an already-tested system than this feature's real-time
+   requirement justified — a deliberate, disclosed scope narrowing, not an oversight.

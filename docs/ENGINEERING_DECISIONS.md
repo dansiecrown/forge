@@ -308,6 +308,88 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   confirmed product decision, not an oversight: closing the window stops mid-stream track-hopping,
   never blocks a new or newly-onboarded learner from choosing at all.
 
+## Student Profile/Dashboard Program Hierarchy (2026-09-06)
+
+- **A student's Profile page and Dashboard now show which
+  Organization/Academy/Fellowship/Cohort/Learning Track they belong to** —
+  applying the ADR-0015 name-first-display convention to a surface it hadn't
+  reached yet. Names are resolved server-side only on `GET /enrollments/me`
+  (`EnrollmentsService.listMine`), not the staff-facing cohort roster
+  (`GET /cohorts/:id/enrollments`) — a mentor/admin already has that
+  cohort's context from the page they're on, so resolving five extra names
+  on every roster row would be pure overhead with no product benefit.
+- **Hierarchy resolution never fails the whole call.** If any single
+  enrollment's Organization/Academy/Fellowship/Cohort/Track has since been
+  hard-deleted, that one enrollment degrades to all-null hierarchy names
+  (the same "since-removed record" convention `userDisplayName`/`userEmail`
+  already use) rather than 404ing `GET /enrollments/me` — every page in the
+  student portal depends on that one endpoint via `EnrollmentProvider`, not
+  just Profile. Found live, mid-implementation, against genuinely stale
+  dev-fixture data (an enrollment pointing at an already-deleted Academy),
+  not merely reasoned about.
+
+## Admin-Set-Password User Creation, and a Permanent Username (2026-09-06)
+
+- **`POST /admin/users` lets an admin create a user with a password they set directly**, alongside
+  (not instead of) the existing email-only `POST /users/invitations`. This is a deliberate,
+  disclosed reversal of ADR-0009's original "no direct password editing" brief requirement — see
+  that ADR's 2026-09-06 addendum for why: this environment's email adapter is a dev-mode stub with
+  no real delivery, so the reset-link-only flow left a new account unusable. An admin still cannot
+  view or silently overwrite an *existing* user's password — creation is rejected outright if the
+  email is already taken, never silently reused.
+- **A new, permanent `User.username`** (nullable, unique) — set by the admin at creation, or
+  self-set/changed later by anyone from Settings (`PATCH /me`). Lowercase `[a-z0-9_-]{3,30}`, the
+  same shape the not-yet-built user-to-user chat lookup can reuse without its own migration.
+- **Jurisdiction at creation covers only Organization (automatic) and Academy** (a picker, required
+  exactly when `ACADEMY_ADMIN` is among the selected roles) — Mentor/Student scoping stays on the
+  two already-built, separate flows (`Assign mentor`, `Enroll student` on their Cohort/Track pages)
+  rather than being duplicated into this dialog too.
+
+## Real Notification Center, All Three Roles (2026-09-06)
+
+- **The header bell and full Notification Center now read real data** (`GET /me/notifications`),
+  replacing hardcoded placeholder content that predated this — see DEBT-026's 2026-09-06 closure
+  note in `docs/KNOWN_TECHNICAL_DEBT.md`. Grouped into Unread/Read sections; a manual "mark unread"
+  action (`POST /me/notifications/:id/actions/mark-unread`, new) is the only way a read notification
+  ever reverts — never automatic.
+- **Clicking a notification navigates to its source when one exists for the caller's role,
+  otherwise opens a popup with the full title/body.** No fabricated destination — Student/Mentor
+  have no recipient-facing announcement page and Admin has no chat surface yet, so those cases
+  correctly fall through to the popup rather than a broken or misleading link
+  (`resolveNotificationTarget`).
+- **Extended to Admin and Mentor layouts**, not just Student — the backend already created
+  notifications for any role (a mentor gets a chat-reply notification same as a student); only the
+  UI to see them was Student-only before.
+- **`docs/api-specification.md` §4.9 disclosed as largely aspirational**, found while documenting
+  the real endpoints above: its tables describe direct/group DM conversations and a
+  member-facing/scheduled Announcements design that were never built. Left in place (rewriting it is
+  a separate, larger cleanup) but now clearly labeled, with the actually-implemented routes
+  documented above it.
+
+## Admin Chat Access, Channel Creation UI, and User-to-User DMs (2026-09-06)
+
+- **Admin chat access required zero backend changes.** `ChatAccessService`'s Super/Org/Academy
+  Admin authorization matrix (ADR-0014 Decision 1) already covered viewing, sending, moderating,
+  and creating channels in any Fellowship within an admin's scope — the reported gap was purely
+  that Admins had no chat UI at all. `FellowshipDetailPage` now has a "Chat" section reusing the
+  existing `ChatWorkspace` component; `ChannelSidebar` gained the previously-missing "Create
+  channel" action. See `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-035 (closed).
+- **User-to-user DMs are now built — a formal, disclosed reversal of ADR-0014's original "DMs out
+  of scope" decision** (see that ADR's 2026-09-06 addendum). Deliberately organization-scoped
+  (never platform-wide, despite `username` being a global identity) and deliberately minimal
+  relative to Fellowship chat — no reactions, no reply-threading, no dedicated read-state table;
+  unread signaling reuses the Notification Center built earlier this same day instead of new
+  infrastructure.
+- **DM real-time delivery is REST + client polling, not the WebSocket gateway** — a deliberate
+  scope narrowing, not an oversight. `ChatGateway`'s authorization is Fellowship/Cohort/Enrollment/
+  academy-scope-shaped; DMs need only "is the caller one of exactly two participants," a
+  categorically simpler check that didn't justify extending an already-intricate, already-tested
+  gateway.
+- **`User.username` (added earlier the same day for admin user creation) turned out to be exactly
+  the missing piece DEBT-034 (`@mention` notifications) had been blocked on** — that debt entry is
+  updated to reflect the schema now existing, though `@mention` parsing itself remains unbuilt and
+  unrequested.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

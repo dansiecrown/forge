@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import {
+  Bell,
   CalendarCheck,
   ClipboardCheck,
   LayoutDashboard,
   LogOut,
+  Mail,
   Menu,
   MessageSquare,
   Settings as SettingsIcon,
@@ -12,6 +14,7 @@ import {
 } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { MentorProvider } from '@/contexts/mentor-context';
+import { NotificationBell } from '@/components/portal/notification-bell';
 import { useSession } from '@/contexts/session-context';
 import { useSignOut } from '@/hooks/use-sign-out';
 import { cn } from '@/utils';
@@ -22,6 +25,8 @@ const NAV_ITEMS = [
   { to: '/mentor/review-queue', label: 'Review Queue', icon: ClipboardCheck },
   { to: '/mentor/huddles', label: 'Huddles', icon: CalendarCheck },
   { to: '/mentor/chat', label: 'Chat', icon: MessageSquare },
+  { to: '/mentor/messages', label: 'Messages', icon: Mail },
+  { to: '/mentor/notifications', label: 'Notifications', icon: Bell },
   { to: '/mentor/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
@@ -135,7 +140,7 @@ export function MentorLayout() {
             <span className="hidden text-sm font-medium text-foreground md:inline">
               Mentor portal
             </span>
-            <span aria-hidden="true" className="md:hidden" />
+            <NotificationBell role="mentor" />
           </header>
           <main className="flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
             <div className="mx-auto max-w-5xl">
