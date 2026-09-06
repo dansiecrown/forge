@@ -12,6 +12,7 @@ import type {
   RefreshResponse,
   ResetPasswordRequest,
   SessionSummary,
+  VerifyEmailRequest,
 } from '@forge/api-contract';
 import { apiRequest, apiRequestPage, type Page } from '@/api/client';
 
@@ -42,6 +43,10 @@ export function forgotPassword(body: ForgotPasswordRequest): Promise<{ message: 
 
 export function resetPassword(body: ResetPasswordRequest): Promise<void> {
   return apiRequest<void>('/auth/reset-password', { method: 'POST', body, authenticated: false });
+}
+
+export function verifyEmail(body: VerifyEmailRequest): Promise<void> {
+  return apiRequest<void>('/auth/verify-email', { method: 'POST', body, authenticated: false });
 }
 
 export function fetchMe(): Promise<MeResponse> {

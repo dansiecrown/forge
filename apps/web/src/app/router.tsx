@@ -24,7 +24,12 @@ import {
   FellowshipDetailPage,
   FellowshipsListPage,
 } from '@/features/fellowships';
-import { ForgotPasswordPage, ResetPasswordPage, SignInPage } from '@/features/identity';
+import {
+  ForgotPasswordPage,
+  ResetPasswordPage,
+  SignInPage,
+  VerifyEmailPage,
+} from '@/features/identity';
 import {
   OrganizationCreatePage,
   OrganizationDetailPage,
@@ -284,6 +289,14 @@ const router = createBrowserRouter([
     element: (
       <AuthLayout>
         <ResetPasswordPage />
+      </AuthLayout>
+    ),
+  },
+  {
+    path: '/verify-email',
+    element: (
+      <AuthLayout>
+        <VerifyEmailPage />
       </AuthLayout>
     ),
   },

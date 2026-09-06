@@ -390,6 +390,25 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   updated to reflect the schema now existing, though `@mention` parsing itself remains unbuilt and
   unrequested.
 
+## Real Email Delivery (2026-09-06)
+
+- **Email is no longer a logging stub in any environment that configures it.** ADR-0003 originally,
+  correctly scoped email as a console-log stub for Milestone 2 (no async side effects existed yet)
+  and it was never revisited — every flow built on top of it since (invitation, password reset,
+  email verification, admin-created-account notice) has been silently undeliverable in every real
+  environment. `IdentityModule`'s `EMAIL_ADAPTER` is now a factory: a real `SmtpEmailAdapter`
+  (generic SMTP via `nodemailer`) when `SMTP_HOST` is configured, the original
+  `ConsoleEmailAdapter` otherwise — so every environment without SMTP credentials configured keeps
+  working exactly as before. See `docs/adr/0003-identity-and-access-control-foundation.md`'s
+  2026-09-06 addendum.
+- **Generic SMTP, not a vendor SDK** — works with whatever provider or account a deployment already
+  has (a personal account with an app password, a provider's own SMTP relay, or a sandbox like
+  Mailtrap for testing), without committing the codebase to one vendor's API shape.
+- **A second real gap found while tracing this**: `email-verification`'s emailed link had nowhere to
+  land — no frontend route ever consumed that token, unlike the other three template types which
+  all point at `/reset-password`. Added a minimal `/verify-email` page mirroring that page's exact
+  shape.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

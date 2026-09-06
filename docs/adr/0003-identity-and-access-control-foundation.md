@@ -81,3 +81,43 @@ Two related membership-lifecycle questions were identified but deliberately **no
 - `PATCH /users/:userId/status` and `PATCH /memberships/:id` still cannot express the optimistic-concurrency `version` field `docs/api-specification.md` documents for it — `Membership` has no `version` column. Adding one now, unused, would be speculative; deferred to whichever milestone first needs concurrent membership edits.
 
 Verified end-to-end against the live database: a brand-new email still gets a new `User` row, a password-reset token, and the invitation email; an email belonging to an existing user is reused with no new `User` row and no email sent, and a new membership row (`status: invited`, which — per the existing, unchanged `findPermissionKeys` query — already grants that person's roles immediately, with no separate acceptance step) is created in the target organization; a second invite of the same person into the same organization is rejected with `409 ALREADY_MEMBER`; login, refresh, sessions, RBAC, and MFA were all re-verified unaffected.
+
+## Addendum — 2026-09-06: real email delivery (closing "email is a logging stub")
+
+This ADR's original scoping (Decision, line 18) deliberately left email as a console-logging stub — the
+right call for Milestone 2, which had no async side effects to dispatch. That stub, `ConsoleEmailAdapter`,
+was never replaced in any later milestone, so every flow this ADR and ADR-0009 built on top of it
+(invitation, password reset, email verification, admin-created-account notice) has been silently
+undeliverable in every real environment since — the reported "why doesn't email work" traces directly
+back to this original, correct-at-the-time, never-revisited scope line.
+
+**Decision: a real `SmtpEmailAdapter` (generic SMTP via `nodemailer`) is now bound whenever `SMTP_HOST`
+is configured, falling back to the original `ConsoleEmailAdapter` otherwise.** Chosen over a
+vendor-specific SDK (SendGrid/Postmark/Resend, etc.) because the existing `EmailAdapter` port already
+anticipated exactly this kind of swap (`docs/project-structure.md` §5: "email is a swappable
+integration"), and generic SMTP works with whatever provider or account a given deployment already has —
+including a personal account with an app password, or a sandbox like Mailtrap for testing without
+sending real mail — without committing this codebase to one vendor's API shape. `IdentityModule`'s
+`EMAIL_ADAPTER` provider is now a factory (`useFactory`), not a fixed `useClass`, choosing between the
+two adapters at boot based on `AppConfigService.email.host`.
+
+A second, real gap was found while tracing this: `email-verification`'s emailed link had nowhere to
+land — `POST /auth/verify-email` existed, but no frontend route consumed a token via a link at all (only
+`/reset-password` did, for the other three template types). Added a minimal `/verify-email` page,
+mirroring `/reset-password`'s exact shape (invalid-link / verifying / success / error states), since
+shipping a real, deliverable email with a dead link would be a worse outcome than the console stub it
+replaces.
+
+**New, all-optional env vars** (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`,
+`SMTP_FROM`) — unset by default, so every existing environment (including CI and anyone else's local
+`.env`) keeps the exact previous console-stub behavior with zero configuration required. A new
+`shared/email/templates.ts` renders the actual HTML/text body for the four real `templateKey`s already
+in use (`invitation`, `password-reset`, `email-verification`, `account-created`) — the console stub
+never needed real markup since it only logged raw `variables`, but a real inbox does. Delivery failures
+are caught and logged inside the adapter, never thrown to the caller — matches the existing convention
+that a delivery failure must never block the caller's already-completed primary action (e.g. an
+admin-set-password account is already usable without the email ever arriving).
+
+No changes to `docs/KNOWN_TECHNICAL_DEBT.md` were needed — this gap was never formally tracked as its
+own debt entry (it was recorded as prose inside ADR-0009's Decision 6 area and this ADR's own original
+scope line), so there was nothing to formally close beyond this addendum itself.

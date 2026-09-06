@@ -2,8 +2,10 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PlatformModule } from '../platform/platform.module';
+import { AppConfigService } from '../../config/app-config.service';
 import { EMAIL_ADAPTER } from '../../shared/email/email-adapter';
 import { ConsoleEmailAdapter } from '../../shared/email/console-email.adapter';
+import { SmtpEmailAdapter } from '../../shared/email/smtp-email.adapter';
 import { IdempotencyService } from '../../shared/idempotency/idempotency.service';
 import { AuthController } from './controllers/auth.controller';
 import { MeController } from './controllers/me.controller';
@@ -48,7 +50,21 @@ import { UsersService } from './services/users.service';
     UsersService,
     UserProfilesService,
     IdempotencyService,
-    { provide: EMAIL_ADAPTER, useClass: ConsoleEmailAdapter },
+    SmtpEmailAdapter,
+    ConsoleEmailAdapter,
+    // Real delivery only when SMTP is actually configured — see
+    // docs/adr/0009-administration-platform.md's 2026-09-06 email addendum.
+    // An environment with no SMTP_* set keeps the pre-existing console-log
+    // behavior unchanged.
+    {
+      provide: EMAIL_ADAPTER,
+      useFactory: (
+        config: AppConfigService,
+        smtp: SmtpEmailAdapter,
+        console: ConsoleEmailAdapter,
+      ) => (config.email.host ? smtp : console),
+      inject: [AppConfigService, SmtpEmailAdapter, ConsoleEmailAdapter],
+    },
   ],
   exports: [
     AccessTokenService,

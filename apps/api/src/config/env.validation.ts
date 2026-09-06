@@ -25,4 +25,17 @@ export const envValidationSchema = Joi.object({
   // its WebSocket gateway. Defaulted, not required, so every environment that
   // predates this feature keeps working unchanged.
   REDIS_URL: Joi.string().uri().default('redis://localhost:6379'),
+
+  // All optional and unset by default — `IdentityModule` falls back to the
+  // dev-mode `ConsoleEmailAdapter` (logs instead of sending) whenever
+  // `SMTP_HOST` is absent, so no environment breaks by not having these.
+  // Set all of `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM` (plus
+  // optionally `SMTP_PORT`/`SMTP_SECURE`) to switch to real delivery — see
+  // docs/adr/0009-administration-platform.md's 2026-09-06 email addendum.
+  SMTP_HOST: Joi.string().optional(),
+  SMTP_PORT: Joi.number().port().default(587),
+  SMTP_SECURE: Joi.boolean().default(false),
+  SMTP_USER: Joi.string().optional(),
+  SMTP_PASSWORD: Joi.string().optional(),
+  SMTP_FROM: Joi.string().optional(),
 });
