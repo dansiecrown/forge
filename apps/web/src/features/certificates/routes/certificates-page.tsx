@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -84,7 +84,7 @@ export function CertificatesPage() {
         </CardHeader>
         <CardContent>
           {issue.error instanceof ApiError ? (
-            <Alert variant="danger">{issue.error.message}</Alert>
+            <Alert variant="danger">{describeApiError(issue.error, issue.error.message)}</Alert>
           ) : null}
           <FormField
             label="Enrollment id"
@@ -228,7 +228,11 @@ export function CertificatesPage() {
           }
         }}
         loading={revoke.isPending}
-        error={revoke.error instanceof ApiError ? revoke.error.message : null}
+        error={
+          revoke.error instanceof ApiError
+            ? describeApiError(revoke.error, revoke.error.message)
+            : null
+        }
         title="Revoke this certificate?"
         description="Its verification code will no longer verify."
         confirmLabel="Revoke"

@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link2, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { buildPublishLifecycleItems } from '@/components/admin/publish-lifecycle-items';
@@ -69,7 +69,9 @@ export function LearningResourceDetailPage() {
   if (error || !resource) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Learning resource not found.'}
+        {error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Learning resource not found.'}
       </Alert>
     );
   }
@@ -98,7 +100,9 @@ export function LearningResourceDetailPage() {
   }
 
   const updateErrorMessage =
-    updateResource.error instanceof ApiError ? updateResource.error.message : null;
+    updateResource.error instanceof ApiError
+      ? describeApiError(updateResource.error, updateResource.error.message)
+      : null;
 
   async function onConfirmArchive() {
     if (!resource) return;
@@ -217,7 +221,11 @@ export function LearningResourceDetailPage() {
         onClose={() => setConfirmingArchive(false)}
         onConfirm={onConfirmArchive}
         loading={archive.isPending}
-        error={archive.error instanceof ApiError ? archive.error.message : null}
+        error={
+          archive.error instanceof ApiError
+            ? describeApiError(archive.error, archive.error.message)
+            : null
+        }
         title="Archive this resource?"
         description="You can restore it back to draft later if needed."
         confirmLabel="Archive"

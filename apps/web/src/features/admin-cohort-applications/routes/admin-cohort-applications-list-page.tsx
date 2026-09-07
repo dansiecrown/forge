@@ -5,7 +5,7 @@ import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
 import { ListToolbar } from '@/components/admin/list-toolbar';
 import { LoadMore } from '@/components/admin/load-more';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -190,7 +190,11 @@ export function AdminCohortApplicationsListPage() {
         onClose={() => setBulkAction(null)}
         onConfirm={onConfirmBulkAction}
         loading={bulkMutation.isPending}
-        error={bulkMutation.error instanceof ApiError ? bulkMutation.error.message : null}
+        error={
+          bulkMutation.error instanceof ApiError
+            ? describeApiError(bulkMutation.error, bulkMutation.error.message)
+            : null
+        }
         title={
           bulkAction === 'approve'
             ? `Approve ${selectedRows.length} application${selectedRows.length === 1 ? '' : 's'}?`

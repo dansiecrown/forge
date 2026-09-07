@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { usePermissionMatrix } from '../hooks/use-roles';
@@ -19,7 +19,9 @@ export function PermissionMatrixPage() {
   if (error || !data) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Could not load the permission matrix.'}
+        {error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Could not load the permission matrix.'}
       </Alert>
     );
   }

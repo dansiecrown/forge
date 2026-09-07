@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -56,7 +56,10 @@ export function LearningTrackCreatePage() {
     }
   }
 
-  const errorMessage = createTrack.error instanceof ApiError ? createTrack.error.message : null;
+  const errorMessage =
+    createTrack.error instanceof ApiError
+      ? describeApiError(createTrack.error, createTrack.error.message)
+      : null;
 
   return (
     <div>

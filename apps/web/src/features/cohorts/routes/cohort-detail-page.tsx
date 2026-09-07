@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Breadcrumb } from '@/components/admin/breadcrumb';
@@ -127,7 +127,7 @@ export function CohortDetailPage() {
   if (error || !cohort) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Cohort not found.'}
+        {error instanceof ApiError ? describeApiError(error, error.message) : 'Cohort not found.'}
       </Alert>
     );
   }
@@ -149,7 +149,9 @@ export function CohortDetailPage() {
       toast.success('Cohort schedule updated.');
       setEditOpen(false);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update cohort.');
+      toast.error(
+        err instanceof ApiError ? describeApiError(err, err.message) : 'Failed to update cohort.',
+      );
     }
   }
 
@@ -164,7 +166,11 @@ export function CohortDetailPage() {
       toast.success('Cohort tracks updated.');
       setTracksEditOpen(false);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update cohort tracks.');
+      toast.error(
+        err instanceof ApiError
+          ? describeApiError(err, err.message)
+          : 'Failed to update cohort tracks.',
+      );
     }
   }
 
@@ -175,7 +181,9 @@ export function CohortDetailPage() {
       toast.success(`${mentorPick.displayName} assigned as mentor.`);
       setMentorPick(null);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to assign mentor.');
+      toast.error(
+        err instanceof ApiError ? describeApiError(err, err.message) : 'Failed to assign mentor.',
+      );
     }
   }
 
@@ -186,7 +194,9 @@ export function CohortDetailPage() {
       toast.success(`${studentPick.displayName} enrolled.`);
       setStudentPick(null);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to enroll student.');
+      toast.error(
+        err instanceof ApiError ? describeApiError(err, err.message) : 'Failed to enroll student.',
+      );
     }
   }
 
@@ -197,7 +207,9 @@ export function CohortDetailPage() {
       toast.success('Cohort archived.');
       setConfirmingArchive(false);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to archive cohort.');
+      toast.error(
+        err instanceof ApiError ? describeApiError(err, err.message) : 'Failed to archive cohort.',
+      );
     }
   }
 
@@ -213,7 +225,11 @@ export function CohortDetailPage() {
       }
       setConfirmingTrackSwitchAction(null);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update track switching.');
+      toast.error(
+        err instanceof ApiError
+          ? describeApiError(err, err.message)
+          : 'Failed to update track switching.',
+      );
     }
   }
 
@@ -224,12 +240,16 @@ export function CohortDetailPage() {
       toast.success('Mentor unassigned.');
       setUnassigningMembershipId(null);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to unassign mentor.');
+      toast.error(
+        err instanceof ApiError ? describeApiError(err, err.message) : 'Failed to unassign mentor.',
+      );
     }
   }
 
   const updateErrorMessage =
-    updateCohort.error instanceof ApiError ? updateCohort.error.message : null;
+    updateCohort.error instanceof ApiError
+      ? describeApiError(updateCohort.error, updateCohort.error.message)
+      : null;
 
   // Compact popup replacement for the old always-visible "Lifecycle" card —
   // only the transitions valid for the current status appear.
@@ -414,7 +434,9 @@ export function CohortDetailPage() {
               Sync curriculum now
             </Button>
             {syncCurriculum.error instanceof ApiError ? (
-              <Alert variant="danger">{syncCurriculum.error.message}</Alert>
+              <Alert variant="danger">
+                {describeApiError(syncCurriculum.error, syncCurriculum.error.message)}
+              </Alert>
             ) : null}
           </CardContent>
         </Card>
@@ -484,7 +506,7 @@ export function CohortDetailPage() {
         >
           {setTracks.error instanceof ApiError ? (
             <Alert variant="danger" className="mb-3">
-              {setTracks.error.message}
+              {describeApiError(setTracks.error, setTracks.error.message)}
             </Alert>
           ) : null}
           <div className="max-h-72 space-y-2 overflow-y-auto">
@@ -557,7 +579,7 @@ export function CohortDetailPage() {
             </ul>
             {assign.error instanceof ApiError ? (
               <Alert variant="danger" className="mb-3">
-                {assign.error.message}
+                {describeApiError(assign.error, assign.error.message)}
               </Alert>
             ) : null}
             <form
@@ -661,7 +683,7 @@ export function CohortDetailPage() {
             </ul>
             {enroll.error instanceof ApiError ? (
               <Alert variant="danger" className="mt-3">
-                {enroll.error.message}
+                {describeApiError(enroll.error, enroll.error.message)}
               </Alert>
             ) : null}
             <form
@@ -701,7 +723,11 @@ export function CohortDetailPage() {
         onClose={() => setConfirmingArchive(false)}
         onConfirm={onConfirmArchive}
         loading={updateCohort.isPending}
-        error={updateCohort.error instanceof ApiError ? updateCohort.error.message : null}
+        error={
+          updateCohort.error instanceof ApiError
+            ? describeApiError(updateCohort.error, updateCohort.error.message)
+            : null
+        }
         title="Archive this cohort?"
         description="It moves out of active operation and can no longer be edited."
         confirmLabel="Archive"
@@ -714,9 +740,9 @@ export function CohortDetailPage() {
         loading={closeTrackSwitching.isPending || reopenTrackSwitching.isPending}
         error={
           closeTrackSwitching.error instanceof ApiError
-            ? closeTrackSwitching.error.message
+            ? describeApiError(closeTrackSwitching.error, closeTrackSwitching.error.message)
             : reopenTrackSwitching.error instanceof ApiError
-              ? reopenTrackSwitching.error.message
+              ? describeApiError(reopenTrackSwitching.error, reopenTrackSwitching.error.message)
               : null
         }
         title={
@@ -740,7 +766,11 @@ export function CohortDetailPage() {
         onClose={() => setUnassigningMembershipId(null)}
         onConfirm={onConfirmUnassign}
         loading={unassign.isPending}
-        error={unassign.error instanceof ApiError ? unassign.error.message : null}
+        error={
+          unassign.error instanceof ApiError
+            ? describeApiError(unassign.error, unassign.error.message)
+            : null
+        }
         title="Unassign this mentor?"
         description="They lose access to this cohort's Mentor Portal workspace immediately."
         confirmLabel="Unassign"

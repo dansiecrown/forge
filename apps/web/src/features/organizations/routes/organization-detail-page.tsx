@@ -4,7 +4,7 @@ import { Loader2, Pencil, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { apiRequest, ApiError } from '@/api/client';
+import { apiRequest, ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Breadcrumb } from '@/components/admin/breadcrumb';
@@ -129,7 +129,9 @@ export function OrganizationDetailPage() {
   if (error || !organization) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Organization not found.'}
+        {error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Organization not found.'}
       </Alert>
     );
   }
@@ -150,7 +152,11 @@ export function OrganizationDetailPage() {
       toast.success('Organization profile updated.');
       setEditOpen(false);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update organization.');
+      toast.error(
+        err instanceof ApiError
+          ? describeApiError(err, err.message)
+          : 'Failed to update organization.',
+      );
       // Also surfaced inline below (updateOrganization.error) while the dialog stays open.
     }
   }
@@ -166,7 +172,9 @@ export function OrganizationDetailPage() {
   }
 
   const updateErrorMessage =
-    updateOrganization.error instanceof ApiError ? updateOrganization.error.message : null;
+    updateOrganization.error instanceof ApiError
+      ? describeApiError(updateOrganization.error, updateOrganization.error.message)
+      : null;
 
   const lifecycleItems: ActionsMenuItem[] = [];
   if (organization.status === 'active' && permissions.has('organization.suspend')) {
@@ -388,9 +396,9 @@ export function OrganizationDetailPage() {
         loading={suspend.isPending || archive.isPending}
         error={
           pendingAction === 'suspend' && suspend.error instanceof ApiError
-            ? suspend.error.message
+            ? describeApiError(suspend.error, suspend.error.message)
             : pendingAction === 'archive' && archive.error instanceof ApiError
-              ? archive.error.message
+              ? describeApiError(archive.error, archive.error.message)
               : null
         }
         title={

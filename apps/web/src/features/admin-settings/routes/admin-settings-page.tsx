@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,9 @@ export function AdminSettingsPage() {
   if (error || !data) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Could not load system settings.'}
+        {error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Could not load system settings.'}
       </Alert>
     );
   }
@@ -64,7 +66,7 @@ export function AdminSettingsPage() {
         </CardHeader>
         <CardContent>
           {update.error instanceof ApiError ? (
-            <Alert variant="danger">{update.error.message}</Alert>
+            <Alert variant="danger">{describeApiError(update.error, update.error.message)}</Alert>
           ) : null}
           <form
             className="flex flex-wrap gap-4"

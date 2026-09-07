@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { CalendarDays, Loader2, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { buildPublishLifecycleItems } from '@/components/admin/publish-lifecycle-items';
@@ -85,7 +85,9 @@ export function WeeklyModuleDetailPage() {
   if (error || !module_) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Weekly module not found.'}
+        {error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Weekly module not found.'}
       </Alert>
     );
   }
@@ -121,7 +123,9 @@ export function WeeklyModuleDetailPage() {
   }
 
   const updateErrorMessage =
-    updateModule.error instanceof ApiError ? updateModule.error.message : null;
+    updateModule.error instanceof ApiError
+      ? describeApiError(updateModule.error, updateModule.error.message)
+      : null;
 
   async function onConfirmArchive() {
     if (!module_) return;
@@ -370,7 +374,11 @@ export function WeeklyModuleDetailPage() {
         onClose={() => setConfirmingArchive(false)}
         onConfirm={onConfirmArchive}
         loading={archive.isPending}
-        error={archive.error instanceof ApiError ? archive.error.message : null}
+        error={
+          archive.error instanceof ApiError
+            ? describeApiError(archive.error, archive.error.message)
+            : null
+        }
         title="Archive this weekly module?"
         description="You can restore it back to draft later if needed."
         confirmLabel="Archive"

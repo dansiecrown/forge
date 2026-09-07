@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { useVerifyEmail } from '../hooks/use-verify-email';
 
 /** No form — the link itself carries the token, so verification just runs
@@ -61,7 +61,7 @@ export function VerifyEmailPage() {
   if (verifyEmailMutation.isError) {
     const message =
       verifyEmailMutation.error instanceof ApiError
-        ? verifyEmailMutation.error.message
+        ? describeApiError(verifyEmailMutation.error, verifyEmailMutation.error.message)
         : 'Something went wrong. Please try again.';
     return (
       <Card glass>

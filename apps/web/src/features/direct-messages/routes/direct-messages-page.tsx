@@ -2,7 +2,7 @@ import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Send } from 'lucide-react';
 import type { PersonSearchResult } from '@forge/api-contract';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -96,7 +96,9 @@ export function DirectMessagesPage() {
       await sendMessage.mutateAsync(content);
       setDraft('');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to send message.');
+      toast.error(
+        err instanceof ApiError ? describeApiError(err, err.message) : 'Failed to send message.',
+      );
     }
   }
 
@@ -225,7 +227,7 @@ export function DirectMessagesPage() {
               <div className="shrink-0 border-t border-border bg-surface p-3">
                 {sendMessage.error instanceof ApiError ? (
                   <Alert variant="danger" className="mb-2">
-                    {sendMessage.error.message}
+                    {describeApiError(sendMessage.error, sendMessage.error.message)}
                   </Alert>
                 ) : null}
                 <div className="flex items-end gap-2">
@@ -269,7 +271,9 @@ export function DirectMessagesPage() {
       >
         <div className="space-y-4">
           {startConversation.error instanceof ApiError ? (
-            <Alert variant="danger">{startConversation.error.message}</Alert>
+            <Alert variant="danger">
+              {describeApiError(startConversation.error, startConversation.error.message)}
+            </Alert>
           ) : null}
           <DmPersonSearchField
             selected={newRecipient}

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Breadcrumb } from '@/components/admin/breadcrumb';
 import { useAcademy, useAcademyOptions } from '@/features/academies';
@@ -59,7 +59,9 @@ export function FellowshipCreatePage() {
   }
 
   const apiErrorMessage =
-    createFellowship.error instanceof ApiError ? createFellowship.error.message : null;
+    createFellowship.error instanceof ApiError
+      ? describeApiError(createFellowship.error, createFellowship.error.message)
+      : null;
 
   if (!activeOrganizationId) {
     return <p className="text-sm text-muted-foreground">Select an organization first.</p>;

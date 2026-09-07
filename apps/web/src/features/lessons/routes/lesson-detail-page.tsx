@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, PlayCircle } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { buildPublishLifecycleItems } from '@/components/admin/publish-lifecycle-items';
@@ -59,7 +59,7 @@ export function LessonDetailPage() {
   if (error || !lesson) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Lesson not found.'}
+        {error instanceof ApiError ? describeApiError(error, error.message) : 'Lesson not found.'}
       </Alert>
     );
   }
@@ -86,7 +86,9 @@ export function LessonDetailPage() {
   }
 
   const updateErrorMessage =
-    updateLesson.error instanceof ApiError ? updateLesson.error.message : null;
+    updateLesson.error instanceof ApiError
+      ? describeApiError(updateLesson.error, updateLesson.error.message)
+      : null;
 
   async function onConfirmArchive() {
     if (!lesson) return;
@@ -194,7 +196,11 @@ export function LessonDetailPage() {
         onClose={() => setConfirmingArchive(false)}
         onConfirm={onConfirmArchive}
         loading={archive.isPending}
-        error={archive.error instanceof ApiError ? archive.error.message : null}
+        error={
+          archive.error instanceof ApiError
+            ? describeApiError(archive.error, archive.error.message)
+            : null
+        }
         title="Archive this lesson?"
         description="You can restore it back to draft later if needed."
         confirmLabel="Archive"

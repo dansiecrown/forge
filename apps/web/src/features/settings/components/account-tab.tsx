@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { IdCard } from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,7 +31,10 @@ export function AccountTab() {
     }
   }, [me, form]);
 
-  const errorMessage = updateMe.error instanceof ApiError ? updateMe.error.message : null;
+  const errorMessage =
+    updateMe.error instanceof ApiError
+      ? describeApiError(updateMe.error, updateMe.error.message)
+      : null;
 
   return (
     <Card>

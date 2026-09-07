@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
@@ -52,7 +52,7 @@ export function RoleDetailPage() {
   if (error || !role) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Role not found.'}
+        {error instanceof ApiError ? describeApiError(error, error.message) : 'Role not found.'}
       </Alert>
     );
   }
@@ -118,7 +118,9 @@ export function RoleDetailPage() {
         </CardHeader>
         <CardContent>
           {updatePermissions.error instanceof ApiError ? (
-            <Alert variant="danger">{updatePermissions.error.message}</Alert>
+            <Alert variant="danger">
+              {describeApiError(updatePermissions.error, updatePermissions.error.message)}
+            </Alert>
           ) : null}
           <PermissionCheckboxList
             permissions={matrix?.permissions ?? []}
@@ -186,7 +188,11 @@ export function RoleDetailPage() {
         onClose={() => setConfirmingRetire(false)}
         onConfirm={onRetire}
         loading={retireRole.isPending}
-        error={retireRole.error instanceof ApiError ? retireRole.error.message : null}
+        error={
+          retireRole.error instanceof ApiError
+            ? describeApiError(retireRole.error, retireRole.error.message)
+            : null
+        }
         title="Retire this role?"
         description="It will no longer be assignable. This only succeeds if no one currently holds it."
         confirmLabel="Retire role"

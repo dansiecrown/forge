@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Announcement } from '@forge/api-contract';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -87,7 +87,7 @@ export function AnnouncementsPage() {
         </CardHeader>
         <CardContent>
           {create.error instanceof ApiError ? (
-            <Alert variant="danger">{create.error.message}</Alert>
+            <Alert variant="danger">{describeApiError(create.error, create.error.message)}</Alert>
           ) : null}
           <form
             className="flex flex-wrap gap-4"

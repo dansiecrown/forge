@@ -15,7 +15,7 @@ import { Tabs } from '@/components/ui/tabs';
 import { TextareaField } from '@/components/textarea-field';
 import { EmptyState } from '@/components/portal/empty-state';
 import { ProgressRing } from '@/components/portal/progress-ring';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { useStudentWorkspace } from '../hooks/use-mentor-workspace';
 import {
   useCreateMentorNote,
@@ -211,7 +211,10 @@ function NotesTab({ enrollmentId, notes }: { enrollmentId: string; notes: Worksp
   });
   const editForm = useForm<NoteFormValues>({ resolver: zodResolver(noteSchema) });
 
-  const errorMessage = createNote.error instanceof ApiError ? createNote.error.message : null;
+  const errorMessage =
+    createNote.error instanceof ApiError
+      ? describeApiError(createNote.error, createNote.error.message)
+      : null;
 
   return (
     <div className="space-y-4">
@@ -339,7 +342,11 @@ function NotesTab({ enrollmentId, notes }: { enrollmentId: string; notes: Worksp
           }
         }}
         loading={deleteNote.isPending}
-        error={deleteNote.error instanceof ApiError ? deleteNote.error.message : null}
+        error={
+          deleteNote.error instanceof ApiError
+            ? describeApiError(deleteNote.error, deleteNote.error.message)
+            : null
+        }
         title="Delete this note?"
         description="Any mentor assigned to this cohort loses access to it."
         confirmLabel="Delete"

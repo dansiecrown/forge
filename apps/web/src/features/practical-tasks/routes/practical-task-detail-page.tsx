@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { ClipboardCheck, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { buildPublishLifecycleItems } from '@/components/admin/publish-lifecycle-items';
@@ -65,7 +65,9 @@ export function PracticalTaskDetailPage() {
   if (error || !task) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Practical task not found.'}
+        {error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Practical task not found.'}
       </Alert>
     );
   }
@@ -94,7 +96,10 @@ export function PracticalTaskDetailPage() {
     }
   }
 
-  const updateErrorMessage = updateTask.error instanceof ApiError ? updateTask.error.message : null;
+  const updateErrorMessage =
+    updateTask.error instanceof ApiError
+      ? describeApiError(updateTask.error, updateTask.error.message)
+      : null;
 
   async function onConfirmArchive() {
     if (!task) return;
@@ -192,7 +197,11 @@ export function PracticalTaskDetailPage() {
         onClose={() => setConfirmingArchive(false)}
         onConfirm={onConfirmArchive}
         loading={archive.isPending}
-        error={archive.error instanceof ApiError ? archive.error.message : null}
+        error={
+          archive.error instanceof ApiError
+            ? describeApiError(archive.error, archive.error.message)
+            : null
+        }
         title="Archive this practical task?"
         description="You can restore it back to draft later if needed."
         confirmLabel="Archive"

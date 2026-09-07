@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -61,7 +61,7 @@ export function StudentRegisterPage() {
           {submit.error ? (
             <Alert variant="danger">
               {submit.error instanceof ApiError
-                ? submit.error.message
+                ? describeApiError(submit.error, submit.error.message)
                 : 'Could not submit your application. Try again.'}
             </Alert>
           ) : null}

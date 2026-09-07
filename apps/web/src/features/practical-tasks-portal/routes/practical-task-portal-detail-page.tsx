@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -60,7 +60,9 @@ export function PracticalTaskPortalDetailPage() {
   if (error || !task) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Practical task not found.'}
+        {error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Practical task not found.'}
       </Alert>
     );
   }
@@ -79,9 +81,9 @@ export function PracticalTaskPortalDetailPage() {
 
   const errorMessage =
     saveDraft.error instanceof ApiError
-      ? saveDraft.error.message
+      ? describeApiError(saveDraft.error, saveDraft.error.message)
       : submitTask.error instanceof ApiError
-        ? submitTask.error.message
+        ? describeApiError(submitTask.error, submitTask.error.message)
         : null;
 
   return (

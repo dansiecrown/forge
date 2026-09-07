@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Route, UserCheck, X } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
@@ -96,7 +96,9 @@ export function LearningTrackDetailPage() {
   if (error || !track) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Learning track not found.'}
+        {error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Learning track not found.'}
       </Alert>
     );
   }
@@ -131,7 +133,9 @@ export function LearningTrackDetailPage() {
   }
 
   const updateErrorMessage =
-    updateTrack.error instanceof ApiError ? updateTrack.error.message : null;
+    updateTrack.error instanceof ApiError
+      ? describeApiError(updateTrack.error, updateTrack.error.message)
+      : null;
 
   async function onAssignMentor() {
     if (!mentorPick) return;
@@ -140,7 +144,9 @@ export function LearningTrackDetailPage() {
       toast.success(`${mentorPick.displayName} assigned to this track.`);
       setMentorPick(null);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to assign mentor.');
+      toast.error(
+        err instanceof ApiError ? describeApiError(err, err.message) : 'Failed to assign mentor.',
+      );
     }
   }
 
@@ -151,7 +157,9 @@ export function LearningTrackDetailPage() {
       toast.success('Mentor unassigned from this track.');
       setUnassigningMembershipId(null);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to unassign mentor.');
+      toast.error(
+        err instanceof ApiError ? describeApiError(err, err.message) : 'Failed to unassign mentor.',
+      );
     }
   }
 
@@ -329,7 +337,7 @@ export function LearningTrackDetailPage() {
             <>
               {assign.error instanceof ApiError ? (
                 <Alert variant="danger" className="mb-3 mt-4">
-                  {assign.error.message}
+                  {describeApiError(assign.error, assign.error.message)}
                 </Alert>
               ) : null}
               <form
@@ -365,7 +373,11 @@ export function LearningTrackDetailPage() {
         onClose={() => setConfirmingArchive(false)}
         onConfirm={onConfirmArchive}
         loading={archive.isPending}
-        error={archive.error instanceof ApiError ? archive.error.message : null}
+        error={
+          archive.error instanceof ApiError
+            ? describeApiError(archive.error, archive.error.message)
+            : null
+        }
         title="Archive this learning track?"
         description="You can restore it back to draft later if needed."
         confirmLabel="Archive"
@@ -376,7 +388,11 @@ export function LearningTrackDetailPage() {
         onClose={() => setUnassigningMembershipId(null)}
         onConfirm={onConfirmUnassignMentor}
         loading={unassign.isPending}
-        error={unassign.error instanceof ApiError ? unassign.error.message : null}
+        error={
+          unassign.error instanceof ApiError
+            ? describeApiError(unassign.error, unassign.error.message)
+            : null
+        }
         title="Unassign this mentor from the track?"
         description="They will lose access to this track's students in every cohort, unless separately assigned to those cohorts."
         confirmLabel="Unassign"

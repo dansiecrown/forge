@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Breadcrumb } from '@/components/admin/breadcrumb';
 import { Alert } from '@/components/ui/alert';
@@ -55,7 +55,9 @@ export function CohortCreatePage() {
   }
 
   const apiErrorMessage =
-    createCohort.error instanceof ApiError ? createCohort.error.message : null;
+    createCohort.error instanceof ApiError
+      ? describeApiError(createCohort.error, createCohort.error.message)
+      : null;
 
   if (!activeOrganizationId) {
     return <p className="text-sm text-muted-foreground">Select an organization first.</p>;

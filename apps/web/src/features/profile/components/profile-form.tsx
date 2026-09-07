@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Pencil } from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AvatarPlaceholder } from '@/components/mentor/avatar-placeholder';
 import { DefinitionList } from '@/components/admin/definition-list';
 import { Alert } from '@/components/ui/alert';
@@ -79,11 +79,16 @@ export function ProfileForm({ variant = 'student' }: { variant?: 'student' | 'me
       toast.success('Profile updated.');
       setEditOpen(false);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update profile.');
+      toast.error(
+        err instanceof ApiError ? describeApiError(err, err.message) : 'Failed to update profile.',
+      );
     }
   }
 
-  const errorMessage = updateProfile.error instanceof ApiError ? updateProfile.error.message : null;
+  const errorMessage =
+    updateProfile.error instanceof ApiError
+      ? describeApiError(updateProfile.error, updateProfile.error.message)
+      : null;
 
   return (
     <Card>

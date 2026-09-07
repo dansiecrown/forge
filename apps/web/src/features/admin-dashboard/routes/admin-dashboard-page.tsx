@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { BarChart } from '@/components/admin/bar-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,7 +64,11 @@ export function AdminDashboardPage() {
 
         <DashboardState.Error>
           <DashboardErrorPanel
-            description={error instanceof ApiError ? error.message : 'Please try again.'}
+            description={
+              error instanceof ApiError
+                ? describeApiError(error, error.message)
+                : 'Please try again.'
+            }
             onRetry={() => void refetch()}
           />
         </DashboardState.Error>

@@ -16,6 +16,24 @@ export class ApiError extends Error {
   }
 }
 
+/** A `VALIDATION_ERROR`'s top-level `message` is always the same generic
+ * "The request contains invalid fields." — `AppException.validation()`
+ * hard-codes it regardless of which field(s) actually failed or why (a DTO
+ * shape mismatch, a business-rule check like weak-password, a taken slug).
+ * The real, human-readable reason lives in `details[]`. Call sites showing
+ * an `ApiError` to the user should prefer this over reading `.message`
+ * directly, so a validation failure surfaces its actual cause instead of
+ * that uninformative wrapper. Falls back to `.message` for an error with no
+ * `details` (e.g. a 404/403/409 built from a single message, not a field
+ * list), so this is a strict improvement, never a regression, wherever it
+ * replaces the old `error.message` read. */
+export function describeApiError(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) {
+    return error.details?.[0]?.message ?? error.message;
+  }
+  return fallback;
+}
+
 interface ApiClientHooks {
   getAccessToken: () => string | null;
   /** Performs the refresh-cookie round trip and returns the new access

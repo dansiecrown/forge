@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -45,7 +45,10 @@ export function LessonCreatePage() {
     }
   }
 
-  const errorMessage = createLesson.error instanceof ApiError ? createLesson.error.message : null;
+  const errorMessage =
+    createLesson.error instanceof ApiError
+      ? describeApiError(createLesson.error, createLesson.error.message)
+      : null;
 
   return (
     <div>

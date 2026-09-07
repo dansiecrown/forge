@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -87,7 +87,10 @@ export function PortfolioProjectCreatePage() {
     }
   }
 
-  const errorMessage = createProject.error instanceof ApiError ? createProject.error.message : null;
+  const errorMessage =
+    createProject.error instanceof ApiError
+      ? describeApiError(createProject.error, createProject.error.message)
+      : null;
 
   return (
     <div>

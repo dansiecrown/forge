@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Copy, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -85,7 +85,10 @@ export function PortfolioProjectEditPage() {
     }
   }
 
-  const errorMessage = updateProject.error instanceof ApiError ? updateProject.error.message : null;
+  const errorMessage =
+    updateProject.error instanceof ApiError
+      ? describeApiError(updateProject.error, updateProject.error.message)
+      : null;
 
   return (
     <div className="space-y-6">
@@ -215,7 +218,11 @@ export function PortfolioProjectEditPage() {
           }
         }}
         loading={remove.isPending}
-        error={remove.error instanceof ApiError ? remove.error.message : null}
+        error={
+          remove.error instanceof ApiError
+            ? describeApiError(remove.error, remove.error.message)
+            : null
+        }
         title="Delete this project?"
         description="It will no longer appear in your portfolio."
         confirmLabel="Delete"

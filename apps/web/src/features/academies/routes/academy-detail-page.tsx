@@ -4,7 +4,7 @@ import { Loader2, Pencil, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { apiRequest, ApiError } from '@/api/client';
+import { apiRequest, ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Breadcrumb } from '@/components/admin/breadcrumb';
@@ -100,7 +100,7 @@ export function AcademyDetailPage() {
   if (error || !academy) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Academy not found.'}
+        {error instanceof ApiError ? describeApiError(error, error.message) : 'Academy not found.'}
       </Alert>
     );
   }
@@ -121,7 +121,9 @@ export function AcademyDetailPage() {
       toast.success('Academy profile updated.');
       setEditOpen(false);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update academy.');
+      toast.error(
+        err instanceof ApiError ? describeApiError(err, err.message) : 'Failed to update academy.',
+      );
     }
   }
 
@@ -135,7 +137,9 @@ export function AcademyDetailPage() {
   }
 
   const updateErrorMessage =
-    updateAcademy.error instanceof ApiError ? updateAcademy.error.message : null;
+    updateAcademy.error instanceof ApiError
+      ? describeApiError(updateAcademy.error, updateAcademy.error.message)
+      : null;
 
   const lifecycleItems: ActionsMenuItem[] = [];
   if (academy.status === 'active' && permissions.has('academy.archive')) {
@@ -333,7 +337,11 @@ export function AcademyDetailPage() {
         onClose={() => setConfirmingArchive(false)}
         onConfirm={onConfirmArchive}
         loading={archive.isPending}
-        error={archive.error instanceof ApiError ? archive.error.message : null}
+        error={
+          archive.error instanceof ApiError
+            ? describeApiError(archive.error, archive.error.message)
+            : null
+        }
         title="Archive this academy?"
         description="This affects every fellowship, cohort, and person in it. State why for the audit trail."
         reasonLabel="Reason to archive this academy"

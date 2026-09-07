@@ -11,7 +11,7 @@ import { EmptyState } from '@/components/portal/empty-state';
 import { ProgressRing } from '@/components/portal/progress-ring';
 import { Timeline } from '@/components/portal/timeline';
 import type { StudentActivityItem } from '@forge/api-contract';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { useMyEnrollment } from '@/contexts/enrollment-context';
 import { useCohort, useCohortOfferedTracks } from '@/features/cohorts/hooks/use-cohorts';
 import { useSelectEnrollmentTrack } from '@/features/cohorts/hooks/use-cohort-mutations';
@@ -82,7 +82,11 @@ function TrackPickerDialog({
       setPickedTrackId(null);
       onClose();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update your learning track.');
+      toast.error(
+        err instanceof ApiError
+          ? describeApiError(err, err.message)
+          : 'Failed to update your learning track.',
+      );
     }
   }
 
@@ -104,7 +108,7 @@ function TrackPickerDialog({
       ) : null}
       {selectTrack.error instanceof ApiError ? (
         <Alert variant="danger" className="mb-4">
-          {selectTrack.error.message}
+          {describeApiError(selectTrack.error, selectTrack.error.message)}
         </Alert>
       ) : null}
       {isLoading ? (

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,10 @@ export function RoleCreatePage() {
     }
   }
 
-  const apiErrorMessage = createRole.error instanceof ApiError ? createRole.error.message : null;
+  const apiErrorMessage =
+    createRole.error instanceof ApiError
+      ? describeApiError(createRole.error, createRole.error.message)
+      : null;
 
   return (
     <div>

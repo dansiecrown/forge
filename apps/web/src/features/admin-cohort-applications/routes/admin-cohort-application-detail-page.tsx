@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import type { CohortApplication } from '@forge/api-contract';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -46,7 +46,9 @@ export function AdminCohortApplicationDetailPage() {
   if (error || !application) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Application not found.'}
+        {error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Application not found.'}
       </Alert>
     );
   }
@@ -147,9 +149,9 @@ export function AdminCohortApplicationDetailPage() {
             {(approve.error ?? reject.error) ? (
               <Alert variant="danger" className="mb-4">
                 {approve.error instanceof ApiError
-                  ? approve.error.message
+                  ? describeApiError(approve.error, approve.error.message)
                   : reject.error instanceof ApiError
-                    ? reject.error.message
+                    ? describeApiError(reject.error, reject.error.message)
                     : 'Could not complete this action.'}
               </Alert>
             ) : null}
@@ -174,7 +176,11 @@ export function AdminCohortApplicationDetailPage() {
         onClose={() => setConfirmingReject(false)}
         onConfirm={onConfirmReject}
         loading={reject.isPending}
-        error={reject.error instanceof ApiError ? reject.error.message : null}
+        error={
+          reject.error instanceof ApiError
+            ? describeApiError(reject.error, reject.error.message)
+            : null
+        }
         title="Reject this application?"
         description="The applicant will be notified."
         reasonLabel="Reason (optional)"

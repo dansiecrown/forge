@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -38,7 +38,7 @@ export function OrganizationCreatePage() {
 
   const apiErrorMessage =
     createOrganization.error instanceof ApiError
-      ? createOrganization.error.message
+      ? describeApiError(createOrganization.error, createOrganization.error.message)
       : createOrganization.error
         ? 'Something went wrong. Please try again.'
         : null;

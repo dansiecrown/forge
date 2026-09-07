@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -48,7 +48,10 @@ export function PracticalTaskCreatePage() {
     }
   }
 
-  const errorMessage = createTask.error instanceof ApiError ? createTask.error.message : null;
+  const errorMessage =
+    createTask.error instanceof ApiError
+      ? describeApiError(createTask.error, createTask.error.message)
+      : null;
 
   return (
     <div>

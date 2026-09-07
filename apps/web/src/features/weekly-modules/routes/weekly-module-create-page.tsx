@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -55,7 +55,10 @@ export function WeeklyModuleCreatePage() {
     }
   }
 
-  const errorMessage = createModule.error instanceof ApiError ? createModule.error.message : null;
+  const errorMessage =
+    createModule.error instanceof ApiError
+      ? describeApiError(createModule.error, createModule.error.message)
+      : null;
 
   return (
     <div>

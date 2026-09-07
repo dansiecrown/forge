@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/form-field';
 import { useSession } from '@/contexts/session-context';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import {
   mfaCodeSchema,
   type MfaCodeFormValues,
@@ -38,7 +38,9 @@ export function SignInPage() {
       }
     } catch (error) {
       setFormError(
-        error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
+        error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Something went wrong. Please try again.',
       );
     }
   }
@@ -51,7 +53,9 @@ export function SignInPage() {
       navigate(redirectTo, { replace: true });
     } catch (error) {
       setFormError(
-        error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
+        error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Something went wrong. Please try again.',
       );
     }
   }

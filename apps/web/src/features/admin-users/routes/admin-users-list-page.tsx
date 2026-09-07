@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AdminUser } from '../api/admin-users-api';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
 import { ListToolbar } from '@/components/admin/list-toolbar';
@@ -183,7 +183,7 @@ export function AdminUsersListPage() {
         >
           {inviteUser.error instanceof ApiError ? (
             <Alert variant="danger" className="w-full">
-              {inviteUser.error.message}
+              {describeApiError(inviteUser.error, inviteUser.error.message)}
             </Alert>
           ) : null}
           <FormField
@@ -247,7 +247,7 @@ export function AdminUsersListPage() {
         >
           {createUser.error instanceof ApiError ? (
             <Alert variant="danger" className="w-full">
-              {createUser.error.message}
+              {describeApiError(createUser.error, createUser.error.message)}
             </Alert>
           ) : null}
           <FormField

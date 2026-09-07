@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { AttendanceStatusToggle } from '@/components/mentor/attendance-status-toggle';
 import { EmptyState } from '@/components/portal/empty-state';
@@ -68,7 +68,10 @@ export function MentorHuddlesPage() {
     });
   }, [session, form]);
 
-  const errorMessage = upsertSession.error instanceof ApiError ? upsertSession.error.message : null;
+  const errorMessage =
+    upsertSession.error instanceof ApiError
+      ? describeApiError(upsertSession.error, upsertSession.error.message)
+      : null;
 
   if (cohortsLoading) {
     return (
