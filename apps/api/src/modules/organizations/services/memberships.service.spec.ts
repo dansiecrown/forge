@@ -147,3 +147,21 @@ describe('MembershipsService.getAcademyScope', () => {
     });
   });
 });
+
+describe('MembershipsService.activateAllInvitedMemberships', () => {
+  it('activates every invited membership this user holds, across every organization', async () => {
+    const membershipsRepository: Partial<MembershipsRepository> = {
+      activateAllInvited: jest.fn(async () => ({ count: 2 })),
+    };
+    const service = new MembershipsService(
+      membershipsRepository as MembershipsRepository,
+      {} as RolesRepository,
+      fakeAuditLog(),
+      {} as PermissionResolverService,
+    );
+
+    await service.activateAllInvitedMemberships('user-1');
+
+    expect(membershipsRepository.activateAllInvited).toHaveBeenCalledWith('user-1');
+  });
+});

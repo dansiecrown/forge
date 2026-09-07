@@ -409,6 +409,52 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   all point at `/reset-password`. Added a minimal `/verify-email` page mirroring that page's exact
   shape.
 
+## Chat Channel Rename/Archive/Restore UI, and a Real `#general` Member Roster (2026-09-07)
+
+- **Rename/archive/restore, the remaining gap DEBT-035's 2026-09-06 closure explicitly disclosed,
+  now have UI.** `ChannelInfoPanel` gained an edit action and an archive/restore action (both
+  `chat.channel.manage`-only, server-enforced regardless); `ChatChannelsService.list()` gained a
+  manager-only `includeArchived` option so a manager can find an archived channel to restore.
+  Zero new backend surface — the REST endpoints were already built and tested. DEBT-035 is now
+  fully closed.
+- **`FellowshipChatChannelMember` — modeled in the schema since ADR-0014 but never once populated
+  by any code path — now backs a real, listable roster for a Fellowship's `#general` channel, on
+  explicit product request.** A new `ChatMembershipSyncService`, called from
+  `EnrollmentsService.update()` on every status transition, keeps a student's row in sync with
+  whether their new status is one Decision 1's Student access check already treats as granting chat
+  access (`active`/`paused`/`completed`) — the two checks share one named constant so they cannot
+  drift apart. This **does not change authorization at all**: `ChatAccessService.authorize()` is
+  untouched, and `#general` is never a private channel, so this table's access-gating role (private
+  channels only) and its new roster-backing role (`#general` only) never overlap. See ADR-0014's
+  2026-09-07 addendum for the full reasoning, including why this is deliberately students-only (not
+  mentors) for now.
+- **New `GET /chat/channels/:channelId/members`**, gated by the already-broadly-granted
+  `chat.channel.read` (any participant, not just managers — the point is anyone in the channel can
+  find anyone else to message). The frontend roster lives in `ChannelInfoPanel`; clicking a member
+  starts a DM via the existing `POST /me/conversations` (2026-09-06) and deep-links to it exactly
+  like a `dm.message.received` notification already does.
+
+## Invited-User Membership Activation Fix, and App-Wide API Error Messages (2026-09-07)
+
+- **An invited/approved user's organization `Membership` never activated alongside their `User`
+  account, leaving them permanently stuck on the generic landing page with `/portal` spinning
+  forever.** `AuthService.resetPassword()` already activated the `User` row on invitation
+  completion but never the `Membership` row that same flow creates — a gap dating back to
+  `Membership` not existing yet when that activation logic was originally written. Fixed by a new
+  `MembershipsService.activateAllInvitedMemberships()`, called from the same code path. See
+  `docs/adr/0003-identity-and-access-control-foundation.md`'s 2026-09-07 addendum for the full
+  root-cause trace (`OrganizationProvider` → `HomePage`/`RequireRole`) and live verification. One
+  already-stuck real account was repaired directly via the existing membership-status endpoint.
+- **Every API error surface in the frontend (124 call sites, 51 files) now shows the server's
+  actual validation reason instead of the generic "The request contains invalid fields." wrapper.**
+  A new `describeApiError()` helper (`apps/web/src/api/client.ts`) prefers a validation error's
+  `details[0].message` over its generic top-level `message`. Applied via a verified, scripted
+  codemod (not hand-edited) after `tsc`/`eslint`/`prettier`/`vite build` all confirmed clean across
+  every touched file. Originated from a real user report: a weak password ("Osamuedeme" — no digit)
+  was correctly rejected server-side, but the reset-password page only ever showed the generic
+  wrapper text, hiding the real reason. Client-side password validation also now mirrors the
+  server's letter+digit rule for immediate feedback.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

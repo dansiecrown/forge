@@ -117,6 +117,22 @@ export class MembershipsRepository {
     });
   }
 
+  /** Activates every `invited` membership this user holds, across every
+   * organization — called once, from `AuthService.resetPassword()`, the
+   * moment an invited user completes their first password set (proof of
+   * inbox ownership completing the invitation, per docs/adr/0003). Not
+   * scoped to a single organization on purpose: the reset-password endpoint
+   * is unauthenticated and pre-tenant (no `X-Organization-Id` context to
+   * scope by yet), and a user's very first successful login must not leave
+   * a membership stuck at `invited` just because it belongs to an
+   * organization the caller had no way to name at that point. */
+  activateAllInvited(userId: string): Promise<{ count: number }> {
+    return this.prisma.membership.updateMany({
+      where: { userId, status: 'invited' },
+      data: { status: 'active', joinedAt: new Date() },
+    });
+  }
+
   grantRole(membershipId: string, roleId: string, grantedBy?: string): Promise<MembershipRole> {
     return this.prisma.membershipRole.create({ data: { membershipId, roleId, grantedBy } });
   }

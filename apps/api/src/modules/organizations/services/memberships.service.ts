@@ -205,6 +205,15 @@ export class MembershipsService {
     await this.updateStatus(scope, membership.id, status, actorUserId);
   }
 
+  /** The one legitimate cross-organization membership mutation in this
+   * service — see `MembershipsRepository.activateAllInvited`'s doc comment.
+   * Called only from `AuthService.resetPassword()` when completing an
+   * invitation; every other status change here goes through the
+   * organization-scoped `updateStatus`/`updateStatusForUser` above. */
+  async activateAllInvitedMemberships(userId: string): Promise<void> {
+    await this.membershipsRepository.activateAllInvited(userId);
+  }
+
   /** Reconciles a membership's granted roles to exactly `roleKeys` — revokes
    * whatever's currently granted but missing from the list, grants whatever's
    * in the list but not currently granted. Used by Admin Users' role editor

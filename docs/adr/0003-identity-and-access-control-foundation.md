@@ -121,3 +121,45 @@ admin-set-password account is already usable without the email ever arriving).
 No changes to `docs/KNOWN_TECHNICAL_DEBT.md` were needed — this gap was never formally tracked as its
 own debt entry (it was recorded as prose inside ADR-0009's Decision 6 area and this ADR's own original
 scope line), so there was nothing to formally close beyond this addendum itself.
+
+## Addendum — 2026-09-07: an invited user's Membership never activated with their User
+
+**Bug found via live user report**: a prospect approved into a cohort (`CohortApplicationsService.approve()`)
+receives an invitation email, sets their password via `/reset-password`, and signs in successfully — but
+then lands on the generic "Signed in as {name}" stub instead of their student portal, and manually
+navigating to `/portal` spins forever. Both symptoms trace to the same root cause.
+
+`AuthService.resetPassword()` already contained the right idea (this ADR's own original code comment:
+"this is also where the invitation flow completes: activate the account") but only ever activated the
+**User** row (`status: 'invited' → 'active'`). It never touched the **Membership** row that the same
+invitation flow also creates at `status: 'invited'` — a concept (multi-tenant `Membership`) that plainly
+didn't exist yet when this ADR/its Milestone 2 scope was written, and nothing in any later milestone
+that *did* introduce `Membership` (docs/adr/0012, docs/adr/0016) ever went back to reconcile this
+activation step against it. The result: a real, indefinitely-stuck state — `User.status: 'active'`,
+`Membership.status: 'invited'` forever, since no other code path anywhere re-checks or reconciles the
+two.
+
+That stuck Membership cascades into exactly the two reported symptoms, both in the frontend's
+organization-resolution layer, not the invitation flow itself: `OrganizationProvider` only derives
+`activeOrganizationId` from a `status: 'active'` membership (`organization-context.tsx`), so it never
+resolves one for this user. `HomePage`'s role-based redirect looks up the caller's membership *by*
+`activeOrganizationId`, finds nothing, and falls through to its generic fallback UI. `RequireRole`
+(guarding `/portal`, `/admin`, `/mentor`) has a one-render-pass loading spinner for the transient window
+between memberships loading and `activeOrganizationId` resolving — intended to cover one render, it
+never learns to stop when that resolution can now never happen at all, so it spins forever.
+
+**Fix**: `MembershipsRepository.activateAllInvited(userId)` (a new, deliberately unscoped —
+cross-organization — bulk update, since `/auth/reset-password` is unauthenticated and pre-tenant, with
+no `X-Organization-Id` to scope by) and `MembershipsService.activateAllInvitedMemberships(userId)`
+wrapping it, called from `AuthService.resetPassword()` in the exact same `user.status === 'invited'`
+branch that already activates the User — so both flip together, atomically in intent if not in a single
+transaction, the moment an invitation completes. `IdentityModule` already imported `OrganizationsModule`
+(for other reasons), so no new module wiring was needed beyond injecting `MembershipsService` into
+`AuthService`.
+
+One real account (created before this fix shipped) was already stuck in this state; repaired directly
+via the existing `PATCH /users/:userId/status` admin endpoint rather than a migration, since exactly one
+row was affected and the endpoint already does precisely this write. Verified live end-to-end
+post-fix: generated a real reset token for a second still-invited seed account, redeemed it through the
+actual `POST /auth/reset-password` endpoint, and confirmed both `User.status` and `Membership.status`
+(plus `joinedAt`) flipped to `active` together.
