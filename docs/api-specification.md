@@ -308,12 +308,14 @@ Distinct from §4.9's `/conversations`/`/messages` (a still-undelivered *group* 
 and from §4.13a's real 1:1 Direct Messages below — Fellowship chat is a separate feature: one set of
 channels per Fellowship (not a per-user conversation), scoped by the same Enrollment/CohortMentor/
 admin-scope relationships every other module uses, with no new "Fellowship Admin" role. See
-`docs/adr/0014-fellowship-chat.md`.
+`docs/adr/0014-fellowship-chat.md` and its 2026-09-07 addendum (member roster, rename/archive/
+restore UI).
 
 | Method / path | Description, auth/permission | Request sample & validation | Success response / errors |
 | --- | --- | --- | --- |
-| `GET /fellowships/:fellowshipId/chat/channels` / `POST …` | list visible channels (private channels only for members/managers) / create; `chat.channel.read` / `chat.channel.manage` | POST `{ "name":"Announcements","slug":"announcements","type":"announcements","isPrivate":false }`; unique slug per Fellowship | `200 {data:[{id:"uuid",name:"general","type":"general"}]}` / `201`; `403/404/409 SLUG_TAKEN` |
+| `GET /fellowships/:fellowshipId/chat/channels` / `POST …` | list visible channels (private channels only for members/managers) / create; `?includeArchived=true` honored only for a `chat.channel.manage` holder, silently ignored otherwise; `chat.channel.read` / `chat.channel.manage` | POST `{ "name":"Announcements","slug":"announcements","type":"announcements","isPrivate":false }`; unique slug per Fellowship | `200 {data:[{id:"uuid",name:"general","type":"general"}]}` / `201`; `403/404/409 SLUG_TAKEN` |
 | `GET /chat/channels/:id` / `PATCH /chat/channels/:id` | channel detail / rename+describe; participant read / `chat.channel.manage`, `If-Match` | PATCH `{ "name":"General","description":"…" }` | `200`; `403/404/409 VERSION_CONFLICT` |
+| `GET /chat/channels/:id/members` | this channel's roster (`{id,displayName,username}[]`), to start a DM with someone in it; `chat.channel.read` (any participant, not just managers) | no body | `200 [{id:"uuid",displayName:"Ada",username:"ada"}]`; `403/404` |
 | `POST /chat/channels/:id/actions/archive` / `.../restore` / `DELETE /chat/channels/:id` | archive/restore (DELETE archives, never hard-deletes); `chat.channel.manage` | `{ "version":1 }` | `200`; `403/404/409` |
 | `GET /chat/channels/:id/messages` / `POST …` | cursor message history (newest-first pages) / post; `chat.channel.read` / `chat.message.create` | POST `{ "content":"Hello","replyToMessageId":"uuid"? }`; 1–4000 chars, reply must be same channel | `200 {data:[…],meta:{page:{…}}}` / `201`; `403/404/422` |
 | `PATCH /chat/messages/:id` / `DELETE /chat/messages/:id` | edit-own (last-write-wins, no `version`) / soft-delete; author, or `chat.message.moderate` for someone else's | PATCH `{ "content":"Corrected" }` | `200`; `403/404` |

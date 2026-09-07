@@ -50,6 +50,7 @@ function buildService(overrides: {
     update: jest.fn(async () => fakeChannel({ version: 2 })),
     setArchived: jest.fn(async () => fakeChannel({ archivedAt: new Date() })),
     isMember: jest.fn(async () => false),
+    listMembers: jest.fn(async () => []),
     ...overrides.channelsRepository,
   };
   const accessService: Partial<ChatAccessService> = {
@@ -120,6 +121,31 @@ describe('ChatChannelsService', () => {
       const result = await service.list(SCOPE, 'user-1', 'fellowship-1');
       expect(result.map((c) => c.id)).toEqual(['channel-private']);
       expect(channelsRepository.isMember).not.toHaveBeenCalled();
+    });
+
+    it('never asks the repository for archived channels by default', async () => {
+      const { service, channelsRepository } = buildService({});
+
+      await service.list(SCOPE, 'user-1', 'fellowship-1');
+      expect(channelsRepository.listByFellowship).toHaveBeenCalledWith('fellowship-1', false);
+    });
+
+    it('ignores includeArchived=true from a caller who cannot manage channels', async () => {
+      const { service, channelsRepository } = buildService({});
+
+      await service.list(SCOPE, 'user-1', 'fellowship-1', { includeArchived: true });
+      expect(channelsRepository.listByFellowship).toHaveBeenCalledWith('fellowship-1', false);
+    });
+
+    it('honors includeArchived=true for a caller who can manage channels', async () => {
+      const { service, channelsRepository } = buildService({
+        accessService: {
+          authorize: jest.fn(async () => authorization({ canManageChannels: true })),
+        },
+      });
+
+      await service.list(SCOPE, 'user-1', 'fellowship-1', { includeArchived: true });
+      expect(channelsRepository.listByFellowship).toHaveBeenCalledWith('fellowship-1', true);
     });
   });
 
@@ -206,6 +232,67 @@ describe('ChatChannelsService', () => {
       await expect(service.get(SCOPE, 'user-1', 'channel-1')).rejects.toMatchObject({
         response: { code: 'NOT_FOUND' },
       });
+    });
+  });
+
+  describe('listMembers', () => {
+    it('returns not-found for a channel belonging to a different organization', async () => {
+      const { service } = buildService({
+        channelsRepository: {
+          findById: jest.fn(async () => fakeChannel({ organizationId: 'other-org' })),
+        },
+      });
+
+      await expect(service.listMembers(SCOPE, 'user-1', 'channel-1')).rejects.toMatchObject({
+        response: { code: 'NOT_FOUND' },
+      });
+    });
+
+    it('returns not-found when the fellowship access check denies', async () => {
+      const { service } = buildService({
+        accessService: { authorize: jest.fn(async () => authorization({ allowed: false })) },
+      });
+
+      await expect(service.listMembers(SCOPE, 'user-1', 'channel-1')).rejects.toMatchObject({
+        response: { code: 'NOT_FOUND' },
+      });
+    });
+
+    it('returns not-found for a private channel the caller is not a member of', async () => {
+      const { service } = buildService({
+        channelsRepository: {
+          findById: jest.fn(async () => fakeChannel({ isPrivate: true })),
+          isMember: jest.fn(async () => false),
+        },
+      });
+
+      await expect(service.listMembers(SCOPE, 'user-1', 'channel-1')).rejects.toMatchObject({
+        response: { code: 'NOT_FOUND' },
+      });
+    });
+
+    it('resolves the roster to id/displayName/username for an authorized participant', async () => {
+      const { service } = buildService({
+        channelsRepository: {
+          listMembers: jest.fn(async () => [
+            {
+              id: 'member-1',
+              channelId: 'channel-1',
+              userId: 'user-2',
+              addedByUserId: null,
+              addedAt: new Date('2026-01-01'),
+              user: {
+                id: 'user-2',
+                displayName: 'Jane Doe',
+                username: 'jane',
+              } as never,
+            },
+          ]),
+        },
+      });
+
+      const result = await service.listMembers(SCOPE, 'user-1', 'channel-1');
+      expect(result).toEqual([{ id: 'user-2', displayName: 'Jane Doe', username: 'jane' }]);
     });
   });
 

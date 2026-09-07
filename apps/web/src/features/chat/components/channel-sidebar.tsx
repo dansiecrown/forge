@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ChatChannel } from '@forge/api-contract';
 import type { Socket } from 'socket.io-client';
 import { Hash, Megaphone, Plus } from 'lucide-react';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
@@ -39,6 +39,8 @@ interface ChannelSidebarProps {
   onSelect: (channel: ChatChannel) => void;
   socket: Socket | null;
   isLoading: boolean;
+  includeArchived: boolean;
+  onIncludeArchivedChange: (value: boolean) => void;
 }
 
 /** The "Create channel" action — visible only to a caller who actually
@@ -95,7 +97,7 @@ function CreateChannelAction({ fellowshipId }: { fellowshipId: string }) {
         >
           {createChannel.error instanceof ApiError ? (
             <Alert variant="danger" className="w-full">
-              {createChannel.error.message}
+              {describeApiError(createChannel.error, createChannel.error.message)}
             </Alert>
           ) : null}
           <FormField
@@ -141,8 +143,11 @@ export function ChannelSidebar({
   onSelect,
   socket,
   isLoading,
+  includeArchived,
+  onIncludeArchivedChange,
 }: ChannelSidebarProps) {
   const permissions = usePermissions();
+  const canManage = permissions.has('chat.channel.manage');
   return (
     <nav
       aria-label="Fellowship chat channels"
@@ -151,41 +156,56 @@ export function ChannelSidebar({
       <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Channels
       </p>
-      {permissions.has('chat.channel.manage') ? (
-        <CreateChannelAction fellowshipId={fellowshipId} />
-      ) : null}
+      {canManage ? <CreateChannelAction fellowshipId={fellowshipId} /> : null}
       {isLoading ? (
         <p className="px-2 text-sm text-muted-foreground">Loading…</p>
       ) : channels.length === 0 ? (
         <p className="px-2 text-sm text-muted-foreground">No channels yet.</p>
       ) : (
         <ul className="space-y-0.5">
-          {channels
-            .filter((c) => !c.archivedAt)
-            .map((channel) => {
-              const isActive = channel.id === activeChannelId;
-              return (
-                <li key={channel.id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(channel)}
-                    aria-current={isActive ? 'true' : undefined}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-control px-2.5 py-1.5 text-left text-sm font-medium transition-colors duration-150',
-                      isActive
-                        ? 'bg-surface-2 text-foreground'
-                        : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
-                    )}
-                  >
-                    <ChannelIcon type={channel.type} />
-                    <span className="truncate">{channel.name}</span>
-                    {!isActive ? <UnreadBadge channelId={channel.id} socket={socket} /> : null}
-                  </button>
-                </li>
-              );
-            })}
+          {channels.map((channel) => {
+            const isActive = channel.id === activeChannelId;
+            const isArchived = Boolean(channel.archivedAt);
+            return (
+              <li key={channel.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(channel)}
+                  aria-current={isActive ? 'true' : undefined}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-control px-2.5 py-1.5 text-left text-sm font-medium transition-colors duration-150',
+                    isActive
+                      ? 'bg-surface-2 text-foreground'
+                      : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
+                    isArchived && 'italic opacity-60',
+                  )}
+                >
+                  <ChannelIcon type={channel.type} />
+                  <span className="truncate">{channel.name}</span>
+                  {isArchived ? (
+                    <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Archived
+                    </span>
+                  ) : !isActive ? (
+                    <UnreadBadge channelId={channel.id} socket={socket} />
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
+      {canManage ? (
+        <label className="mt-2 flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            className="size-3.5 rounded border-border"
+            checked={includeArchived}
+            onChange={(event) => onIncludeArchivedChange(event.target.checked)}
+          />
+          Show archived channels
+        </label>
+      ) : null}
     </nav>
   );
 }

@@ -3,6 +3,7 @@ import type { ChatChannel, ChatMessage } from '@forge/api-contract';
 import { Info, Menu, X } from 'lucide-react';
 import { useSession } from '@/contexts/session-context';
 import { useActiveOrganization } from '@/contexts/organization-context';
+import type { NotificationRole } from '@/features/notifications/utils/resolve-notification-target';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert } from '@/components/ui/alert';
 import { cn } from '@/utils';
@@ -26,9 +27,15 @@ import { ConnectionStatus } from './connection-status';
  * the caller's real `chat.channel.manage` permission. */
 export function ChatWorkspace({
   fellowshipId,
+  role,
   className,
 }: {
   fellowshipId: string;
+  /** Which portal this is mounted in — needed only to send "start a DM from
+   * the member roster" to that role's own Messages page
+   * (`resolveNotificationTarget`'s `messagesPathFor`) once the conversation
+   * exists. */
+  role: NotificationRole;
   /** Overrides the default near-full-viewport height — the Admin Fellowship
    * detail page embeds this alongside several other sections, not as the
    * whole page, so it needs a bounded height instead. */
@@ -40,8 +47,9 @@ export function ChatWorkspace({
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [channelDrawerOpen, setChannelDrawerOpen] = useState(false);
   const [infoDrawerOpen, setInfoDrawerOpen] = useState(false);
+  const [includeArchived, setIncludeArchived] = useState(false);
 
-  const channelsQuery = useChatChannels(fellowshipId, activeOrganizationId);
+  const channelsQuery = useChatChannels(fellowshipId, activeOrganizationId, includeArchived);
   const { socket, status, subscribed, subscribeError } = useChatSocket(
     activeOrganizationId,
     activeChannel?.id,
@@ -121,6 +129,8 @@ export function ChatWorkspace({
           }}
           socket={socket}
           isLoading={channelsQuery.isLoading}
+          includeArchived={includeArchived}
+          onIncludeArchivedChange={setIncludeArchived}
         />
       </div>
 
@@ -145,6 +155,8 @@ export function ChatWorkspace({
               }}
               socket={socket}
               isLoading={channelsQuery.isLoading}
+              includeArchived={includeArchived}
+              onIncludeArchivedChange={setIncludeArchived}
             />
           </div>
         </div>
@@ -233,7 +245,12 @@ export function ChatWorkspace({
 
       {activeChannel ? (
         <div className="hidden lg:flex">
-          <ChannelInfoPanel channel={activeChannel} />
+          <ChannelInfoPanel
+            fellowshipId={fellowshipId}
+            channel={activeChannel}
+            role={role}
+            onChannelUpdated={setActiveChannel}
+          />
         </div>
       ) : null}
 
@@ -257,7 +274,12 @@ export function ChatWorkspace({
                 <X className="size-4" aria-hidden="true" />
               </button>
             </div>
-            <ChannelInfoPanel channel={activeChannel} />
+            <ChannelInfoPanel
+              fellowshipId={fellowshipId}
+              channel={activeChannel}
+              role={role}
+              onChannelUpdated={setActiveChannel}
+            />
           </div>
         </div>
       ) : null}

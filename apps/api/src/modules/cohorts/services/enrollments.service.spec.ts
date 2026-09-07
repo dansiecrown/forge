@@ -2,6 +2,7 @@ import type { Enrollment } from '@prisma/client';
 import type { FellowshipsService } from '../../catalog/services/fellowships.service';
 import type { LearningTrackEntity } from '../../catalog/entities/learning-track.entity';
 import type { LearningTracksService } from '../../catalog/services/learning-tracks.service';
+import type { ChatMembershipSyncService } from '../../chat/services/chat-membership-sync.service';
 import type { UsersService } from '../../identity/services/users.service';
 import type { CohortEntity } from '../entities/cohort.entity';
 import type { CohortsService } from './cohorts.service';
@@ -105,6 +106,12 @@ function fakeFellowshipsService(): FellowshipsService {
   } as unknown as FellowshipsService;
 }
 
+function fakeChatMembershipSync(): ChatMembershipSyncService {
+  return {
+    syncStudentMembership: jest.fn(async () => undefined),
+  } as unknown as ChatMembershipSyncService;
+}
+
 describe('EnrollmentsService', () => {
   it('rejects enrolling a user who is not an active member of the organization', async () => {
     const repository: Partial<EnrollmentsRepository> = {};
@@ -118,6 +125,7 @@ describe('EnrollmentsService', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(
@@ -139,6 +147,7 @@ describe('EnrollmentsService', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(
@@ -163,6 +172,7 @@ describe('EnrollmentsService', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(
@@ -186,11 +196,96 @@ describe('EnrollmentsService', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(
       service.update({ organizationId: 'org-1' }, 'enrollment-1', { status: 'active' }, 1),
     ).rejects.toMatchObject({ response: { code: 'INVALID_STATE_TRANSITION' } });
+  });
+
+  it('syncs chat membership on when a transition grants chat access (invited -> active)', async () => {
+    const repository: Partial<EnrollmentsRepository> = {
+      findById: jest.fn(async () => fakeEnrollment({ status: 'invited' })),
+      update: jest.fn(async () => fakeEnrollment({ status: 'active', version: 2 })),
+    };
+    const chatMembershipSync = fakeChatMembershipSync();
+    const service = new EnrollmentsService(
+      repository as EnrollmentsRepository,
+      fakeCohortsService(fakeCohort()),
+      fakeMembershipsService(true),
+      fakeLearningTracksService(),
+      fakeAuditLog(),
+      fakeUsersService(),
+      fakeOrganizationsService(),
+      fakeAcademiesService(),
+      fakeFellowshipsService(),
+      chatMembershipSync,
+    );
+
+    await service.update({ organizationId: 'org-1' }, 'enrollment-1', { status: 'active' }, 1);
+    expect(chatMembershipSync.syncStudentMembership).toHaveBeenCalledWith(
+      'fellowship-1',
+      'user-1',
+      true,
+    );
+  });
+
+  it('syncs chat membership off when a transition revokes chat access (active -> withdrawn)', async () => {
+    const repository: Partial<EnrollmentsRepository> = {
+      findById: jest.fn(async () => fakeEnrollment({ status: 'active' })),
+      update: jest.fn(async () => fakeEnrollment({ status: 'withdrawn', version: 2 })),
+    };
+    const chatMembershipSync = fakeChatMembershipSync();
+    const service = new EnrollmentsService(
+      repository as EnrollmentsRepository,
+      fakeCohortsService(fakeCohort()),
+      fakeMembershipsService(true),
+      fakeLearningTracksService(),
+      fakeAuditLog(),
+      fakeUsersService(),
+      fakeOrganizationsService(),
+      fakeAcademiesService(),
+      fakeFellowshipsService(),
+      chatMembershipSync,
+    );
+
+    await service.update({ organizationId: 'org-1' }, 'enrollment-1', { status: 'withdrawn' }, 1);
+    expect(chatMembershipSync.syncStudentMembership).toHaveBeenCalledWith(
+      'fellowship-1',
+      'user-1',
+      false,
+    );
+  });
+
+  it('never syncs chat membership when the update carries no status change', async () => {
+    const repository: Partial<EnrollmentsRepository> = {
+      findById: jest.fn(async () =>
+        fakeEnrollment({ status: 'active', currentLearningTrackId: 'track-1' }),
+      ),
+      update: jest.fn(async () => fakeEnrollment({ status: 'active' })),
+    };
+    const chatMembershipSync = fakeChatMembershipSync();
+    const service = new EnrollmentsService(
+      repository as EnrollmentsRepository,
+      fakeCohortsService(fakeCohort()),
+      fakeMembershipsService(true),
+      fakeLearningTracksService(),
+      fakeAuditLog(),
+      fakeUsersService(),
+      fakeOrganizationsService(),
+      fakeAcademiesService(),
+      fakeFellowshipsService(),
+      chatMembershipSync,
+    );
+
+    await service.update(
+      { organizationId: 'org-1' },
+      'enrollment-1',
+      { currentLearningTrackId: 'track-1' },
+      1,
+    );
+    expect(chatMembershipSync.syncStudentMembership).not.toHaveBeenCalled();
   });
 
   it('treats an enrollment from another organization as not found', async () => {
@@ -209,6 +304,7 @@ describe('EnrollmentsService', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(service.get({ organizationId: 'org-2' }, 'enrollment-1')).rejects.toMatchObject({
@@ -236,6 +332,7 @@ describe('EnrollmentsService', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(
@@ -265,6 +362,7 @@ describe('EnrollmentsService', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(
@@ -293,6 +391,7 @@ describe('EnrollmentsService', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     const result = await service.listMine({ organizationId: 'org-1' }, 'student-1', {});
@@ -324,6 +423,7 @@ describe('EnrollmentsService', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     const result = await service.listMine({ organizationId: 'org-1' }, 'student-1', {});
@@ -354,6 +454,7 @@ describe('EnrollmentsService', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     const result = await service.listMine({ organizationId: 'org-1' }, 'student-1', {});
@@ -383,6 +484,7 @@ describe('EnrollmentsService', () => {
       fakeOrganizationsService(),
       academiesService,
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     const result = await service.listMine({ organizationId: 'org-1' }, 'student-1', {});
@@ -412,6 +514,7 @@ describe('EnrollmentsService.selectTrack — self-service pick/switch', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(
@@ -438,6 +541,7 @@ describe('EnrollmentsService.selectTrack — self-service pick/switch', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(
@@ -465,6 +569,7 @@ describe('EnrollmentsService.selectTrack — self-service pick/switch', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(
@@ -492,6 +597,7 @@ describe('EnrollmentsService.selectTrack — self-service pick/switch', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(
@@ -517,6 +623,7 @@ describe('EnrollmentsService.selectTrack — self-service pick/switch', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(
@@ -544,6 +651,7 @@ describe('EnrollmentsService.selectTrack — self-service pick/switch', () => {
       fakeOrganizationsService(),
       fakeAcademiesService(),
       fakeFellowshipsService(),
+      fakeChatMembershipSync(),
     );
 
     await expect(

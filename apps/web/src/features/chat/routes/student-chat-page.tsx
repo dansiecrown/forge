@@ -26,7 +26,7 @@ export function StudentChatPage() {
   return (
     <div>
       <h1 className="mb-4 text-lg font-semibold text-foreground">Fellowship Chat</h1>
-      <ChatWorkspace fellowshipId={fellowshipId} />
+      <ChatWorkspace fellowshipId={fellowshipId} role="student" />
     </div>
   );
 }

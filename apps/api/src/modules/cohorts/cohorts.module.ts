@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { CatalogModule } from '../catalog/catalog.module';
+import { ChatModule } from '../chat/chat.module';
 import { IdentityModule } from '../identity/identity.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PlatformModule } from '../platform/platform.module';
@@ -15,7 +16,7 @@ import { EnrollmentsService } from './services/enrollments.service';
  * too (docs/project-structure.md §"api modules") but out of scope for
  * Milestone 3 ("No attendance yet"). */
 @Module({
-  imports: [CatalogModule, IdentityModule, OrganizationsModule, PlatformModule],
+  imports: [CatalogModule, ChatModule, IdentityModule, OrganizationsModule, PlatformModule],
   controllers: [CohortsController, EnrollmentsController],
   providers: [CohortsRepository, EnrollmentsRepository, CohortsService, EnrollmentsService],
   exports: [CohortsService, EnrollmentsService],

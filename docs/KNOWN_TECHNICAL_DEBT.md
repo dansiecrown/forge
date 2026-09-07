@@ -425,7 +425,7 @@ without first visiting that organization's own detail page**
   not a side effect of any task that's added `username` so far.
 - **Planned milestone:** Not currently planned; the schema is ready whenever it's requested.
 
-**DEBT-035 — Fellowship chat channel management has no frontend UI — CLOSED (2026-09-06)**
+**DEBT-035 — Fellowship chat channel management has no frontend UI — CLOSED (2026-09-06, fully 2026-09-07)**
 - **Description:** `chat.channel.manage` (create, rename, describe, archive, restore, optionally
   private) is fully built and tested on the backend — REST endpoints, permissions, audit logging —
   but no admin screen calls any of it. `#general` is created automatically for every Fellowship, so
@@ -436,5 +436,9 @@ without first visiting that organization's own detail page**
   (visible only to a caller who actually holds `chat.channel.manage` for that Fellowship) calling
   the `useCreateChatChannel` mutation that already existed, fully wired, but unused. Rename/archive/
   restore still have no dedicated UI (no product ask for them yet) — only creation was in scope.
+- **Status (2026-09-07):** Fully closed. `ChannelInfoPanel` gained an edit (rename/describe) action
+  and an archive/restore action with a confirm dialog, both `chat.channel.manage`-only;
+  `ChannelSidebar` gained a manager-only "Show archived channels" toggle. See
+  `docs/adr/0014-fellowship-chat.md`'s 2026-09-07 addendum.
 - **Priority:** N/A (closed)
-- **Planned milestone:** N/A (closed); rename/archive/restore UI if a future task asks for it.
+- **Planned milestone:** N/A (closed).

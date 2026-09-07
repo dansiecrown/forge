@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { User } from '@prisma/client';
 import { FellowshipsService } from '../../catalog/services/fellowships.service';
 import { LearningTracksService } from '../../catalog/services/learning-tracks.service';
+import { ChatMembershipSyncService } from '../../chat/services/chat-membership-sync.service';
 import { UsersService } from '../../identity/services/users.service';
 import { AcademiesService } from '../../organizations/services/academies.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
@@ -39,7 +40,13 @@ export class EnrollmentsService {
     private readonly organizationsService: OrganizationsService,
     private readonly academiesService: AcademiesService,
     private readonly fellowshipsService: FellowshipsService,
+    private readonly chatMembershipSync: ChatMembershipSyncService,
   ) {}
+
+  /** Mirrors exactly the status set `ChatAccessService.authorize()` already
+   * grants a Student chat access for — kept as a single, named constant so
+   * the two never drift out of sync with each other. */
+  private static readonly CHAT_ACCESS_STATUSES = new Set(['active', 'paused', 'completed']);
 
   /** Batch-resolves display names for a page of enrollments in one query —
    * `Enrollment` has no Prisma relation to `User` to `include` directly (see
@@ -274,6 +281,13 @@ export class EnrollmentsService {
           reason: input.reason,
         },
       });
+      if (input.status) {
+        await this.chatMembershipSync.syncStudentMembership(
+          existing.fellowshipId,
+          existing.userId,
+          EnrollmentsService.CHAT_ACCESS_STATUSES.has(input.status),
+        );
+      }
       return toEnrollmentEntity(updated);
     } catch (error) {
       if (error instanceof EnrollmentVersionConflictError) {

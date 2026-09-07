@@ -1,6 +1,7 @@
 import type {
   AddChatReactionRequest,
   ChatChannel,
+  ChatChannelMember,
   ChatChannelReadState,
   ChatChannelTransitionRequest,
   ChatMessage,
@@ -16,8 +17,10 @@ import { apiRequest, apiRequestPage, type Page } from '@/api/client';
 export function listChatChannels(
   fellowshipId: string,
   organizationId?: string,
+  includeArchived?: boolean,
 ): Promise<ChatChannel[]> {
-  return apiRequest<ChatChannel[]>(`/fellowships/${fellowshipId}/chat/channels`, {
+  const query = includeArchived ? '?includeArchived=true' : '';
+  return apiRequest<ChatChannel[]>(`/fellowships/${fellowshipId}/chat/channels${query}`, {
     organizationId,
   });
 }
@@ -68,6 +71,19 @@ export function restoreChatChannel(
   return apiRequest<ChatChannel>(`/chat/channels/${channelId}/actions/restore`, {
     method: 'POST',
     body,
+    organizationId,
+  });
+}
+
+/** Every participant with `chat.channel.read` can see this, not just
+ * managers — the roster's whole point is letting anyone in the channel
+ * find anyone else to DM. See docs/adr/0014-fellowship-chat.md's
+ * 2026-09-07 addendum. */
+export function listChatChannelMembers(
+  channelId: string,
+  organizationId?: string,
+): Promise<ChatChannelMember[]> {
+  return apiRequest<ChatChannelMember[]>(`/chat/channels/${channelId}/members`, {
     organizationId,
   });
 }

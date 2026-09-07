@@ -38,6 +38,12 @@ export interface ChatChannelTransitionRequest {
   version: number;
 }
 
+/** `GET /chat/channels/:channelId/members` — see
+ * docs/adr/0014-fellowship-chat.md's 2026-09-07 addendum. Shaped identically
+ * to `PersonSearchResult` below so a roster row can be passed straight into
+ * the same "start a DM" flow as a search result. */
+export type ChatChannelMember = PersonSearchResult;
+
 export interface ChatMessageReaction {
   reaction: string;
   userId: string;

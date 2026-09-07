@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
 import { ActiveOrganizationId } from '../../../decorators/active-organization-id.decorator';
 import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { RequirePermissions } from '../../../decorators/require-permissions.decorator';
@@ -20,11 +20,13 @@ export class FellowshipChatChannelsController {
     @Param('fellowshipId') fellowshipId: string,
     @ActiveOrganizationId() organizationId: string | undefined,
     @CurrentUser() user: { id: string },
+    @Query('includeArchived') includeArchived?: string,
   ) {
     return this.channelsService.list(
       { organizationId: requireOrganizationId(organizationId) },
       user.id,
       fellowshipId,
+      { includeArchived: includeArchived === 'true' },
     );
   }
 
@@ -52,6 +54,20 @@ export class FellowshipChatChannelsController {
     @CurrentUser() user: { id: string },
   ) {
     return this.channelsService.get(
+      { organizationId: requireOrganizationId(organizationId) },
+      user.id,
+      channelId,
+    );
+  }
+
+  @Get('chat/channels/:channelId/members')
+  @RequirePermissions('chat.channel.read')
+  listMembers(
+    @Param('channelId') channelId: string,
+    @ActiveOrganizationId() organizationId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.channelsService.listMembers(
       { organizationId: requireOrganizationId(organizationId) },
       user.id,
       channelId,

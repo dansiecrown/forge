@@ -4,7 +4,7 @@ import { GraduationCap, Loader2, Pencil, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Breadcrumb } from '@/components/admin/breadcrumb';
@@ -125,7 +125,9 @@ export function FellowshipDetailPage() {
   if (error || !fellowship) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Fellowship not found.'}
+        {error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Fellowship not found.'}
       </Alert>
     );
   }
@@ -147,12 +149,18 @@ export function FellowshipDetailPage() {
       toast.success('Fellowship profile updated.');
       setEditOpen(false);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update fellowship.');
+      toast.error(
+        err instanceof ApiError
+          ? describeApiError(err, err.message)
+          : 'Failed to update fellowship.',
+      );
     }
   }
 
   const updateErrorMessage =
-    updateFellowship.error instanceof ApiError ? updateFellowship.error.message : null;
+    updateFellowship.error instanceof ApiError
+      ? describeApiError(updateFellowship.error, updateFellowship.error.message)
+      : null;
   const isDraft = fellowship.status === 'draft';
 
   const lifecycleItems: ActionsMenuItem[] = [];
@@ -307,7 +315,11 @@ export function FellowshipDetailPage() {
           setConfirmingRetire(false);
         }}
         loading={retire.isPending}
-        error={retire.error instanceof ApiError ? retire.error.message : null}
+        error={
+          retire.error instanceof ApiError
+            ? describeApiError(retire.error, retire.error.message)
+            : null
+        }
         title="Retire this fellowship?"
         description="It can no longer be edited or have new cohorts created under it."
         confirmLabel="Retire"
@@ -341,7 +353,9 @@ export function FellowshipDetailPage() {
           </CardHeader>
           <CardContent>
             {duplicate.error instanceof ApiError ? (
-              <Alert variant="danger">{duplicate.error.message}</Alert>
+              <Alert variant="danger">
+                {describeApiError(duplicate.error, duplicate.error.message)}
+              </Alert>
             ) : null}
             {duplicating ? (
               <div className="space-y-3">
@@ -412,7 +426,7 @@ export function FellowshipDetailPage() {
           </p>
         </CardHeader>
         <CardContent>
-          <ChatWorkspace fellowshipId={fellowship.id} className="h-[600px]" />
+          <ChatWorkspace fellowshipId={fellowship.id} role="admin" className="h-[600px]" />
         </CardContent>
       </Card>
     </div>

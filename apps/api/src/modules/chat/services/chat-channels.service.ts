@@ -10,6 +10,10 @@ import {
   ChatChannelsRepository,
 } from '../repositories/chat-channels.repository';
 import { toChatChannelEntity, type ChatChannelEntity } from '../entities/chat-channel.entity';
+import {
+  toChatChannelMemberEntity,
+  type ChatChannelMemberEntity,
+} from '../entities/chat-channel-member.entity';
 
 export interface CreateChatChannelInput {
   name: string;
@@ -45,16 +49,26 @@ export class ChatChannelsService {
     return toChatChannelEntity(channel);
   }
 
+  /** `includeArchived` is honored only for a caller who actually holds
+   * `chat.channel.manage` for this Fellowship — passing it as a non-manager
+   * is silently ignored rather than rejected, matching this codebase's
+   * existing "permissive query param" convention elsewhere. Needed so a
+   * manager can find an archived channel to restore it; nobody else has a
+   * reason to see one. */
   async list(
     scope: TenantScope,
     userId: string,
     fellowshipId: string,
+    options: { includeArchived?: boolean } = {},
   ): Promise<ChatChannelEntity[]> {
     const authorization = await this.accessService.authorize(scope, userId, fellowshipId);
     if (!authorization.allowed) {
       throw AppException.notFound('Fellowship not found.');
     }
-    const channels = await this.channelsRepository.listByFellowship(fellowshipId);
+    const channels = await this.channelsRepository.listByFellowship(
+      fellowshipId,
+      Boolean(options.includeArchived) && authorization.canManageChannels,
+    );
     const visible: typeof channels = [];
     for (const channel of channels) {
       if (!channel.isPrivate || authorization.canManageChannels) {
@@ -133,6 +147,27 @@ export class ChatChannelsService {
   }
 
   async get(scope: TenantScope, userId: string, channelId: string): Promise<ChatChannelEntity> {
+    const { channel } = await this.requireReadAccess(scope, userId, channelId);
+    return toChatChannelEntity(channel);
+  }
+
+  /** The roster backing "start a DM with someone in this channel" — every
+   * participant with read access (not just managers) may see it, since the
+   * whole point is any participant can find anyone else here. Membership
+   * rows are populated by `ChatMembershipSyncService` for students only (see
+   * that service's doc comment); mentors and admins are simply never in this
+   * list yet, a disclosed limitation, not a bug. */
+  async listMembers(
+    scope: TenantScope,
+    userId: string,
+    channelId: string,
+  ): Promise<ChatChannelMemberEntity[]> {
+    const { channel } = await this.requireReadAccess(scope, userId, channelId);
+    const members = await this.channelsRepository.listMembers(channel.id);
+    return members.map(toChatChannelMemberEntity);
+  }
+
+  private async requireReadAccess(scope: TenantScope, userId: string, channelId: string) {
     const channel = await this.channelsRepository.findById(channelId);
     if (!channel || channel.organizationId !== scope.organizationId) {
       throw AppException.notFound('Channel not found.');
@@ -147,7 +182,7 @@ export class ChatChannelsService {
         throw AppException.notFound('Channel not found.');
       }
     }
-    return toChatChannelEntity(channel);
+    return { channel, authorization };
   }
 
   async update(

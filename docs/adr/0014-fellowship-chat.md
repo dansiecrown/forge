@@ -152,3 +152,61 @@ Two closures and one reversal, all from the same follow-up task:
    one of exactly two participants"). Extending the existing gateway for a materially different
    access model was judged a bigger risk to an already-tested system than this feature's real-time
    requirement justified — a deliberate, disclosed scope narrowing, not an oversight.
+
+## Addendum (2026-09-07): channel rename/archive/restore UI, and a real `#general` member roster
+
+Two closures, on explicit product request:
+
+1. **Rename/archive/restore, the two pieces of DEBT-035 the 2026-09-06 addendum's "Create channel"
+   closure explicitly left open, now have UI.** `ChannelInfoPanel` gained an edit action
+   (`chat.channel.manage` only) and an archive/restore action with a confirm dialog; `ChatChannelsService.list()`
+   gained an `includeArchived` option (server-enforced: honored only for a caller who actually holds
+   `chat.channel.manage`, silently ignored otherwise — matching this codebase's existing "permissive
+   query param" convention rather than rejecting it outright) so a manager can find an archived
+   channel to restore. `ChannelSidebar` shows archived channels dimmed with a badge behind a
+   manager-only "Show archived channels" toggle. No backend/permission changes — the REST endpoints
+   already existed and were already tested; this closes the remaining frontend gap only. DEBT-035 is
+   now fully closed; see its updated entry in `docs/KNOWN_TECHNICAL_DEBT.md`.
+
+2. **A real, listable member roster for a Fellowship's `#general` channel — on explicit product
+   request ("every enrolled student in a fellowship should be added to their channel... they should
+   also be able [to see] the list of those in their channel so they can start a conversation directly
+   with them"), reversing this ADR's Consequences section's "no Fellowship-wide membership listing
+   endpoint" and, narrowly, Decision 1's framing of `FellowshipChatChannelMember` as scoped to private
+   channels only.** The reversal is narrower than it sounds and does not touch authorization at all:
+
+   - **`FellowshipChatChannelMember` rows are now also populated for `#general`** (previously nothing
+     in the codebase ever wrote a row to this table at all — it existed in the schema, unused). A new
+     `ChatMembershipSyncService`, called from `EnrollmentsService.update()` on every status
+     transition, upserts/removes a row keyed on whether the new status is one of
+     `active`/`paused`/`completed` — deliberately the exact same status set Decision 1's Student
+     access check already uses, kept as a single named constant
+     (`EnrollmentsService.CHAT_ACCESS_STATUSES`) so the two can never drift apart. Idempotent either
+     direction (upsert / `deleteMany`), so a status that bounces (e.g. `active → paused → active`)
+     never hits a unique-constraint error or double-removes.
+   - **This changes nothing about who can access `#general`.** `ChatAccessService.authorize()`
+     (Decision 1's sole authorization authority) is completely unchanged and unaware this table is
+     now populated for that channel — a public channel's access was, and still is, entirely
+     Fellowship-derived; `FellowshipChatChannelMember` is only ever consulted for `isPrivate: true`
+     channels, and `#general` is never private. The table now serves two genuinely separate purposes
+     depending on which channel a row belongs to: gating access (private channels, Decision 1's
+     original reason for the table) and, new here, backing a roster (`#general` only) — the two never
+     overlap because no channel is both.
+   - **Scope is deliberately students only, not mentors** (`CohortMentor` assignments are not synced
+     into this table) — matching the literal product request ("every enrolled student"). A mentor or
+     admin in a Fellowship is simply not in `#general`'s roster yet; this is a disclosed limitation,
+     not a bug, and the natural next step if mentors are asked for later.
+   - **New endpoint `GET /chat/channels/:channelId/members`**, gated by the same broadly-granted
+     `chat.channel.read` every participant already holds (not `chat.channel.manage` — the point is
+     any participant can see who else is in the channel to message them, not just managers), reusing
+     the exact same access check `GET /chat/channels/:channelId` already enforces (organization
+     match, Fellowship authorization, private-channel membership) via a new shared
+     `requireReadAccess()` helper on `ChatChannelsService`.
+   - **The frontend roster lives in `ChannelInfoPanel`** (a new `MembersList`), visible to every
+     participant. Clicking a member starts (or resumes) a DM via the existing `POST /me/conversations`
+     (this ADR's 2026-09-06 addendum) and deep-links straight to it on that role's own Messages page —
+     exactly the same `?conversationId=` deep link a `dm.message.received` notification already uses.
+     DM eligibility itself is unchanged and unaffected by this feature: `DirectMessagesService`
+     already restricts a DM target to an active member of the caller's own organization (the
+     2026-09-06 addendum), which is broader than "in this specific channel" — a roster entry is simply
+     one more, more discoverable way to reach someone already reachable by search.

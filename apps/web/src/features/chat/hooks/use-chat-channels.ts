@@ -1,9 +1,25 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ChatChannel, CreateChatChannelRequest } from '@forge/api-contract';
+import type {
+  ChatChannelTransitionRequest,
+  CreateChatChannelRequest,
+  UpdateChatChannelRequest,
+} from '@forge/api-contract';
 import type { Socket } from 'socket.io-client';
-import { createChatChannel, listChatChannels } from '../api/chat-api';
+import {
+  archiveChatChannel,
+  createChatChannel,
+  listChatChannels,
+  restoreChatChannel,
+  updateChatChannel,
+} from '../api/chat-api';
 
+/** A prefix, not a full key — `invalidateQueries` matches every query whose
+ * key starts with this, so it catches both the `includeArchived: true` and
+ * `false` variants `useChatChannels` below can be watching at once. Every
+ * mutation hook here invalidates rather than hand-patches the cached array,
+ * specifically so it stays correct regardless of which variant(s) a given
+ * screen currently has mounted. */
 function channelsQueryKey(fellowshipId: string | undefined) {
   return ['chat', 'channels', fellowshipId] as const;
 }
@@ -11,28 +27,74 @@ function channelsQueryKey(fellowshipId: string | undefined) {
 export function useChatChannels(
   fellowshipId: string | undefined,
   organizationId: string | undefined,
+  includeArchived = false,
 ) {
   return useQuery({
-    queryKey: channelsQueryKey(fellowshipId),
-    queryFn: () => listChatChannels(fellowshipId!, organizationId),
+    queryKey: [...channelsQueryKey(fellowshipId), { includeArchived }],
+    queryFn: () => listChatChannels(fellowshipId!, organizationId, includeArchived),
     enabled: Boolean(fellowshipId && organizationId),
   });
+}
+
+function useInvalidateChannels(fellowshipId: string | undefined) {
+  const queryClient = useQueryClient();
+  return () => void queryClient.invalidateQueries({ queryKey: channelsQueryKey(fellowshipId) });
 }
 
 export function useCreateChatChannel(
   fellowshipId: string | undefined,
   organizationId: string | undefined,
 ) {
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateChannels(fellowshipId);
   return useMutation({
     mutationFn: (body: CreateChatChannelRequest) =>
       createChatChannel(fellowshipId!, body, organizationId),
-    onSuccess: (channel) => {
-      queryClient.setQueryData<ChatChannel[]>(channelsQueryKey(fellowshipId), (existing) => [
-        ...(existing ?? []),
-        channel,
-      ]);
-    },
+    onSuccess: invalidate,
+  });
+}
+
+/** Rename/re-describe — `chat.channel.manage` only, enforced server-side;
+ * the frontend only needs to hide the triggering UI from anyone else. */
+export function useUpdateChatChannel(
+  fellowshipId: string | undefined,
+  organizationId: string | undefined,
+) {
+  const invalidate = useInvalidateChannels(fellowshipId);
+  return useMutation({
+    mutationFn: ({
+      channelId,
+      body,
+      version,
+    }: {
+      channelId: string;
+      body: UpdateChatChannelRequest;
+      version: number;
+    }) => updateChatChannel(channelId, body, version, organizationId),
+    onSuccess: invalidate,
+  });
+}
+
+export function useArchiveChatChannel(
+  fellowshipId: string | undefined,
+  organizationId: string | undefined,
+) {
+  const invalidate = useInvalidateChannels(fellowshipId);
+  return useMutation({
+    mutationFn: ({ channelId, body }: { channelId: string; body: ChatChannelTransitionRequest }) =>
+      archiveChatChannel(channelId, body, organizationId),
+    onSuccess: invalidate,
+  });
+}
+
+export function useRestoreChatChannel(
+  fellowshipId: string | undefined,
+  organizationId: string | undefined,
+) {
+  const invalidate = useInvalidateChannels(fellowshipId);
+  return useMutation({
+    mutationFn: ({ channelId, body }: { channelId: string; body: ChatChannelTransitionRequest }) =>
+      restoreChatChannel(channelId, body, organizationId),
+    onSuccess: invalidate,
   });
 }
 

@@ -12,6 +12,7 @@ import { ChatReadStateRepository } from './repositories/chat-read-state.reposito
 import { DirectMessagesRepository } from './repositories/direct-messages.repository';
 import { ChatAccessService } from './services/chat-access.service';
 import { ChatChannelsService } from './services/chat-channels.service';
+import { ChatMembershipSyncService } from './services/chat-membership-sync.service';
 import { ChatMessagesService } from './services/chat-messages.service';
 import { DirectMessagesService } from './services/direct-messages.service';
 import { RedisEventsService } from './services/redis-events.service';
@@ -19,9 +20,13 @@ import { RedisEventsService } from './services/redis-events.service';
 /** `ChatChannelsService` is exported so `CatalogModule` can import
  * `ChatModule` and inject it into `FellowshipsService`, which auto-creates
  * #general on fellowship creation — see
- * docs/adr/0014-fellowship-chat.md Decision 4. The dependency runs one way
- * only (Catalog -> Chat); this module never imports Catalog, so there's no
- * cycle. */
+ * docs/adr/0014-fellowship-chat.md Decision 4. `ChatMembershipSyncService`
+ * is exported the same way so `CohortsModule` can import `ChatModule` and
+ * inject it into `EnrollmentsService`, to keep #general's real membership
+ * rows in sync with Enrollment status — see that service's own doc comment
+ * and this ADR's 2026-09-07 addendum. Both dependencies run one way only
+ * (Catalog/Cohorts -> Chat); this module never imports either, so there's
+ * no cycle. */
 @Module({
   imports: [OrganizationsModule, PlatformModule, IdentityModule],
   controllers: [FellowshipChatChannelsController, ChatMessagesController, DirectMessagesController],
@@ -32,11 +37,12 @@ import { RedisEventsService } from './services/redis-events.service';
     DirectMessagesRepository,
     ChatAccessService,
     ChatChannelsService,
+    ChatMembershipSyncService,
     ChatMessagesService,
     DirectMessagesService,
     RedisEventsService,
     ChatGateway,
   ],
-  exports: [ChatChannelsService],
+  exports: [ChatChannelsService, ChatMembershipSyncService],
 })
 export class ChatModule {}
