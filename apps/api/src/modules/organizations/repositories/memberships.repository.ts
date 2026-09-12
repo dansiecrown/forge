@@ -166,12 +166,20 @@ export class MembershipsRepository {
    * gated directory (`AdminUsersRepository`): every org member can search
    * every other org member here, not just an admin. Excludes the caller
    * themselves and anyone without an active membership (an invited-but-
-   * not-yet-active or suspended member isn't a valid DM partner). */
+   * not-yet-active or suspended member isn't a valid DM partner).
+   *
+   * `excludeRoleKeys` filters out anyone currently holding one of those
+   * roles in this organization — used to keep Super Admin/Org Admin out of
+   * a Student's search results entirely (see
+   * docs/adr/0014-fellowship-chat.md's 2026-09-07 addendum), applied here
+   * rather than post-filtering the caller's results so `take: limit` still
+   * returns a full page. */
   searchActiveMembers(
     scope: TenantScope,
     query: string,
     excludeUserId: string,
     limit: number,
+    excludeRoleKeys: string[] = [],
   ): Promise<MembershipWithUser[]> {
     return this.prisma.membership.findMany({
       where: {
@@ -184,6 +192,13 @@ export class MembershipsRepository {
             { username: { contains: query.toLowerCase() } },
           ],
         },
+        ...(excludeRoleKeys.length > 0
+          ? {
+              membershipRoles: {
+                none: { revokedAt: null, role: { key: { in: excludeRoleKeys } } },
+              },
+            }
+          : {}),
       },
       include: { user: true },
       take: limit,

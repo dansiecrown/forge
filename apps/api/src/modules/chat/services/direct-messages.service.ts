@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { UsersService } from '../../identity/services/users.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
+import {
+  PermissionResolverService,
+  SUPER_ADMIN_ROLE_KEY,
+} from '../../organizations/services/permission-resolver.service';
 import { AppException } from '../../../shared/errors/app.exception';
 import { CollectionResult, parseLimit } from '../../../shared/pagination/collection-result';
 import type { TenantScope } from '../../../shared/tenancy/tenant-scope';
@@ -13,20 +17,53 @@ import {
   type DirectMessageEntity,
 } from '../entities/direct-message.entity';
 
+const STUDENT_ROLE_KEY = 'STUDENT';
+const ORG_ADMIN_ROLE_KEY = 'ORG_ADMIN';
+
 /** User-to-user DMs — deliberately organization-scoped (never platform-wide,
  * even though `User`/`username` are global identities) and deliberately
  * minimal (no reactions, no reply-threading, no dedicated read-state table
  * — unread signaling reuses the Notification model instead). See
  * docs/adr/0014-fellowship-chat.md's 2026-09-06 addendum, formally
- * reversing that ADR's original "DMs out of scope" decision. */
+ * reversing that ADR's original "DMs out of scope" decision, and its
+ * 2026-09-07 addendum narrowing "anyone in the org" for Students
+ * specifically. */
 @Injectable()
 export class DirectMessagesService {
   constructor(
     private readonly repository: DirectMessagesRepository,
     private readonly membershipsService: MembershipsService,
+    private readonly permissionResolver: PermissionResolverService,
     private readonly usersService: UsersService,
     private readonly notifications: NotificationsService,
   ) {}
+
+  /** A Student may not start a DM with a Super Admin or Org Admin — one-way
+   * (an admin can still message a Student) and deliberately narrow: Academy
+   * Admin and Mentor remain reachable, since the ask was specifically about
+   * platform/organization-level administrators. Not a role-name check on
+   * the caller's *only* role — anyone holding Student among their roles is
+   * restricted, matching the literal request. See
+   * docs/adr/0014-fellowship-chat.md's 2026-09-07 addendum. */
+  private async isRestrictedTarget(
+    scope: TenantScope,
+    callerId: string,
+    targetId: string,
+  ): Promise<boolean> {
+    const callerIsStudent = await this.membershipsService.hasRoleKey(
+      scope,
+      callerId,
+      STUDENT_ROLE_KEY,
+    );
+    if (!callerIsStudent) {
+      return false;
+    }
+    const [targetIsSuperAdmin, targetIsOrgAdmin] = await Promise.all([
+      this.permissionResolver.hasPlatformRole(targetId, SUPER_ADMIN_ROLE_KEY),
+      this.membershipsService.hasRoleKey(scope, targetId, ORG_ADMIN_ROLE_KEY),
+    ]);
+    return targetIsSuperAdmin || targetIsOrgAdmin;
+  }
 
   async listConversations(
     scope: TenantScope,
@@ -42,7 +79,12 @@ export class DirectMessagesService {
    * target with no active membership in the caller's own organization —
    * the tenant-scoping boundary a confirmed product decision drew
    * deliberately (usernames are globally unique, but that must never make
-   * a stranger in an unrelated organization contactable). */
+   * a stranger in an unrelated organization contactable). Also rejects a
+   * Student targeting a Super Admin/Org Admin (`isRestrictedTarget`) — the
+   * identical `NOT_FOUND` used for "not a member" on purpose, so a
+   * restricted admin is indistinguishable from someone who simply doesn't
+   * exist, matching the same "hide entirely" treatment `searchPeople`
+   * already gives them. */
   async startOrGetConversation(
     scope: TenantScope,
     callerId: string,
@@ -55,6 +97,9 @@ export class DirectMessagesService {
     }
     const isOrgMember = await this.membershipsService.hasActiveMembership(scope, otherUserId);
     if (!isOrgMember) {
+      throw AppException.notFound('This person is not a member of your organization.');
+    }
+    if (await this.isRestrictedTarget(scope, callerId, otherUserId)) {
       throw AppException.notFound('This person is not a member of your organization.');
     }
 
@@ -138,7 +183,21 @@ export class DirectMessagesService {
     return entity;
   }
 
-  searchPeople(scope: TenantScope, callerId: string, query: string) {
-    return this.membershipsService.searchActiveMembers(scope, query, callerId);
+  /** Hides Super Admin/Org Admin from a Student's own search entirely — not
+   * just blocked on send — so there's no dead-end click from a search
+   * result straight into the same `NOT_FOUND` `startOrGetConversation`
+   * would give. */
+  async searchPeople(scope: TenantScope, callerId: string, query: string) {
+    const callerIsStudent = await this.membershipsService.hasRoleKey(
+      scope,
+      callerId,
+      STUDENT_ROLE_KEY,
+    );
+    return this.membershipsService.searchActiveMembers(
+      scope,
+      query,
+      callerId,
+      callerIsStudent ? [SUPER_ADMIN_ROLE_KEY, ORG_ADMIN_ROLE_KEY] : [],
+    );
   }
 }

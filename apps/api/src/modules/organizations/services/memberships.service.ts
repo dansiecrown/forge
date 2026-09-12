@@ -81,19 +81,36 @@ export class MembershipsService {
   /** The DM "who do you want to message" search — see
    * `MembershipsRepository.searchActiveMembers`'s own doc comment for why
    * this is a separate, broadly-callable path rather than the admin
-   * directory. */
-  async searchActiveMembers(scope: TenantScope, query: string, excludeUserId: string) {
+   * directory. `excludeRoleKeys` is passed straight through — see that
+   * method's doc comment for why Student search calls pass `['SUPER_ADMIN',
+   * 'ORG_ADMIN']` here. */
+  async searchActiveMembers(
+    scope: TenantScope,
+    query: string,
+    excludeUserId: string,
+    excludeRoleKeys: string[] = [],
+  ) {
     const memberships = await this.membershipsRepository.searchActiveMembers(
       scope,
       query,
       excludeUserId,
       10,
+      excludeRoleKeys,
     );
     return memberships.map((membership) => ({
       id: membership.userId,
       displayName: membership.user.displayName,
       username: membership.user.username,
     }));
+  }
+
+  /** Org-scoped role check — "does this person currently hold `roleKey`
+   * within `scope`," e.g. Student, Org Admin. Not for platform-wide roles
+   * like Super Admin, which live outside any one organization's scope — use
+   * `PermissionResolverService.hasPlatformRole` for those instead. */
+  async hasRoleKey(scope: TenantScope, userId: string, roleKey: string): Promise<boolean> {
+    const membership = await this.membershipsRepository.findActive(scope, userId);
+    return membership?.membershipRoles.some((grant) => grant.role.key === roleKey) ?? false;
   }
 
   /** Existence + org-scope check for other modules (cohorts) validating a

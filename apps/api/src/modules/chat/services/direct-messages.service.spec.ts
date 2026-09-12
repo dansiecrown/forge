@@ -1,6 +1,7 @@
 import type { DirectConversation, DirectMessage, User } from '@prisma/client';
 import type { UsersService } from '../../identity/services/users.service';
 import type { MembershipsService } from '../../organizations/services/memberships.service';
+import type { PermissionResolverService } from '../../organizations/services/permission-resolver.service';
 import type { NotificationsService } from '../../platform/services/notifications.service';
 import type {
   DirectConversationWithParticipants,
@@ -68,6 +69,9 @@ function fakeMessage(overrides: Partial<DirectMessage> = {}): DirectMessage {
 function buildService(options: {
   conversation?: DirectConversationWithParticipants | null;
   isOrgMember?: boolean;
+  callerIsStudent?: boolean;
+  targetIsOrgAdmin?: boolean;
+  targetIsSuperAdmin?: boolean;
 }) {
   const repository: Partial<DirectMessagesRepository> = {
     findConversation: jest.fn(async () => options.conversation ?? null),
@@ -80,7 +84,15 @@ function buildService(options: {
   const membershipsService = {
     hasActiveMembership: jest.fn(async () => options.isOrgMember ?? true),
     searchActiveMembers: jest.fn(async () => []),
+    hasRoleKey: jest.fn(async (_scope: unknown, userId: string, roleKey: string) => {
+      if (roleKey === 'STUDENT') return options.callerIsStudent ?? false;
+      if (roleKey === 'ORG_ADMIN') return options.targetIsOrgAdmin ?? false;
+      return false;
+    }),
   } as unknown as MembershipsService;
+  const permissionResolver = {
+    hasPlatformRole: jest.fn(async () => options.targetIsSuperAdmin ?? false),
+  } as unknown as PermissionResolverService;
   const usersService = {
     listByIds: jest.fn(async (ids: string[]) => ids.map((id) => fakeUser({ id }))),
   } as unknown as UsersService;
@@ -91,10 +103,11 @@ function buildService(options: {
   const service = new DirectMessagesService(
     repository as DirectMessagesRepository,
     membershipsService,
+    permissionResolver,
     usersService,
     notifications,
   );
-  return { service, repository, membershipsService, notifications };
+  return { service, repository, membershipsService, permissionResolver, notifications };
 }
 
 describe('DirectMessagesService.startOrGetConversation', () => {
@@ -128,6 +141,67 @@ describe('DirectMessagesService.startOrGetConversation', () => {
     ]);
     await service.startOrGetConversation(SCOPE, 'student-1', 'mentor-1');
     expect(repository.createConversation).toHaveBeenCalledWith('org-1', 'student-1', 'mentor-1');
+  });
+
+  it('rejects a Student targeting a Super Admin, identically to "not a member"', async () => {
+    const { service } = buildService({ callerIsStudent: true, targetIsSuperAdmin: true });
+    await expect(
+      service.startOrGetConversation(SCOPE, 'student-1', 'super-admin-1'),
+    ).rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+  });
+
+  it('rejects a Student targeting an Org Admin', async () => {
+    const { service } = buildService({ callerIsStudent: true, targetIsOrgAdmin: true });
+    await expect(
+      service.startOrGetConversation(SCOPE, 'student-1', 'org-admin-1'),
+    ).rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+  });
+
+  it('allows a non-Student caller (e.g. a Mentor) to message an Org Admin', async () => {
+    const { service, repository } = buildService({
+      callerIsStudent: false,
+      targetIsOrgAdmin: true,
+      conversation: fakeConversationWithParticipants({
+        user1Id: 'mentor-1',
+        user2Id: 'org-admin-1',
+      }),
+    });
+    await service.startOrGetConversation(SCOPE, 'mentor-1', 'org-admin-1');
+    expect(repository.createConversation).not.toHaveBeenCalled();
+  });
+
+  it('allows a Student to message an Academy Admin (not a restricted role)', async () => {
+    const { service, repository } = buildService({
+      callerIsStudent: true,
+      conversation: fakeConversationWithParticipants({
+        user1Id: 'student-1',
+        user2Id: 'academy-admin-1',
+      }),
+    });
+    await service.startOrGetConversation(SCOPE, 'student-1', 'academy-admin-1');
+    expect(repository.createConversation).not.toHaveBeenCalled();
+  });
+});
+
+describe('DirectMessagesService.searchPeople', () => {
+  it('excludes Super Admin and Org Admin from a Student’s own search', async () => {
+    const { service, membershipsService } = buildService({ callerIsStudent: true });
+    await service.searchPeople(SCOPE, 'student-1', 'ada');
+    expect(membershipsService.searchActiveMembers).toHaveBeenCalledWith(SCOPE, 'ada', 'student-1', [
+      'SUPER_ADMIN',
+      'ORG_ADMIN',
+    ]);
+  });
+
+  it('applies no exclusion for a non-Student caller', async () => {
+    const { service, membershipsService } = buildService({ callerIsStudent: false });
+    await service.searchPeople(SCOPE, 'mentor-1', 'ada');
+    expect(membershipsService.searchActiveMembers).toHaveBeenCalledWith(
+      SCOPE,
+      'ada',
+      'mentor-1',
+      [],
+    );
   });
 });
 
