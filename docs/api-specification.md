@@ -309,11 +309,16 @@ and from §4.13a's real 1:1 Direct Messages below — Fellowship chat is a separ
 channels per Fellowship (not a per-user conversation), scoped by the same Enrollment/CohortMentor/
 admin-scope relationships every other module uses, with no new "Fellowship Admin" role. See
 `docs/adr/0014-fellowship-chat.md` and its 2026-09-07 addendum (member roster, rename/archive/
-restore UI).
+restore UI) and 2026-09-12 addendum (Mentor channel creation, auto-created Track channels).
+
+`GET /fellowships/:fellowshipId/chat/channels`'s response shape changed 2026-09-12 — was a bare
+`ChatChannel[]`, now `{ channels, canManageChannels, canCreateChannels }`, the latter two being the
+caller's own capability *for this specific Fellowship* (a Mentor's `canCreateChannels` depends on
+which Fellowship they're assigned to; a static role-permission check can't express that).
 
 | Method / path | Description, auth/permission | Request sample & validation | Success response / errors |
 | --- | --- | --- | --- |
-| `GET /fellowships/:fellowshipId/chat/channels` / `POST …` | list visible channels (private channels only for members/managers) / create; `?includeArchived=true` honored only for a `chat.channel.manage` holder, silently ignored otherwise; `chat.channel.read` / `chat.channel.manage` | POST `{ "name":"Announcements","slug":"announcements","type":"announcements","isPrivate":false }`; unique slug per Fellowship | `200 {data:[{id:"uuid",name:"general","type":"general"}]}` / `201`; `403/404/409 SLUG_TAKEN` |
+| `GET /fellowships/:fellowshipId/chat/channels` / `POST …` | list visible channels (private and Track channels filtered per caller — see below) / create; `?includeArchived=true` honored only for a `chat.channel.manage` holder, silently ignored otherwise; `chat.channel.read` / `chat.channel.read` (real gating is `canCreateChannels`: every admin, or a Mentor assigned to this Fellowship — never a manual `type: "track"`, which is `TRACK_CHANNEL_NOT_MANUAL`) | POST `{ "name":"Announcements","slug":"announcements","type":"announcements","isPrivate":false }`; unique slug per Fellowship | `200 {data:{channels:[{id:"uuid",name:"general","type":"general"}],canManageChannels:true,canCreateChannels:true}}` / `201`; `403/404/409 SLUG_TAKEN` |
 | `GET /chat/channels/:id` / `PATCH /chat/channels/:id` | channel detail / rename+describe; participant read / `chat.channel.manage`, `If-Match` | PATCH `{ "name":"General","description":"…" }` | `200`; `403/404/409 VERSION_CONFLICT` |
 | `GET /chat/channels/:id/members` | this channel's roster (`{id,displayName,username}[]`), to start a DM with someone in it; `chat.channel.read` (any participant, not just managers) | no body | `200 [{id:"uuid",displayName:"Ada",username:"ada"}]`; `403/404` |
 | `POST /chat/channels/:id/actions/archive` / `.../restore` / `DELETE /chat/channels/:id` | archive/restore (DELETE archives, never hard-deletes); `chat.channel.manage` | `{ "version":1 }` | `200`; `403/404/409` |
@@ -321,6 +326,12 @@ restore UI).
 | `PATCH /chat/messages/:id` / `DELETE /chat/messages/:id` | edit-own (last-write-wins, no `version`) / soft-delete; author, or `chat.message.moderate` for someone else's | PATCH `{ "content":"Corrected" }` | `200`; `403/404` |
 | `POST /chat/messages/:id/reactions` / `DELETE …/reactions/:reaction` | add/remove own reaction (idempotent add); `chat.reaction.manage` | `{ "reaction":"👍" }` | `200`/`204`; `404` |
 | `GET /chat/channels/:id/read` / `POST /chat/channels/:id/read` | this caller's read marker + unread count / mark read; `chat.channel.read` | POST `{ "lastReadMessageId":"uuid"? }` | `200 {data:{lastReadMessageId,lastReadAt,unreadCount}}` / `200`; `403/404` |
+
+`type: "track"` channels (auto-created when a Cohort is assigned a Learning Track — see the ADR
+addendum) are visible only to a Student enrolled in that exact Cohort on that exact Track; every
+admin and any Mentor assigned to the Fellowship sees every Track channel, same as every other
+channel type. Direct access to one that isn't theirs (`GET`, message read/post, WebSocket subscribe)
+404s identically to a channel that doesn't exist.
 
 ### 4.13a Direct messages (1:1)
 
@@ -333,11 +344,16 @@ dedicated read-state (unread signaling reuses the Notification model instead, a
 satisfies `PermissionsGuard`; ownership — is the caller one of exactly two participants — is
 enforced in the service).
 
+A Student may not message a Super Admin or Org Admin (added 2026-09-12, see that ADR's addendum) —
+one-way (the reverse is allowed), and hidden entirely rather than merely blocked: excluded from
+search outright, and `POST /me/conversations` returns the same `404` used for a non-member if
+addressed directly.
+
 | Method / path | Description, auth/permission | Request sample & validation | Success response / errors |
 | --- | --- | --- | --- |
-| `GET /me/people/search` | search active members of the caller's own organization by name or username, to start a DM; self-scoped | `?q=ada` (2+ chars) | `200 [{id:"uuid",displayName:"Ada",username:"ada"}]` |
+| `GET /me/people/search` | search active members of the caller's own organization by name or username, to start a DM; self-scoped. For a Student caller, Super Admin/Org Admin are excluded from results entirely | `?q=ada` (2+ chars) | `200 [{id:"uuid",displayName:"Ada",username:"ada"}]` |
 | `GET /me/conversations` | the caller's own DM conversations, most-recently-active first; self-scoped | no body | `200 [{id:"uuid",otherParticipant:{…},lastMessage:{…}|null,updatedAt:"…"}]` |
-| `POST /me/conversations` | start or return the existing conversation with a person; self-scoped | `{ "userId":"uuid" }`; not the caller themselves, target must have an active membership in the caller's org | `200/201 {data:{id:"uuid",otherParticipant:{…}}}`; `404` (target not in this org) / `422 CANNOT_MESSAGE_SELF` |
+| `POST /me/conversations` | start or return the existing conversation with a person; self-scoped | `{ "userId":"uuid" }`; not the caller themselves, target must have an active membership in the caller's org, and (for a Student caller) must not be a Super Admin/Org Admin | `200/201 {data:{id:"uuid",otherParticipant:{…}}}`; `404` (target not in this org, or a Student-restricted admin) / `422 CANNOT_MESSAGE_SELF` |
 | `GET /me/conversations/:id/messages` | cursor message history (newest-first pages); participant only | `cursor,limit` | `200 {data:[…],meta:{page:{…}}}`; `404` (not a participant) |
 | `POST /me/conversations/:id/messages` | send a message; participant only | `{ "content":"Hello" }`; 1–4000 chars | `201 {data:{id:"uuid",content:"Hello",createdAt:"…"}}`; `404` (not a participant) |
 

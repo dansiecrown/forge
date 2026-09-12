@@ -16,8 +16,17 @@ export interface FellowshipChatAuthorization {
   fellowship: FellowshipChatFellowship | null;
   /** True only for a Super Admin, an Org Admin, or an Academy Admin whose
    * academy owns this fellowship — never for a mentor or student, and never
-   * for an Academy Admin scoped to a *different* academy. */
+   * for an Academy Admin scoped to a *different* academy. Rename, archive,
+   * and restore all still require this. */
   canManageChannels: boolean;
+  /** True for everyone `canManageChannels` already covers, **and** for a
+   * Mentor with an active `CohortMentor` assignment on this Fellowship — on
+   * explicit product request ("mentors should be able to create extra
+   * channels"), deliberately narrower than `canManageChannels`: a Mentor
+   * may create a channel but not rename/archive/restore one, and only in a
+   * Fellowship they're actually assigned to, never org-wide. See
+   * docs/adr/0014-fellowship-chat.md's 2026-09-12 addendum. */
+  canCreateChannels: boolean;
   canModerate: boolean;
 }
 
@@ -43,7 +52,12 @@ export interface FellowshipChatAuthorization {
  * granted only to ORG_ADMIN/ACADEMY_ADMIN in the seed, so a caller either
  * has it (branch into the admin, academy-scope-aware path) or doesn't
  * (branch into the participant, enrollment/assignment-derived path) with no
- * role-name string compared anywhere in this method. */
+ * role-name string compared anywhere in this method.
+ *
+ * `canCreateChannels` (2026-09-12 addendum) is the one capability that
+ * *does* extend into the participant branch: a Mentor with an active
+ * assignment here gets it too, alongside every admin — see
+ * `FellowshipChatAuthorization.canCreateChannels`'s own doc comment. */
 @Injectable()
 export class ChatAccessService {
   constructor(
@@ -62,12 +76,24 @@ export class ChatAccessService {
       select: { id: true, organizationId: true, academyId: true, title: true },
     });
     if (!fellowship) {
-      return { allowed: false, fellowship: null, canManageChannels: false, canModerate: false };
+      return {
+        allowed: false,
+        fellowship: null,
+        canManageChannels: false,
+        canCreateChannels: false,
+        canModerate: false,
+      };
     }
 
     const authorization = await this.permissionResolver.resolve(userId, scope.organizationId);
     if (authorization.isSuperAdmin) {
-      return { allowed: true, fellowship, canManageChannels: true, canModerate: true };
+      return {
+        allowed: true,
+        fellowship,
+        canManageChannels: true,
+        canCreateChannels: true,
+        canModerate: true,
+      };
     }
 
     if (authorization.permissionKeys.has('chat.channel.manage')) {
@@ -77,6 +103,7 @@ export class ChatAccessService {
         allowed,
         fellowship,
         canManageChannels: allowed,
+        canCreateChannels: allowed,
         canModerate: allowed && authorization.permissionKeys.has('chat.message.moderate'),
       };
     }
@@ -101,6 +128,12 @@ export class ChatAccessService {
     ]);
 
     const allowed = Boolean(enrollment) || Boolean(mentorAssignment);
-    return { allowed, fellowship, canManageChannels: false, canModerate: false };
+    return {
+      allowed,
+      fellowship,
+      canManageChannels: false,
+      canCreateChannels: Boolean(mentorAssignment),
+      canModerate: false,
+    };
   }
 }

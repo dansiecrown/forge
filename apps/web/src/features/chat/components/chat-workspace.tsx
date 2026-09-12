@@ -56,7 +56,9 @@ export function ChatWorkspace({
   );
   useChatChannelsLiveRefresh(socket, fellowshipId);
 
-  const channels = channelsQuery.data ?? [];
+  const channels = channelsQuery.data?.channels ?? [];
+  const canManageChannels = channelsQuery.data?.canManageChannels ?? false;
+  const canCreateChannels = channelsQuery.data?.canCreateChannels ?? false;
   useEffect(() => {
     if (!activeChannel && channels.length > 0) {
       setActiveChannel(channels.find((c) => c.type === 'general') ?? channels[0]);
@@ -131,6 +133,8 @@ export function ChatWorkspace({
           isLoading={channelsQuery.isLoading}
           includeArchived={includeArchived}
           onIncludeArchivedChange={setIncludeArchived}
+          canManageChannels={canManageChannels}
+          canCreateChannels={canCreateChannels}
         />
       </div>
 
@@ -157,6 +161,8 @@ export function ChatWorkspace({
               isLoading={channelsQuery.isLoading}
               includeArchived={includeArchived}
               onIncludeArchivedChange={setIncludeArchived}
+              canManageChannels={canManageChannels}
+              canCreateChannels={canCreateChannels}
             />
           </div>
         </div>
@@ -249,6 +255,7 @@ export function ChatWorkspace({
             fellowshipId={fellowshipId}
             channel={activeChannel}
             role={role}
+            canManageChannels={canManageChannels}
             onChannelUpdated={setActiveChannel}
           />
         </div>
@@ -278,6 +285,7 @@ export function ChatWorkspace({
               fellowshipId={fellowshipId}
               channel={activeChannel}
               role={role}
+              canManageChannels={canManageChannels}
               onChannelUpdated={setActiveChannel}
             />
           </div>

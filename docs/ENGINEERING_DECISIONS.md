@@ -455,6 +455,51 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   wrapper text, hiding the real reason. Client-side password validation also now mirrors the
   server's letter+digit rule for immediate feedback.
 
+## Students May Not DM Super Admin or Org Admin (2026-09-12)
+
+- **The 2026-09-06 "anyone active in the org" DM eligibility rule is narrowed: a Student may not
+  start a DM with a Super Admin or Org Admin.** Confirmed narrow on three specific points before
+  implementation: only those two roles (Academy Admin and Mentor remain reachable), one-way (an
+  admin can still message a Student), and hidden entirely rather than merely blocked — excluded from
+  `GET /me/people/search` outright (query-level exclusion, not a post-filter, so pagination still
+  fills a full page), and `POST /me/conversations` returns the identical `NOT_FOUND`/"not a member"
+  already used for a genuine non-member if addressed directly, so a restricted admin is
+  indistinguishable from someone who doesn't exist.
+- **New `MembershipsService.hasRoleKey()`** — an org-scoped role-key check, distinct from
+  `PermissionResolverService.hasPlatformRole()`'s platform-wide one (already used for Super Admin
+  elsewhere). Role-name checks on purpose here, not permission-key checks: this is about who a
+  Student may *reach*, not what either party may *do*.
+- **The Fellowship chat member roster needed no change** — it only ever lists students (this
+  session's earlier `ChatMembershipSyncService` work), so a Super Admin/Org Admin was never going to
+  appear there regardless of this restriction. See `docs/adr/0014-fellowship-chat.md`'s 2026-09-12
+  addendum for the full reasoning and verification.
+
+## Missing #general Backfilled, Mentor Channel Creation, and Auto-Created Track Channels (2026-09-12)
+
+- **Two Fellowships created before Fellowship Chat shipped (2026-09-03, two days before auto-creation
+  went live 2026-09-05) had no `#general` channel at all** — surfaced as "why can't I load my
+  fellowship chat." Not a code bug (verified the auto-creation hook works for everything created
+  since); backfilled the one in active use through the same path a real request would use, then
+  cycled the affected Enrollment's status to re-trigger the membership-roster sync now that the
+  channel exists.
+- **A Mentor may now create chat channels — create only, and only in a Fellowship they're actually
+  assigned to (an active `CohortMentor` assignment), never rename/archive/restore, never org-wide.**
+  `FellowshipChatAuthorization` gains `canCreateChannels`, distinct from `canManageChannels`.
+  `GET /fellowships/:id/chat/channels`'s response shape changes accordingly — a bare `ChatChannel[]`
+  becomes `{ channels, canManageChannels, canCreateChannels }`, since a Mentor's create capability is
+  per-Fellowship and a static role-permission check on the frontend can't express that (this also
+  incidentally fixes an Academy Admin viewing a Fellowship outside their academy seeing an
+  edit/archive action that would have 403'd on click — the frontend now reads the real, server-computed
+  capability instead of approximating it from a role name).
+- **A Cohort being assigned a Learning Track now auto-creates that pairing's own `type: 'track'`
+  channel** (new enum value + two new nullable `FellowshipChatChannel` columns, migration
+  `20260912200000_add_track_chat_channels`). A Student sees only their own Cohort+Track's channel,
+  never every Track channel in the Fellowship — enforced in three places that all had to be updated
+  together, since this codebase doesn't centralize channel-read authorization in one function
+  (`ChatChannelsService.list()`/`.requireReadAccess()` and `ChatMessagesService`'s own independent
+  access check, a pre-existing duplication, not introduced here). See
+  `docs/adr/0014-fellowship-chat.md`'s 2026-09-12 addendum for the full design and live verification.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

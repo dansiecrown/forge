@@ -3,6 +3,7 @@ import type { FellowshipEntity } from '../../catalog/entities/fellowship.entity'
 import type { FellowshipsService } from '../../catalog/services/fellowships.service';
 import type { CurriculumSnapshotService } from '../../catalog/services/curriculum-snapshot.service';
 import type { LearningTracksService } from '../../catalog/services/learning-tracks.service';
+import type { ChatChannelsService } from '../../chat/services/chat-channels.service';
 import type { AuditLogService } from '../../platform/audit-log.service';
 import type { UsersService } from '../../identity/services/users.service';
 import type { MembershipsService } from '../../organizations/services/memberships.service';
@@ -86,6 +87,12 @@ function fakeLearningTracksService(): LearningTracksService {
   } as unknown as LearningTracksService;
 }
 
+function fakeChatChannelsService(): ChatChannelsService {
+  return {
+    createTrackChannel: jest.fn(async () => undefined),
+  } as unknown as ChatChannelsService;
+}
+
 describe('CohortsService', () => {
   it('treats a cohort from another organization as not found', async () => {
     const repository: Partial<CohortsRepository> = {
@@ -99,6 +106,7 @@ describe('CohortsService', () => {
       fakeAuditLog(),
       fakeUsersService(),
       fakeLearningTracksService(),
+      fakeChatChannelsService(),
     );
 
     await expect(
@@ -122,6 +130,7 @@ describe('CohortsService', () => {
       fakeAuditLog(),
       fakeUsersService(),
       fakeLearningTracksService(),
+      fakeChatChannelsService(),
     );
 
     await expect(
@@ -144,6 +153,7 @@ describe('CohortsService', () => {
       fakeAuditLog(),
       fakeUsersService(),
       fakeLearningTracksService(),
+      fakeChatChannelsService(),
     );
 
     await expect(
@@ -176,6 +186,7 @@ describe('CohortsService', () => {
       fakeAuditLog(),
       fakeUsersService(),
       fakeLearningTracksService(),
+      fakeChatChannelsService(),
     );
 
     await expect(
@@ -202,6 +213,7 @@ describe('CohortsService', () => {
       fakeAuditLog(),
       fakeUsersService(),
       fakeLearningTracksService(),
+      fakeChatChannelsService(),
     );
 
     await expect(
@@ -235,6 +247,7 @@ describe('CohortsService', () => {
       fakeAuditLog(),
       fakeUsersService(),
       fakeLearningTracksService(),
+      fakeChatChannelsService(),
     );
 
     const result = await service.syncCurriculum(
@@ -260,6 +273,7 @@ describe('CohortsService', () => {
       fakeAuditLog(),
       fakeUsersService(),
       fakeLearningTracksService(),
+      fakeChatChannelsService(),
     );
 
     await expect(
@@ -284,6 +298,7 @@ describe('CohortsService — track switch grace period', () => {
       auditLog,
       fakeUsersService(),
       fakeLearningTracksService(),
+      fakeChatChannelsService(),
     );
 
     const result = await service.closeTrackSwitching(
@@ -319,6 +334,7 @@ describe('CohortsService — track switch grace period', () => {
       fakeAuditLog(),
       fakeUsersService(),
       fakeLearningTracksService(),
+      fakeChatChannelsService(),
     );
 
     const result = await service.reopenTrackSwitching(
@@ -352,10 +368,87 @@ describe('CohortsService — track switch grace period', () => {
       fakeAuditLog(),
       fakeUsersService(),
       fakeLearningTracksService(),
+      fakeChatChannelsService(),
     );
 
     await expect(
       service.closeTrackSwitching({ organizationId: 'org-1' }, 'cohort-1', 1, 'caller-1'),
     ).rejects.toMatchObject({ response: { code: 'VERSION_CONFLICT' } });
+  });
+
+  describe('setOfferedTracks', () => {
+    function fakeTrackLookup(): LearningTracksService {
+      return {
+        get: jest.fn(async (_scope: unknown, trackId: string) => ({
+          id: trackId,
+          fellowshipId: 'fellowship-1',
+          name: trackId === 'track-existing' ? 'Existing Track' : 'New Track',
+          slug: trackId === 'track-existing' ? 'existing-track' : 'new-track',
+        })),
+      } as unknown as LearningTracksService;
+    }
+
+    it('creates a chat channel only for a newly-added track, not one already offered', async () => {
+      const repository: Partial<CohortsRepository> = {
+        findById: jest.fn(async () =>
+          fakeCohort({ id: 'cohort-1', slug: 'cohort-2027', fellowshipId: 'fellowship-1' }),
+        ),
+        listOfferedTrackIds: jest.fn(async () => ['track-existing']),
+        setOfferedTracks: jest.fn(async () => undefined),
+      };
+      const chatChannelsService = fakeChatChannelsService();
+      const service = new CohortsService(
+        repository as CohortsRepository,
+        fakeFellowshipsService(),
+        fakeMembershipsService(),
+        fakeCurriculumSnapshotService(),
+        fakeAuditLog(),
+        fakeUsersService(),
+        fakeTrackLookup(),
+        chatChannelsService,
+      );
+
+      await service.setOfferedTracks(
+        { organizationId: 'org-1' },
+        'cohort-1',
+        ['track-existing', 'track-new'],
+        'actor-1',
+      );
+
+      expect(chatChannelsService.createTrackChannel).toHaveBeenCalledTimes(1);
+      expect(chatChannelsService.createTrackChannel).toHaveBeenCalledWith(
+        'org-1',
+        'fellowship-1',
+        { id: 'cohort-1', slug: 'cohort-2027' },
+        { id: 'track-new', name: 'New Track', slug: 'new-track' },
+      );
+    });
+
+    it('never fails the track-assignment action when chat channel creation throws', async () => {
+      const repository: Partial<CohortsRepository> = {
+        findById: jest.fn(async () => fakeCohort({ id: 'cohort-1', fellowshipId: 'fellowship-1' })),
+        listOfferedTrackIds: jest.fn(async () => []),
+        setOfferedTracks: jest.fn(async () => undefined),
+      };
+      const chatChannelsService = {
+        createTrackChannel: jest.fn(async () => {
+          throw new Error('boom');
+        }),
+      } as unknown as ChatChannelsService;
+      const service = new CohortsService(
+        repository as CohortsRepository,
+        fakeFellowshipsService(),
+        fakeMembershipsService(),
+        fakeCurriculumSnapshotService(),
+        fakeAuditLog(),
+        fakeUsersService(),
+        fakeTrackLookup(),
+        chatChannelsService,
+      );
+
+      await expect(
+        service.setOfferedTracks({ organizationId: 'org-1' }, 'cohort-1', ['track-new'], 'actor-1'),
+      ).resolves.toBeUndefined();
+    });
   });
 });

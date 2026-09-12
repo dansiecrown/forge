@@ -17,6 +17,10 @@ export interface CreateChatChannelData {
   description?: string;
   type?: ChatChannelType;
   isPrivate?: boolean;
+  /** Set only when creating a `type: 'track'` channel — see
+   * `findByCohortAndTrack`'s doc comment. */
+  cohortId?: string;
+  learningTrackId?: string;
 }
 
 @Injectable()
@@ -128,6 +132,38 @@ export class ChatChannelsRepository {
       include: { user: true },
       orderBy: { addedAt: 'asc' },
     });
+  }
+
+  /** Idempotency check for `ChatChannelsService.createTrackChannel()` — the
+   * same Cohort should never end up with two channels for the same Track,
+   * even if `CohortsService.setOfferedTracks()`'s creation call somehow
+   * runs twice for the same newly-added track. */
+  findByCohortAndTrack(
+    cohortId: string,
+    learningTrackId: string,
+  ): Promise<FellowshipChatChannel | null> {
+    return this.prisma.fellowshipChatChannel.findFirst({
+      where: { cohortId, learningTrackId },
+    });
+  }
+
+  /** `"<cohortId>:<learningTrackId>"` for every Enrollment `userId` holds in
+   * `fellowshipId` that currently grants chat access (mirrors
+   * `ChatAccessService.authorize()`'s own Student status set) — used to
+   * decide which `type: 'track'` channels a Student may see. Fetched here,
+   * not in `ChatAccessService`, to avoid that service needing to know about
+   * Cohort/LearningTrack at all; this is purely a `list()`-time visibility
+   * filter, never an access grant. */
+  async listStudentTrackKeys(userId: string, fellowshipId: string): Promise<Set<string>> {
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { userId, fellowshipId, status: { in: ['active', 'paused', 'completed'] } },
+      select: { cohortId: true, currentLearningTrackId: true },
+    });
+    return new Set(
+      enrollments
+        .filter((enrollment) => enrollment.currentLearningTrackId)
+        .map((enrollment) => `${enrollment.cohortId}:${enrollment.currentLearningTrackId}`),
+    );
   }
 }
 

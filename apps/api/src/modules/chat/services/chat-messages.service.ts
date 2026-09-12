@@ -42,6 +42,20 @@ export class ChatMessagesService {
         throw AppException.notFound('Channel not found.');
       }
     }
+    // Mirrors `ChatChannelsService.requireReadAccess()`'s own track-channel
+    // check (2026-09-12 addendum) — a plain Student must not be able to
+    // read or post in a track channel that isn't theirs just by knowing its
+    // id, even though `ChatChannelsService.list()` would never have shown
+    // it to them.
+    if (channel.type === 'track' && !authorization.canCreateChannels) {
+      const studentTrackKeys = await this.channelsRepository.listStudentTrackKeys(
+        userId,
+        channel.fellowshipId,
+      );
+      if (!studentTrackKeys.has(`${channel.cohortId}:${channel.learningTrackId}`)) {
+        throw AppException.notFound('Channel not found.');
+      }
+    }
     return { channel, authorization };
   }
 

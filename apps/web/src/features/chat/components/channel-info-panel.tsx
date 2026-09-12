@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ChatChannel } from '@forge/api-contract';
-import { Hash, Lock, Megaphone, MessageSquare, Pencil } from 'lucide-react';
+import { GraduationCap, Hash, Lock, Megaphone, MessageSquare, Pencil } from 'lucide-react';
 import { ApiError, describeApiError } from '@/api/client';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { useSession } from '@/contexts/session-context';
-import { usePermissions } from '@/hooks/use-permissions';
 import {
   messagesPathFor,
   type NotificationRole,
@@ -30,24 +29,31 @@ const TYPE_LABEL: Record<ChatChannel['type'], string> = {
   general: 'General',
   announcements: 'Announcements',
   standard: 'Standard',
+  track: 'Track',
 };
 
 /** The wireframe's third column. Rename and archive/restore are
  * `chat.channel.manage`-only — hidden entirely for anyone else, enforced
- * server-side either way. The member roster below is visible to every
- * participant — see `MembersList`'s own doc comment. */
+ * server-side either way. `canManageChannels` comes from the channel list
+ * response (per-Fellowship, not a static role-permission check — see
+ * docs/adr/0014-fellowship-chat.md's 2026-09-12 addendum), so an Academy
+ * Admin viewing a Fellowship outside their academy correctly sees no
+ * edit/archive action instead of one that would 403 on click. The member
+ * roster below is visible to every participant — see `MembersList`'s own
+ * doc comment. */
 export function ChannelInfoPanel({
   fellowshipId,
   channel,
   role,
+  canManageChannels,
   onChannelUpdated,
 }: {
   fellowshipId: string;
   channel: ChatChannel;
   role: NotificationRole;
+  canManageChannels: boolean;
   onChannelUpdated: (channel: ChatChannel) => void;
 }) {
-  const permissions = usePermissions();
   const { activeOrganizationId } = useActiveOrganization();
   const toast = useToast();
   const updateChannel = useUpdateChatChannel(fellowshipId, activeOrganizationId);
@@ -64,7 +70,7 @@ export function ChannelInfoPanel({
     setDescription(channel.description ?? '');
   }, [channel.id, channel.name, channel.description]);
 
-  const canManage = permissions.has('chat.channel.manage');
+  const canManage = canManageChannels;
   const isArchived = Boolean(channel.archivedAt);
 
   async function onSaveEdit() {
@@ -112,6 +118,8 @@ export function ChannelInfoPanel({
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
             {channel.type === 'announcements' ? (
               <Megaphone className="size-4 shrink-0" aria-hidden="true" />
+            ) : channel.type === 'track' ? (
+              <GraduationCap className="size-4 shrink-0" aria-hidden="true" />
             ) : (
               <Hash className="size-4 shrink-0" aria-hidden="true" />
             )}

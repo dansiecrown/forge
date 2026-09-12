@@ -4,7 +4,7 @@
 // FellowshipChatAdmin role — access is derived from the same Enrollment/
 // CohortMentor/admin-scope relationships every other module already uses.
 
-export type ChatChannelType = 'general' | 'announcements' | 'standard';
+export type ChatChannelType = 'general' | 'announcements' | 'standard' | 'track';
 
 export interface ChatChannel {
   id: string;
@@ -15,6 +15,10 @@ export interface ChatChannel {
   description: string | null;
   type: ChatChannelType;
   isPrivate: boolean;
+  /** Set only for `type: 'track'` channels — see this file's `type: 'track'`
+   * addendum in docs/adr/0014-fellowship-chat.md (2026-09-12). */
+  cohortId: string | null;
+  learningTrackId: string | null;
   archivedAt: string | null;
   version: number;
   createdAt: string;
@@ -27,6 +31,18 @@ export interface CreateChatChannelRequest {
   description?: string;
   type?: ChatChannelType;
   isPrivate?: boolean;
+}
+
+/** `GET /fellowships/:fellowshipId/chat/channels` — a breaking response-
+ * shape change (2026-09-12, was a bare `ChatChannel[]`): the caller's own
+ * `canManageChannels`/`canCreateChannels` for *this* Fellowship travel
+ * alongside the list, since a static role-permission check on the frontend
+ * can't express "this Mentor may create a channel here, but not in every
+ * Fellowship." See docs/adr/0014-fellowship-chat.md's 2026-09-12 addendum. */
+export interface ListChatChannelsResponse {
+  channels: ChatChannel[];
+  canManageChannels: boolean;
+  canCreateChannels: boolean;
 }
 
 export interface UpdateChatChannelRequest {

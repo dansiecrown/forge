@@ -18,6 +18,8 @@ function fakeChannel(overrides: Partial<FellowshipChatChannel> = {}): Fellowship
     description: null,
     type: 'general',
     isPrivate: false,
+    cohortId: null,
+    learningTrackId: null,
     archivedAt: null,
     version: 1,
     createdAt: new Date('2026-01-01'),
@@ -33,6 +35,7 @@ function authorization(
     allowed: true,
     fellowship: { id: 'fellowship-1', organizationId: 'org-1', academyId: 'academy-1', title: 'F' },
     canManageChannels: false,
+    canCreateChannels: false,
     canModerate: false,
     ...overrides,
   };
@@ -51,6 +54,8 @@ function buildService(overrides: {
     setArchived: jest.fn(async () => fakeChannel({ archivedAt: new Date() })),
     isMember: jest.fn(async () => false),
     listMembers: jest.fn(async () => []),
+    findByCohortAndTrack: jest.fn(async () => null),
+    listStudentTrackKeys: jest.fn(async () => new Set<string>()),
     ...overrides.channelsRepository,
   };
   const accessService: Partial<ChatAccessService> = {
@@ -92,7 +97,7 @@ describe('ChatChannelsService', () => {
 
       const result = await service.list(SCOPE, 'user-1', 'fellowship-1');
 
-      expect(result.map((c) => c.id)).toEqual(['channel-1']);
+      expect(result.channels.map((c) => c.id)).toEqual(['channel-1']);
       expect(channelsRepository.isMember).toHaveBeenCalledWith('channel-private', 'user-1');
     });
 
@@ -106,7 +111,7 @@ describe('ChatChannelsService', () => {
       });
 
       const result = await service.list(SCOPE, 'user-1', 'fellowship-1');
-      expect(result.map((c) => c.id)).toEqual(['channel-private']);
+      expect(result.channels.map((c) => c.id)).toEqual(['channel-private']);
     });
 
     it('includes every private channel for a caller who can manage channels', async () => {
@@ -119,8 +124,22 @@ describe('ChatChannelsService', () => {
       });
 
       const result = await service.list(SCOPE, 'user-1', 'fellowship-1');
-      expect(result.map((c) => c.id)).toEqual(['channel-private']);
+      expect(result.channels.map((c) => c.id)).toEqual(['channel-private']);
       expect(channelsRepository.isMember).not.toHaveBeenCalled();
+    });
+
+    it("surfaces the caller's own canManageChannels/canCreateChannels for this fellowship", async () => {
+      const { service } = buildService({
+        accessService: {
+          authorize: jest.fn(async () =>
+            authorization({ canManageChannels: false, canCreateChannels: true }),
+          ),
+        },
+      });
+
+      const result = await service.list(SCOPE, 'user-1', 'fellowship-1');
+      expect(result.canManageChannels).toBe(false);
+      expect(result.canCreateChannels).toBe(true);
     });
 
     it('never asks the repository for archived channels by default', async () => {
@@ -147,13 +166,107 @@ describe('ChatChannelsService', () => {
       await service.list(SCOPE, 'user-1', 'fellowship-1', { includeArchived: true });
       expect(channelsRepository.listByFellowship).toHaveBeenCalledWith('fellowship-1', true);
     });
+
+    it("hides a track channel from a Student not on that channel's own cohort+track", async () => {
+      const trackChannel = fakeChannel({
+        id: 'channel-track',
+        type: 'track',
+        cohortId: 'cohort-1',
+        learningTrackId: 'track-1',
+      });
+      const { service } = buildService({
+        channelsRepository: {
+          listByFellowship: jest.fn(async () => [trackChannel]),
+          listStudentTrackKeys: jest.fn(async () => new Set(['cohort-2:track-9'])),
+        },
+      });
+
+      const result = await service.list(SCOPE, 'student-1', 'fellowship-1');
+      expect(result.channels).toEqual([]);
+    });
+
+    it("includes a track channel for a Student on that channel's own cohort+track", async () => {
+      const trackChannel = fakeChannel({
+        id: 'channel-track',
+        type: 'track',
+        cohortId: 'cohort-1',
+        learningTrackId: 'track-1',
+      });
+      const { service } = buildService({
+        channelsRepository: {
+          listByFellowship: jest.fn(async () => [trackChannel]),
+          listStudentTrackKeys: jest.fn(async () => new Set(['cohort-1:track-1'])),
+        },
+      });
+
+      const result = await service.list(SCOPE, 'student-1', 'fellowship-1');
+      expect(result.channels.map((c) => c.id)).toEqual(['channel-track']);
+    });
+
+    it('never filters track channels for a caller who can create channels (admin or assigned Mentor)', async () => {
+      const trackChannel = fakeChannel({
+        id: 'channel-track',
+        type: 'track',
+        cohortId: 'cohort-1',
+        learningTrackId: 'track-1',
+      });
+      const { service, channelsRepository } = buildService({
+        channelsRepository: { listByFellowship: jest.fn(async () => [trackChannel]) },
+        accessService: {
+          authorize: jest.fn(async () => authorization({ canCreateChannels: true })),
+        },
+      });
+
+      const result = await service.list(SCOPE, 'mentor-1', 'fellowship-1');
+      expect(result.channels.map((c) => c.id)).toEqual(['channel-track']);
+      expect(channelsRepository.listStudentTrackKeys).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createTrackChannel', () => {
+    it('creates a channel scoped to the given cohort and track', async () => {
+      const { service, channelsRepository } = buildService({});
+
+      await service.createTrackChannel(
+        'org-1',
+        'fellowship-1',
+        { id: 'cohort-1', slug: 'cohort-2027' },
+        { id: 'track-1', name: 'Software Engineering', slug: 'software-engineering' },
+      );
+
+      expect(channelsRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'track',
+          slug: 'track-cohort-2027-software-engineering',
+          cohortId: 'cohort-1',
+          learningTrackId: 'track-1',
+        }),
+      );
+    });
+
+    it('is idempotent — returns the existing channel instead of creating a duplicate', async () => {
+      const existing = fakeChannel({ id: 'existing-track-channel', type: 'track' });
+      const { service, channelsRepository } = buildService({
+        channelsRepository: { findByCohortAndTrack: jest.fn(async () => existing) },
+      });
+
+      const result = await service.createTrackChannel(
+        'org-1',
+        'fellowship-1',
+        { id: 'cohort-1', slug: 'cohort-2027' },
+        { id: 'track-1', name: 'Software Engineering', slug: 'software-engineering' },
+      );
+
+      expect(result.id).toBe('existing-track-channel');
+      expect(channelsRepository.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('create', () => {
-    it('rejects a participant (no manage capability) with forbidden', async () => {
+    it('rejects a participant (no create capability) with forbidden', async () => {
       const { service } = buildService({
         accessService: {
-          authorize: jest.fn(async () => authorization({ canManageChannels: false })),
+          authorize: jest.fn(async () => authorization({ canCreateChannels: false })),
         },
       });
 
@@ -166,7 +279,7 @@ describe('ChatChannelsService', () => {
       const { service } = buildService({
         channelsRepository: { findByFellowshipAndSlug: jest.fn(async () => fakeChannel()) },
         accessService: {
-          authorize: jest.fn(async () => authorization({ canManageChannels: true })),
+          authorize: jest.fn(async () => authorization({ canCreateChannels: true })),
         },
       });
 
@@ -178,7 +291,9 @@ describe('ChatChannelsService', () => {
     it('creates the channel and publishes a chat.channel.updated event for an authorized manager', async () => {
       const { service, events, auditLog } = buildService({
         accessService: {
-          authorize: jest.fn(async () => authorization({ canManageChannels: true })),
+          authorize: jest.fn(async () =>
+            authorization({ canManageChannels: true, canCreateChannels: true }),
+          ),
         },
       });
 
@@ -195,6 +310,38 @@ describe('ChatChannelsService', () => {
       expect(events.publish).toHaveBeenCalledWith(
         expect.objectContaining({ event: 'chat.channel.updated' }),
       );
+    });
+
+    it('rejects manually creating a type: track channel through the generic endpoint', async () => {
+      const { service } = buildService({
+        accessService: {
+          authorize: jest.fn(async () => authorization({ canCreateChannels: true })),
+        },
+      });
+
+      await expect(
+        service.create(SCOPE, 'admin-1', 'fellowship-1', {
+          name: 'Fake Track',
+          slug: 'fake-track',
+          type: 'track',
+        }),
+      ).rejects.toMatchObject({ response: { code: 'VALIDATION_ERROR' } });
+    });
+
+    it('allows a Mentor (canCreateChannels but not canManageChannels) to create a channel', async () => {
+      const { service } = buildService({
+        accessService: {
+          authorize: jest.fn(async () =>
+            authorization({ canManageChannels: false, canCreateChannels: true }),
+          ),
+        },
+      });
+
+      const result = await service.create(SCOPE, 'mentor-1', 'fellowship-1', {
+        name: 'Study Group',
+        slug: 'study-group',
+      });
+      expect(result.id).toBe('channel-1');
     });
   });
 
@@ -232,6 +379,35 @@ describe('ChatChannelsService', () => {
       await expect(service.get(SCOPE, 'user-1', 'channel-1')).rejects.toMatchObject({
         response: { code: 'NOT_FOUND' },
       });
+    });
+
+    it("returns not-found for a track channel that isn't the Student's own cohort+track", async () => {
+      const { service } = buildService({
+        channelsRepository: {
+          findById: jest.fn(async () =>
+            fakeChannel({ type: 'track', cohortId: 'cohort-1', learningTrackId: 'track-1' }),
+          ),
+          listStudentTrackKeys: jest.fn(async () => new Set(['cohort-2:track-9'])),
+        },
+      });
+
+      await expect(service.get(SCOPE, 'student-1', 'channel-1')).rejects.toMatchObject({
+        response: { code: 'NOT_FOUND' },
+      });
+    });
+
+    it("returns the channel for a Student's own track", async () => {
+      const { service } = buildService({
+        channelsRepository: {
+          findById: jest.fn(async () =>
+            fakeChannel({ type: 'track', cohortId: 'cohort-1', learningTrackId: 'track-1' }),
+          ),
+          listStudentTrackKeys: jest.fn(async () => new Set(['cohort-1:track-1'])),
+        },
+      });
+
+      const result = await service.get(SCOPE, 'student-1', 'channel-1');
+      expect(result.type).toBe('track');
     });
   });
 

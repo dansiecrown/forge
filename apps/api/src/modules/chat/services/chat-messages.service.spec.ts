@@ -21,6 +21,8 @@ function fakeChannel(overrides: Partial<FellowshipChatChannel> = {}): Fellowship
     description: null,
     type: 'general',
     isPrivate: false,
+    cohortId: null,
+    learningTrackId: null,
     archivedAt: null,
     version: 1,
     createdAt: new Date('2026-01-01'),
@@ -54,6 +56,7 @@ function authorization(
     allowed: true,
     fellowship: { id: 'fellowship-1', organizationId: 'org-1', academyId: 'academy-1', title: 'F' },
     canManageChannels: false,
+    canCreateChannels: false,
     canModerate: false,
     ...overrides,
   };
@@ -77,6 +80,7 @@ function buildService(overrides: {
   const channelsRepository: Partial<ChatChannelsRepository> = {
     findById: jest.fn(async () => fakeChannel()),
     isMember: jest.fn(async () => false),
+    listStudentTrackKeys: jest.fn(async () => new Set<string>()),
     ...overrides.channelsRepository,
   };
   const readStateRepository: Partial<ChatReadStateRepository> = {
@@ -146,6 +150,35 @@ describe('ChatMessagesService', () => {
       await expect(
         service.create(SCOPE, 'user-1', 'channel-1', { content: 'hi' }),
       ).rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+    });
+
+    it("rejects a Student posting into a track channel that isn't their own cohort+track", async () => {
+      const { service } = buildService({
+        channelsRepository: {
+          findById: jest.fn(async () =>
+            fakeChannel({ type: 'track', cohortId: 'cohort-1', learningTrackId: 'track-1' }),
+          ),
+          listStudentTrackKeys: jest.fn(async () => new Set(['cohort-2:track-9'])),
+        },
+      });
+
+      await expect(
+        service.create(SCOPE, 'student-1', 'channel-1', { content: 'hi' }),
+      ).rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+    });
+
+    it('allows a Student to post in their own track channel', async () => {
+      const { service, messagesRepository } = buildService({
+        channelsRepository: {
+          findById: jest.fn(async () =>
+            fakeChannel({ type: 'track', cohortId: 'cohort-1', learningTrackId: 'track-1' }),
+          ),
+          listStudentTrackKeys: jest.fn(async () => new Set(['cohort-1:track-1'])),
+        },
+      });
+
+      await service.create(SCOPE, 'student-1', 'channel-1', { content: 'hi' });
+      expect(messagesRepository.create).toHaveBeenCalled();
     });
   });
 

@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { CurriculumSnapshotService } from '../../catalog/services/curriculum-snapshot.service';
 import { FellowshipsService } from '../../catalog/services/fellowships.service';
 import { LearningTracksService } from '../../catalog/services/learning-tracks.service';
+import { ChatChannelsService } from '../../chat/services/chat-channels.service';
 import { UsersService } from '../../identity/services/users.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
 import { AuditLogService } from '../../platform/audit-log.service';
@@ -25,6 +26,8 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 
 @Injectable()
 export class CohortsService {
+  private readonly logger = new Logger(CohortsService.name);
+
   constructor(
     private readonly cohortsRepository: CohortsRepository,
     private readonly fellowshipsService: FellowshipsService,
@@ -33,6 +36,7 @@ export class CohortsService {
     private readonly auditLog: AuditLogService,
     private readonly usersService: UsersService,
     private readonly learningTracksService: LearningTracksService,
+    private readonly chatChannelsService: ChatChannelsService,
   ) {}
 
   async list(
@@ -475,6 +479,15 @@ export class CohortsService {
       ]);
     }
 
+    // Fetched *before* the replace-all below, so it still reflects the
+    // pre-update offering — a newly-added track (present now, absent
+    // before) gets its own chat channel auto-created (2026-09-12 addendum,
+    // on explicit product request). A track *removed* from the offering
+    // deliberately does not auto-archive its channel: that would delete
+    // conversation history over a config change nobody asked for.
+    const previousTrackIds = new Set(await this.cohortsRepository.listOfferedTrackIds(cohortId));
+    const newlyAddedTracks = tracks.filter((track) => !previousTrackIds.has(track.id));
+
     await this.cohortsRepository.setOfferedTracks(cohortId, learningTrackIds);
     await this.auditLog.record({
       action: 'cohort.tracks_updated',
@@ -485,6 +498,25 @@ export class CohortsService {
       actorUserId,
       metadata: { learningTrackIds },
     });
+
+    // Best-effort, exactly like `FellowshipsService.create()`'s own
+    // #general creation — a chat-side failure must never fail the track
+    // assignment itself (the channel can always be created later through
+    // the normal chat API).
+    for (const track of newlyAddedTracks) {
+      try {
+        await this.chatChannelsService.createTrackChannel(
+          scope.organizationId,
+          cohort.fellowshipId,
+          { id: cohort.id, slug: cohort.slug },
+          { id: track.id, name: track.name, slug: track.slug },
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to create chat channel for track "${track.name}" on cohort ${cohort.id}: ${(error as Error).message}`,
+        );
+      }
+    }
   }
 
   // --- Track switch grace period (docs/adr/0017-track-switch-grace-period.md) --

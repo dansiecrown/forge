@@ -9,6 +9,10 @@ export interface ChatChannelEntity {
   description: string | null;
   type: ChatChannelType;
   isPrivate: boolean;
+  /** Set only for `type: 'track'` channels — see
+   * docs/adr/0014-fellowship-chat.md's 2026-09-12 addendum. */
+  cohortId: string | null;
+  learningTrackId: string | null;
   archivedAt: Date | null;
   version: number;
   createdAt: Date;
@@ -25,6 +29,8 @@ export function toChatChannelEntity(row: FellowshipChatChannel): ChatChannelEnti
     description: row.description,
     type: row.type,
     isPrivate: row.isPrivate,
+    cohortId: row.cohortId,
+    learningTrackId: row.learningTrackId,
     archivedAt: row.archivedAt,
     version: row.version,
     createdAt: row.createdAt,

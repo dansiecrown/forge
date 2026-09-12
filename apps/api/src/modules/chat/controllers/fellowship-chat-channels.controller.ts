@@ -30,8 +30,15 @@ export class FellowshipChatChannelsController {
     );
   }
 
+  // `chat.channel.read` here, not `.manage` — a Mentor holds only the
+  // former but may still create a channel in a Fellowship they're assigned
+  // to (2026-09-12 addendum). This guard is deliberately coarse (blocks
+  // anyone with no chat access at all); `ChatChannelsService.create()`'s
+  // own `canCreateChannels` check does the real, Fellowship-specific
+  // gating, same "coarse guard + precise service check" split this
+  // codebase already uses for ownership-based routes elsewhere.
   @Post('fellowships/:fellowshipId/chat/channels')
-  @RequirePermissions('chat.channel.manage')
+  @RequirePermissions('chat.channel.read')
   create(
     @Param('fellowshipId') fellowshipId: string,
     @Body() dto: CreateChatChannelDto,

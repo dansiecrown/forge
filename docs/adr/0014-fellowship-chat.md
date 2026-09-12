@@ -210,3 +210,126 @@ Two closures, on explicit product request:
      already restricts a DM target to an active member of the caller's own organization (the
      2026-09-06 addendum), which is broader than "in this specific channel" — a roster entry is simply
      one more, more discoverable way to reach someone already reachable by search.
+
+## Addendum (2026-09-12): Students may not DM Super Admin or Org Admin
+
+The 2026-09-06 addendum's "anyone active in the same organization" DM eligibility rule, confirmed at
+the time, is narrowed on explicit product request: **a Student may not start a DM with a Super Admin
+or Org Admin.** Deliberately narrow in three ways, each a direct answer to a clarifying question
+before implementation:
+
+1. **Only Super Admin and Org Admin are restricted — Academy Admin and Mentor remain reachable.** The
+   request was specifically about platform/organization-level administrators, not every elevated
+   role.
+2. **One-way.** A Student can't initiate to a Super Admin/Org Admin, but they can still initiate to a
+   Student (e.g. following up on an issue raised elsewhere) — the restriction protects a Student's
+   access to those roles, not the reverse.
+3. **Hidden entirely, not just blocked on send.** A restricted admin is excluded from
+   `GET /me/people/search` outright (filtered at the query level via `MembershipsRepository
+   .searchActiveMembers`'s new `excludeRoleKeys`, so `take: limit` still returns a full page rather
+   than under-filling after a post-filter) — no dead-end click from a search result into an error. If
+   somehow addressed directly anyway (a stale link, a shared conversation id from before this
+   change), `startOrGetConversation` throws the *identical* `NOT_FOUND` / "This person is not a
+   member of your organization" already used for a genuine non-member, so a restricted admin is
+   indistinguishable from someone who doesn't exist — never a distinguishing `FORBIDDEN` that would
+   confirm they're real.
+
+**Only Student → Super Admin/Org Admin is checked, not every role pair** — the ask was specific, and
+this codebase's convention throughout (`ChatAccessService`, `ChatMembershipSyncService`) has been to
+implement exactly what's requested and disclose the boundary rather than speculatively generalize
+into a full permission matrix nobody asked for yet.
+
+`DirectMessagesService.isRestrictedTarget()` checks two things: is the *caller* a Student
+(`MembershipsService.hasRoleKey`, org-scoped — a new, small, org-scoped role-key lookup, distinct
+from `PermissionResolverService.hasPlatformRole`'s platform-wide one already used for Super Admin
+elsewhere), and is the *target* a Super Admin (`PermissionResolverService.hasPlatformRole` —
+correctly platform-wide, since a Super Admin's role grant is platform-scoped even though it's
+attached to one home-organization `Membership` row) or an Org Admin within this same organization
+(`hasRoleKey` again). Role-name checks, not permission-key checks, on purpose: this is specifically
+about who a Student may *reach*, not what either party may *do* — the same distinction Decision 1
+draws between "is this an admin" (permission-based) and Student/Mentor access (relationship-based),
+just applied to a different question.
+
+The Fellowship chat member roster (`GET /chat/channels/:channelId/members`, this ADR's 2026-09-07
+addendum) needed no corresponding change: `FellowshipChatChannelMember` rows are populated for
+students only, so a Super Admin/Org Admin was never going to appear there regardless of this
+restriction.
+
+## Addendum (2026-09-12): a missing #general backfilled, Mentors can create channels, and auto-created Track channels
+
+Three related closures from the same follow-up task, on explicit product request:
+
+1. **A real gap, found while investigating "why can't I load my fellowship chat": two Fellowships
+   created before this ADR shipped (2026-09-03, two days before Decision 4's auto-creation went live
+   2026-09-05) had no `#general` channel at all — the auto-creation hook only runs on *new* Fellowship
+   creation, and nothing ever backfilled the ones that predated it.** Not a code bug — verified the
+   hook works correctly for everything created since. Backfilled the one affected in active use via
+   the same creation path a real request would use (`POST /fellowships/:id/chat/channels` with
+   `type: 'general'`), then cycled the affected Enrollment's status to re-trigger
+   `ChatMembershipSyncService` now that the channel exists. No code change; recorded here so the next
+   person who hits an empty channel list on an old Fellowship knows why.
+
+2. **A Mentor may now create channels — but only in a Fellowship they're actually assigned to, and
+   only create, never rename/archive/restore.** `FellowshipChatAuthorization` gains a
+   `canCreateChannels` field, distinct from `canManageChannels`: true for every admin
+   `canManageChannels` already covers, **and** true for a Mentor with an active `CohortMentor`
+   assignment on this Fellowship (`canManageChannels` itself stays false for a Mentor — deliberately
+   narrower than admin power, per explicit product answer "create only"). `ChatChannelsService.create()`
+   now gates on `canCreateChannels`; `update()`/`setArchived()` are untouched, still
+   `canManageChannels`-only. The `POST /fellowships/:id/chat/channels` route's permission decorator
+   relaxes from `chat.channel.manage` to `chat.channel.read` (which a Mentor already holds) — the
+   coarse guard now only blocks someone with no chat access at all; the real, Fellowship-specific
+   gating is `canCreateChannels` at the service layer, matching this codebase's existing "coarse guard
+   + precise service check" split used elsewhere. Manually creating a `type: 'track'` channel through
+   this same generic endpoint is explicitly rejected (`TRACK_CHANNEL_NOT_MANUAL`) — see point 3.
+
+   **Breaking change**: `GET /fellowships/:id/chat/channels` now returns
+   `{ channels, canManageChannels, canCreateChannels }` instead of a bare `ChatChannel[]` — the
+   frontend's "Create channel" and "Edit/Archive" actions need the caller's capability *for this
+   specific Fellowship*, which a static, org-wide role-permission check can't express (a Mentor's
+   `canCreateChannels` depends on which Fellowship they're viewing; an Academy Admin's
+   `canManageChannels` already did too, per Decision 1's academy-scope check, but the frontend never
+   had a way to know that until now — so this incidentally also fixes an Academy Admin viewing a
+   Fellowship outside their academy seeing an edit/archive action that would 403 on click).
+
+3. **A Cohort being assigned a Learning Track now auto-creates that pairing's own chat channel** —
+   `type: 'track'`, on explicit request ("different tracks channel according as it is in the
+   cohort"). New `ChatChannelType.track` (schema migration
+   `20260912200000_add_track_chat_channels`) and two new nullable `FellowshipChatChannel` columns,
+   `cohortId`/`learningTrackId`, set only on `type: 'track'` rows. `CohortsService.setOfferedTracks()`
+   (a replace-all operation) diffs the previous offering against the new one *before* replacing it,
+   and calls `ChatChannelsService.createTrackChannel()` only for tracks newly present — wrapped in
+   try/catch exactly like `createDefaultGeneralChannel()`'s own call site, so a chat-side failure
+   never blocks the track assignment itself. Removing a track from a Cohort's offering deliberately
+   does **not** auto-archive its channel — nobody asked for that, and it would delete conversation
+   history over a config change.
+
+   The channel's slug embeds the Cohort's own slug, not just the Track's (`track-<cohort
+   slug>-<track slug>`), because the same Fellowship-level `LearningTrack` can be offered by more than
+   one Cohort — each occurrence needs its own channel and its own Fellowship-unique slug.
+   `createTrackChannel()` is idempotent (`findByCohortAndTrack` first) in case the creation call
+   somehow runs twice for the same newly-added track.
+
+   **Visibility is the interesting part**: a Student sees only the `type: 'track'` channel matching
+   their *own* `Enrollment.cohortId` + `currentLearningTrackId` — never every track channel in the
+   Fellowship. Everyone who can create channels (every admin, and now a Mentor per point 2) is
+   unrestricted, exactly like every other channel type. Enforced in three places that all need to
+   agree, since this codebase doesn't centralize channel-read authorization in one function (a
+   pre-existing shape, not introduced here — `ChatMessagesService` has always duplicated
+   `ChatChannelsService`'s own private-channel check rather than delegating to it):
+   `ChatChannelsService.list()` (the listing filter), `ChatChannelsService.requireReadAccess()` (so a
+   Student can't reach a channel that isn't theirs by guessing/reusing its id — this is also what the
+   WebSocket gateway's `subscribe` handler ultimately gates on, since it calls
+   `ChatChannelsService.get()`), and `ChatMessagesService`'s own `requireChannelAccess()` (so a Student
+   can't read or post messages into it directly either). All three resolve the Student's own
+   qualifying `(cohortId, learningTrackId)` pairs via a new `ChatChannelsRepository.listStudentTrackKeys()`
+   — a direct Enrollment query mirroring `ChatAccessService.authorize()`'s own status set
+   (`active`/`paused`/`completed`), kept in the Chat module (not imported from Cohorts/Enrollments) to
+   avoid a circular module dependency (`CohortsModule` already imports `ChatModule` for
+   `ChatMembershipSyncService`; the reverse would cycle).
+
+   Verified live end-to-end: assigned a second Track to a Cohort already offering one, confirmed only
+   the new Track's channel was created (not a duplicate for the already-offered one); confirmed a
+   Student sees exactly `#general` plus their own Track's channel, never another Track's; confirmed a
+   direct `GET`/message-post attempt against a Track channel that isn't theirs 404s identically to a
+   channel that doesn't exist.

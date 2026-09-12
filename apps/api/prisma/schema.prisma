@@ -224,8 +224,8 @@ model User {
   chatMessageReactions        FellowshipChatMessageReaction[]
   chatChannelMemberships      FellowshipChatChannelMember[]
   chatReadStates              FellowshipChatReadState[]
-  directConversationsAsUser1  DirectConversation[]             @relation("DirectConversationUser1")
-  directConversationsAsUser2  DirectConversation[]             @relation("DirectConversationUser2")
+  directConversationsAsUser1  DirectConversation[]            @relation("DirectConversationUser1")
+  directConversationsAsUser2  DirectConversation[]            @relation("DirectConversationUser2")
   directMessages              DirectMessage[]
 
   @@index([status, lastLoginAt])
@@ -718,9 +718,9 @@ model Cohort {
   updatedAt            DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt            DateTime?    @map("deleted_at") @db.Timestamptz(3)
 
-  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  academy            Academy               @relation(fields: [academyId], references: [id], onDelete: Restrict)
-  fellowship         Fellowship            @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  academy            Academy                 @relation(fields: [academyId], references: [id], onDelete: Restrict)
+  fellowship         Fellowship              @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
   mentors            CohortMentor[]
   enrollments        Enrollment[]
   huddleSessions     HuddleSession[]
@@ -728,6 +728,7 @@ model Cohort {
   announcements      Announcement[]
   cohortApplications CohortApplication[]
   offeredTracks      CohortLearningTrack[]
+  chatChannels       FellowshipChatChannel[]
 
   @@index([organizationId, status, startsAt])
   @@index([fellowshipId, status])
@@ -960,6 +961,7 @@ model LearningTrack {
   cohortApplications CohortApplication[]
   cohortOfferings    CohortLearningTrack[]
   trackMentors       FellowshipTrackMentor[]
+  chatChannels       FellowshipChatChannel[]
 
   @@index([fellowshipId, status, displayOrder])
   @@map("learning_tracks")
@@ -1485,27 +1487,36 @@ enum ChatChannelType {
   general
   announcements
   standard
+  track
 }
 
 model FellowshipChatChannel {
-  id             String          @id @default(uuid())
-  organizationId String          @map("organization_id")
-  fellowshipId   String          @map("fellowship_id")
-  name           String
-  slug           String
-  description    String?
-  type           ChatChannelType @default(standard)
-  isPrivate      Boolean         @default(false) @map("is_private")
-  archivedAt     DateTime?       @map("archived_at") @db.Timestamptz(3)
-  version        Int             @default(1)
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id              String          @id @default(uuid())
+  organizationId  String          @map("organization_id")
+  fellowshipId    String          @map("fellowship_id")
+  name            String
+  slug            String
+  description     String?
+  type            ChatChannelType @default(standard)
+  isPrivate       Boolean         @default(false) @map("is_private")
+  // Set only for `type: track` channels, auto-created when a Cohort is
+  // assigned a Learning Track (see docs/adr/0014-fellowship-chat.md's
+  // 2026-09-12 addendum) — the pair scopes visibility to that Cohort's
+  // students on that specific Track, not every student in the Fellowship.
+  cohortId        String?         @map("cohort_id")
+  learningTrackId String?         @map("learning_track_id")
+  archivedAt      DateTime?       @map("archived_at") @db.Timestamptz(3)
+  version         Int             @default(1)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  fellowship   Fellowship                    @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
-  messages     FellowshipChatMessage[]
-  members      FellowshipChatChannelMember[]
-  readStates   FellowshipChatReadState[]
+  organization  Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  fellowship    Fellowship                    @relation(fields: [fellowshipId], references: [id], onDelete: Restrict)
+  cohort        Cohort?                       @relation(fields: [cohortId], references: [id], onDelete: Restrict)
+  learningTrack LearningTrack?                @relation(fields: [learningTrackId], references: [id], onDelete: Restrict)
+  messages      FellowshipChatMessage[]
+  members       FellowshipChatChannelMember[]
+  readStates    FellowshipChatReadState[]
 
   // Hand-written partial unique index (WHERE archived_at IS NULL) added in
   // the migration SQL, same convention as Academy/Cohort's own slug
@@ -1513,6 +1524,7 @@ model FellowshipChatChannel {
   // plain @@unique is intentionally not declared here to avoid conflicting
   // with that hand-written one.
   @@index([fellowshipId, archivedAt])
+  @@index([cohortId, learningTrackId])
   @@map("fellowship_chat_channels")
 }
 

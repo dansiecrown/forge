@@ -8,21 +8,27 @@ import type {
   Cohort,
   CreateChatChannelRequest,
   CreateChatMessageRequest,
+  ListChatChannelsResponse,
   MarkChannelReadRequest,
   UpdateChatChannelRequest,
   UpdateChatMessageRequest,
 } from '@forge/api-contract';
 import { apiRequest, apiRequestPage, type Page } from '@/api/client';
 
+/** Response shape changed 2026-09-12 (was a bare `ChatChannel[]`) — the
+ * caller's own `canManageChannels`/`canCreateChannels` for *this* Fellowship
+ * now travel alongside the list. See
+ * docs/adr/0014-fellowship-chat.md's 2026-09-12 addendum. */
 export function listChatChannels(
   fellowshipId: string,
   organizationId?: string,
   includeArchived?: boolean,
-): Promise<ChatChannel[]> {
+): Promise<ListChatChannelsResponse> {
   const query = includeArchived ? '?includeArchived=true' : '';
-  return apiRequest<ChatChannel[]>(`/fellowships/${fellowshipId}/chat/channels${query}`, {
-    organizationId,
-  });
+  return apiRequest<ListChatChannelsResponse>(
+    `/fellowships/${fellowshipId}/chat/channels${query}`,
+    { organizationId },
+  );
 }
 
 export function createChatChannel(

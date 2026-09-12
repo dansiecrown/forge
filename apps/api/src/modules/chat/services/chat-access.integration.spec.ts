@@ -277,6 +277,19 @@ describe('ChatAccessService — cross-Fellowship isolation (integration)', () =>
     expect(authorization).toMatchObject({ allowed: true, canManageChannels: false });
   });
 
+  it('grants that same Mentor canCreateChannels — but never canManageChannels (2026-09-12 addendum)', async () => {
+    const authorization = await accessService.authorize(
+      SCOPE(),
+      mentorAssignedToAUserId,
+      fellowshipAId,
+    );
+    expect(authorization).toMatchObject({
+      allowed: true,
+      canCreateChannels: true,
+      canManageChannels: false,
+    });
+  });
+
   it('denies a Mentor access to a Fellowship they have no assignment under', async () => {
     const authorization = await accessService.authorize(
       SCOPE(),
@@ -295,6 +308,7 @@ describe('ChatAccessService — cross-Fellowship isolation (integration)', () =>
     expect(authorization).toMatchObject({
       allowed: true,
       canManageChannels: false,
+      canCreateChannels: false,
       canModerate: false,
     });
   });

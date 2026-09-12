@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ChatChannel } from '@forge/api-contract';
 import type { Socket } from 'socket.io-client';
-import { Hash, Megaphone, Plus } from 'lucide-react';
+import { GraduationCap, Hash, Megaphone, Plus } from 'lucide-react';
 import { ApiError, describeApiError } from '@/api/client';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -9,13 +9,13 @@ import { Dialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { useToast } from '@/components/ui/toast';
 import { useActiveOrganization } from '@/contexts/organization-context';
-import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/utils';
 import { useCreateChatChannel } from '../hooks/use-chat-channels';
 import { useChatReadState } from '../hooks/use-chat-read-state';
 
 function ChannelIcon({ type }: { type: ChatChannel['type'] }) {
   if (type === 'announcements') return <Megaphone className="size-4" aria-hidden="true" />;
+  if (type === 'track') return <GraduationCap className="size-4" aria-hidden="true" />;
   return <Hash className="size-4" aria-hidden="true" />;
 }
 
@@ -41,14 +41,20 @@ interface ChannelSidebarProps {
   isLoading: boolean;
   includeArchived: boolean;
   onIncludeArchivedChange: (value: boolean) => void;
+  /** Per-*this*-Fellowship, from the channel list response — not a static
+   * role-permission check, since a Mentor's `canCreateChannels` (2026-09-12
+   * addendum) depends on which Fellowship they're actually assigned to. */
+  canManageChannels: boolean;
+  canCreateChannels: boolean;
 }
 
-/** The "Create channel" action — visible only to a caller who actually
- * holds `chat.channel.manage` for this Fellowship (Super Admin, Org Admin,
- * or the owning Academy's Academy Admin — see
- * docs/adr/0014-fellowship-chat.md Decision 1). The backend already
- * enforced this on `POST /fellowships/:id/chat/channels`; this is purely
- * the previously-missing frontend surface for it. */
+/** The "Create channel" action — visible to a caller who holds
+ * `chat.channel.manage` for this Fellowship (Super Admin, Org Admin, or the
+ * owning Academy's Academy Admin), **and** to a Mentor with an active
+ * assignment here (2026-09-12 addendum) — see
+ * docs/adr/0014-fellowship-chat.md Decision 1 and its 2026-09-12 addendum.
+ * The backend already enforces this on `POST /fellowships/:id/chat/channels`;
+ * this is purely the frontend surface for it. */
 function CreateChannelAction({ fellowshipId }: { fellowshipId: string }) {
   const { activeOrganizationId } = useActiveOrganization();
   const createChannel = useCreateChatChannel(fellowshipId, activeOrganizationId);
@@ -145,9 +151,9 @@ export function ChannelSidebar({
   isLoading,
   includeArchived,
   onIncludeArchivedChange,
+  canManageChannels,
+  canCreateChannels,
 }: ChannelSidebarProps) {
-  const permissions = usePermissions();
-  const canManage = permissions.has('chat.channel.manage');
   return (
     <nav
       aria-label="Fellowship chat channels"
@@ -156,7 +162,7 @@ export function ChannelSidebar({
       <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Channels
       </p>
-      {canManage ? <CreateChannelAction fellowshipId={fellowshipId} /> : null}
+      {canCreateChannels ? <CreateChannelAction fellowshipId={fellowshipId} /> : null}
       {isLoading ? (
         <p className="px-2 text-sm text-muted-foreground">Loading…</p>
       ) : channels.length === 0 ? (
@@ -195,7 +201,7 @@ export function ChannelSidebar({
           })}
         </ul>
       )}
-      {canManage ? (
+      {canManageChannels ? (
         <label className="mt-2 flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">
           <input
             type="checkbox"
