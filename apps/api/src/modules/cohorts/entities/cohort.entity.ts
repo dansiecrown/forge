@@ -19,6 +19,11 @@ export interface CohortEntity {
    * (always populated at creation once Learning Tracks exist). */
   curriculumSnapshot: unknown;
   curriculumSnapshotAt: Date | null;
+  /** Null (default) means a learner may still switch their own enrolled
+   * track after their first pick; set once an admin manually closes this
+   * Cohort's switch window — see
+   * docs/adr/0017-track-switch-grace-period.md. */
+  trackSwitchClosedAt: Date | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;
@@ -41,6 +46,7 @@ export function toCohortEntity(row: Cohort): CohortEntity {
     enrollmentDeadline: row.enrollmentDeadline,
     curriculumSnapshot: row.curriculumSnapshot,
     curriculumSnapshotAt: row.curriculumSnapshotAt,
+    trackSwitchClosedAt: row.trackSwitchClosedAt,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

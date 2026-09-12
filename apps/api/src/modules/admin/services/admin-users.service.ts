@@ -3,12 +3,14 @@ import { MfaService } from '../../identity/services/mfa.service';
 import { RefreshSessionService } from '../../identity/services/refresh-session.service';
 import { UserProfilesService } from '../../identity/services/user-profiles.service';
 import { UsersService } from '../../identity/services/users.service';
+import { AcademiesService } from '../../organizations/services/academies.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
 import { AuditLogService } from '../../platform/audit-log.service';
 import { AppException } from '../../../shared/errors/app.exception';
 import { CollectionResult, parseLimit } from '../../../shared/pagination/collection-result';
 import type { TenantScope } from '../../../shared/tenancy/tenant-scope';
 import { AdminAuditService } from './admin-audit.service';
+import type { CreateAdminUserDto } from '../dtos/create-admin-user.dto';
 import type { UpdateAdminUserProfileDto } from '../dtos/admin-user.dto';
 import {
   AdminUsersRepository,
@@ -22,9 +24,11 @@ const KNOWN_ROLE_KEYS = new Set(['SUPER_ADMIN', 'ORG_ADMIN', 'ACADEMY_ADMIN', 'M
  * caller (e.g. ACADEMY_ADMIN), in the caller's own academy specifically
  * (Milestone 7, closes DEBT-015) — tightening the pre-existing looseness in
  * `UsersController.get` where any `userId` is reachable given only
- * `user.read` in *some* org. "No direct password editing" is enforced by
- * omission: no route/method here ever sets a password directly. See
- * docs/adr/0009-administration-platform.md. */
+ * `user.read` in *some* org. Originally "no route/method here ever sets a
+ * password directly" (ADR-0009's brief requirement); `create()` below is
+ * now the one deliberate, disclosed exception — see ADR-0009's
+ * 2026-09-06 addendum for why that reversal was made. Every other mutation
+ * here still never touches a password directly. */
 @Injectable()
 export class AdminUsersService {
   constructor(
@@ -36,7 +40,57 @@ export class AdminUsersService {
     private readonly adminAuditService: AdminAuditService,
     private readonly adminUsersRepository: AdminUsersRepository,
     private readonly auditLog: AuditLogService,
+    private readonly academiesService: AcademiesService,
   ) {}
+
+  /** Admin-set-password account creation — see `CreateAdminUserDto` and
+   * docs/adr/0009-administration-platform.md's addendum. Guarded by the same
+   * `membership.invite` permission as the older email-only invite flow
+   * (`POST /users/invitations`); both stay available side by side. */
+  async create(scope: TenantScope, actorUserId: string, dto: CreateAdminUserDto) {
+    const requiresAcademy = dto.roleKeys.includes('ACADEMY_ADMIN');
+    if (requiresAcademy && !dto.academyId) {
+      throw AppException.validation([
+        {
+          field: 'academyId',
+          code: 'ACADEMY_REQUIRED',
+          message: 'Academy Admin requires an Academy to be selected.',
+        },
+      ]);
+    }
+    if (dto.academyId) {
+      // Confirms the academy exists in this org (and, for a restricted
+      // caller, in their own jurisdiction) before it's ever written onto a
+      // new Membership row — the same existence+scope check every other
+      // cross-entity reference in this codebase performs up front.
+      await this.academiesService.get(scope, dto.academyId, actorUserId);
+    }
+
+    const user = await this.usersService.createWithPassword(
+      {
+        email: dto.email,
+        username: dto.username,
+        password: dto.password,
+        displayName: dto.displayName,
+        givenName: dto.givenName,
+        familyName: dto.familyName,
+      },
+      actorUserId,
+    );
+
+    await this.membershipsService.inviteIntoOrganization(
+      scope,
+      user.id,
+      dto.roleKeys,
+      actorUserId,
+      {
+        status: 'active',
+        academyId: dto.academyId,
+      },
+    );
+
+    return { id: user.id, displayName: user.displayName, email: user.emailCanonical };
+  }
 
   /** Resolves the caller's hierarchy scope into a repository filter, or
    * `null` when a restricted caller (e.g. ACADEMY_ADMIN) was never anchored

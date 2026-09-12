@@ -22,6 +22,15 @@ export interface CohortApplication {
   version: number;
   createdAt: string;
   updatedAt: string;
+  /** Resolved server-side — set only for an already-authenticated applicant
+   * (a prospect application already carries prospectDisplayName/prospectEmail
+   * directly). */
+  applicantDisplayName: string | null;
+  applicantEmail: string | null;
+  fellowshipTitle: string | null;
+  cohortName: string | null;
+  requestedLearningTrackName: string | null;
+  reviewedByDisplayName: string | null;
 }
 
 export interface SubmitProspectApplicationRequest {
@@ -45,6 +54,24 @@ export interface CohortApplicationTransitionRequest {
 
 export interface ListCohortApplicationsParams {
   status?: string;
+  fellowshipId?: string;
+  q?: string;
   cursor?: string;
   limit?: number;
+}
+
+export interface BulkCohortApplicationItem {
+  id: string;
+  version: number;
+}
+
+export interface BulkCohortApplicationActionRequest {
+  items: BulkCohortApplicationItem[];
+  reason?: string;
+}
+
+export interface BulkCohortApplicationResult {
+  id: string;
+  success: boolean;
+  message?: string;
 }

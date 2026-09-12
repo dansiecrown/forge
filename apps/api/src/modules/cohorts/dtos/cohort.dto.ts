@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsDateString,
   IsIn,
   IsInt,
@@ -92,6 +93,12 @@ export class UpdateCohortDto {
 export class AssignCohortMentorDto {
   @IsUUID()
   membershipId!: string;
+}
+
+export class SetCohortTracksDto {
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  learningTrackIds!: string[];
 }
 
 // Action endpoints (activate/pause/complete) carry `version` in the body,

@@ -99,9 +99,36 @@ export interface CurriculumSnapshot {
 export class CurriculumSnapshotService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async build(scope: TenantScope, fellowshipId: string): Promise<CurriculumSnapshot> {
+  /** `cohortId` scopes the snapshot to only the tracks that Cohort has
+   * explicitly opted into (`CohortLearningTrack` — see
+   * docs/adr/0016-cohort-scoped-tracks.md Decision 1). Omitted at cohort
+   * *creation* (the cohort has no id yet to have opted into anything) and
+   * for any cohort that has never made a selection — both cases fall back
+   * to every track under the Fellowship, preserving the pre-existing
+   * behavior for every cohort created before this feature existed. */
+  async build(
+    scope: TenantScope,
+    fellowshipId: string,
+    cohortId?: string,
+  ): Promise<CurriculumSnapshot> {
+    let offeredTrackIds: string[] | undefined;
+    if (cohortId) {
+      const offered = await this.prisma.cohortLearningTrack.findMany({
+        where: { cohortId },
+        select: { learningTrackId: true },
+      });
+      if (offered.length > 0) {
+        offeredTrackIds = offered.map((row) => row.learningTrackId);
+      }
+    }
+
     const tracks = await this.prisma.learningTrack.findMany({
-      where: { organizationId: scope.organizationId, fellowshipId, deletedAt: null },
+      where: {
+        organizationId: scope.organizationId,
+        fellowshipId,
+        deletedAt: null,
+        ...(offeredTrackIds ? { id: { in: offeredTrackIds } } : {}),
+      },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }],
       include: {
         courses: {

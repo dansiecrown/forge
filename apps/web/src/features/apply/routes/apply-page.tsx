@@ -4,7 +4,7 @@ import { CheckCircle2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
 import { z } from 'zod';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -119,7 +119,7 @@ export function ApplyPage() {
                 {submit.error ? (
                   <Alert variant="danger">
                     {submit.error instanceof ApiError
-                      ? submit.error.message
+                      ? describeApiError(submit.error, submit.error.message)
                       : 'Could not submit your application. Try again.'}
                   </Alert>
                 ) : null}

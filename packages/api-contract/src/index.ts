@@ -28,3 +28,4 @@ export * from './certificates';
 export * from './system-settings';
 export * from './cohort-applications';
 export * from './public-catalog';
+export * from './chat';

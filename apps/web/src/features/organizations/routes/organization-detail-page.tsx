@@ -1,20 +1,26 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Pencil, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
-import { apiRequest, ApiError } from '@/api/client';
+import { useNavigate, useParams } from 'react-router-dom';
+import { apiRequest, ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { Breadcrumb } from '@/components/admin/breadcrumb';
+import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
+import { DefinitionList } from '@/components/admin/definition-list';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ConfirmDialog } from '@/components/ui/dialog';
+import { ConfirmDialog, Dialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
+import { useToast } from '@/components/ui/toast';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useAcademiesList } from '@/features/academies';
+import type { Academy, OrganizationAdmin } from '@forge/api-contract';
 import {
   useOrganizationLifecycleActions,
   useUpdateOrganization,
@@ -25,6 +31,25 @@ import {
   type UpdateOrganizationFormValues,
 } from '../schemas/organization-schemas';
 
+const ACADEMY_STATUS_TONE: Record<string, BadgeProps['tone']> = {
+  active: 'success',
+  archived: 'danger',
+};
+
+const academyColumns: DataTableColumn<Academy>[] = [
+  {
+    key: 'name',
+    header: 'Name',
+    render: (row) => <span className="font-medium text-foreground">{row.name}</span>,
+  },
+  { key: 'slug', header: 'Slug', render: (row) => row.slug },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (row) => <Badge tone={ACADEMY_STATUS_TONE[row.status]}>{row.status}</Badge>,
+  },
+];
+
 const STATUS_TONE: Record<string, BadgeProps['tone']> = {
   provisioning: 'neutral',
   active: 'success',
@@ -34,11 +59,26 @@ const STATUS_TONE: Record<string, BadgeProps['tone']> = {
 
 export function OrganizationDetailPage() {
   const { orgId } = useParams<{ orgId: string }>();
-  const { activeOrganizationId } = useActiveOrganization();
-  const { data: organization, isLoading, error } = useOrganization(orgId, activeOrganizationId);
-  const updateOrganization = useUpdateOrganization(orgId ?? '', activeOrganizationId);
+  const navigate = useNavigate();
+  const { activeOrganizationId, setActiveOrganizationId } = useActiveOrganization();
+  // Visiting an organization's own detail page makes it the active tenant
+  // context for the rest of the session's navigation — the missing link that
+  // lets a Super Admin actually drill Organization -> Academy -> Fellowship
+  // -> Cohort across organizations other than whichever one their org
+  // switcher last had selected. Every hook below this point that needs an
+  // "X-Organization-Id" for a call scoped to *this* organization uses `orgId`
+  // directly (not `activeOrganizationId`) so this page's own data is never
+  // stale for the one render before the effect below catches up.
+  useEffect(() => {
+    if (orgId && orgId !== activeOrganizationId) setActiveOrganizationId(orgId);
+  }, [orgId, activeOrganizationId, setActiveOrganizationId]);
+
+  const { data: organization, isLoading, error } = useOrganization(orgId, orgId);
+  const updateOrganization = useUpdateOrganization(orgId ?? '', orgId);
   const { suspend, archive, restore } = useOrganizationLifecycleActions(orgId ?? '');
   const [pendingAction, setPendingAction] = useState<'suspend' | 'archive' | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const toast = useToast();
   const permissions = usePermissions();
   const stats = useQuery({
     queryKey: ['admin-organization-stats', orgId],
@@ -49,17 +89,18 @@ export function OrganizationDetailPage() {
         cohortCount: number;
         enrollmentCount: number;
         certificatesIssued: number;
-      }>(`/admin/organizations/${orgId}/stats`, { organizationId: activeOrganizationId }),
-    enabled: Boolean(orgId && activeOrganizationId),
+      }>(`/admin/organizations/${orgId}/stats`, { organizationId: orgId }),
+    enabled: Boolean(orgId),
   });
   const admins = useQuery({
     queryKey: ['admin-organization-admins', orgId],
     queryFn: () =>
-      apiRequest<{ id: string; userId: string }[]>(`/organizations/${orgId}/admins`, {
-        organizationId: activeOrganizationId,
+      apiRequest<OrganizationAdmin[]>(`/organizations/${orgId}/admins`, {
+        organizationId: orgId,
       }),
-    enabled: Boolean(orgId && activeOrganizationId),
+    enabled: Boolean(orgId),
   });
+  const academies = useAcademiesList('', '');
 
   const form = useForm<UpdateOrganizationFormValues>({
     resolver: zodResolver(updateOrganizationSchema),
@@ -88,7 +129,9 @@ export function OrganizationDetailPage() {
   if (error || !organization) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Organization not found.'}
+        {error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Organization not found.'}
       </Alert>
     );
   }
@@ -106,8 +149,15 @@ export function OrganizationDetailPage() {
         },
         version: organization.version,
       });
-    } catch {
-      // surfaced below via updateOrganization.error
+      toast.success('Organization profile updated.');
+      setEditOpen(false);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? describeApiError(err, err.message)
+          : 'Failed to update organization.',
+      );
+      // Also surfaced inline below (updateOrganization.error) while the dialog stays open.
     }
   }
 
@@ -122,7 +172,9 @@ export function OrganizationDetailPage() {
   }
 
   const updateErrorMessage =
-    updateOrganization.error instanceof ApiError ? updateOrganization.error.message : null;
+    updateOrganization.error instanceof ApiError
+      ? describeApiError(updateOrganization.error, updateOrganization.error.message)
+      : null;
 
   const lifecycleItems: ActionsMenuItem[] = [];
   if (organization.status === 'active' && permissions.has('organization.suspend')) {
@@ -155,12 +207,12 @@ export function OrganizationDetailPage() {
       <AdminPageHeader
         title={organization.name}
         description={
-          <>
-            <Link to="/admin/organizations" className="text-brand hover:underline">
-              Organizations
-            </Link>{' '}
-            / {organization.slug}
-          </>
+          <Breadcrumb
+            items={[
+              { label: 'Organizations', to: '/admin/organizations' },
+              { label: organization.name },
+            ]}
+          />
         }
         action={
           <div className="flex items-center gap-3">
@@ -175,50 +227,77 @@ export function OrganizationDetailPage() {
         </p>
       ) : null}
 
-      <Card className="max-w-xl">
-        <CardHeader>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle as="h2">Profile</CardTitle>
+          {permissions.has('organization.update') ? (
+            <Button
+              variant="secondary"
+              onClick={() => setEditOpen(true)}
+              aria-label="Edit organization profile"
+            >
+              <Pencil className="size-4" aria-hidden="true" />
+              Edit
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
-            <FormField
-              label="Name"
-              error={form.formState.errors.name?.message}
-              {...form.register('name')}
-            />
-            <FormField
-              label="Legal name"
-              error={form.formState.errors.legalName?.message}
-              {...form.register('legalName')}
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Default timezone"
-                error={form.formState.errors.defaultTimezone?.message}
-                {...form.register('defaultTimezone')}
-              />
-              <FormField
-                label="Country (ISO code)"
-                maxLength={2}
-                error={form.formState.errors.country?.message}
-                {...form.register('country')}
-              />
-            </div>
-            <FormField
-              label="Support email"
-              type="email"
-              error={form.formState.errors.supportEmail?.message}
-              {...form.register('supportEmail')}
-            />
-            <div className="flex justify-end pt-2">
-              <Button type="submit" loading={updateOrganization.isPending}>
-                Save changes
-              </Button>
-            </div>
-          </form>
+          <DefinitionList
+            items={[
+              { label: 'Name', value: organization.name },
+              { label: 'Legal name', value: organization.legalName },
+              { label: 'Default timezone', value: organization.defaultTimezone },
+              { label: 'Country', value: organization.country },
+              { label: 'Support email', value: organization.supportEmail },
+            ]}
+          />
         </CardContent>
       </Card>
+
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} title="Edit organization profile">
+        <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          {updateErrorMessage ? (
+            <Alert variant="danger" className="w-full">
+              {updateErrorMessage}
+            </Alert>
+          ) : null}
+          <FormField
+            label="Name"
+            error={form.formState.errors.name?.message}
+            {...form.register('name')}
+          />
+          <FormField
+            label="Legal name"
+            error={form.formState.errors.legalName?.message}
+            {...form.register('legalName')}
+          />
+          <FormField
+            label="Default timezone"
+            error={form.formState.errors.defaultTimezone?.message}
+            {...form.register('defaultTimezone')}
+          />
+          <FormField
+            label="Country (ISO code)"
+            maxLength={2}
+            error={form.formState.errors.country?.message}
+            {...form.register('country')}
+          />
+          <FormField
+            label="Support email"
+            type="email"
+            error={form.formState.errors.supportEmail?.message}
+            {...form.register('supportEmail')}
+          />
+          <div className="flex w-full justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={updateOrganization.isPending}>
+              Save changes
+            </Button>
+          </div>
+        </form>
+      </Dialog>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -273,8 +352,9 @@ export function OrganizationDetailPage() {
             {admins.data && admins.data.length > 0 ? (
               <ul className="space-y-2 text-sm">
                 {admins.data.map((admin) => (
-                  <li key={admin.id} className="font-mono text-xs text-muted-foreground">
-                    {admin.userId}
+                  <li key={admin.id} className="truncate">
+                    <span className="font-medium text-foreground">{admin.displayName}</span>{' '}
+                    <span className="text-xs text-muted-foreground">{admin.email}</span>
                   </li>
                 ))}
               </ul>
@@ -285,6 +365,30 @@ export function OrganizationDetailPage() {
         </Card>
       </div>
 
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle as="h2">Academies</CardTitle>
+          {permissions.has('academy.create') ? (
+            <Button variant="secondary" onClick={() => navigate('/admin/academies/new')}>
+              <Plus className="size-4" aria-hidden="true" />
+              New academy
+            </Button>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            columns={academyColumns}
+            rows={academies.rows}
+            rowKey={(row) => row.id}
+            isLoading={academies.isLoading}
+            error={academies.error}
+            emptyTitle="No academies yet"
+            emptyDescription="Create an academy to start organizing fellowships under this organization."
+            onRowClick={(row) => navigate(`/admin/academies/${row.id}`)}
+          />
+        </CardContent>
+      </Card>
+
       <ConfirmDialog
         open={pendingAction !== null}
         onClose={() => setPendingAction(null)}
@@ -292,9 +396,9 @@ export function OrganizationDetailPage() {
         loading={suspend.isPending || archive.isPending}
         error={
           pendingAction === 'suspend' && suspend.error instanceof ApiError
-            ? suspend.error.message
+            ? describeApiError(suspend.error, suspend.error.message)
             : pendingAction === 'archive' && archive.error instanceof ApiError
-              ? archive.error.message
+              ? describeApiError(archive.error, archive.error.message)
               : null
         }
         title={

@@ -5,7 +5,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/form-field';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { useForgotPassword } from '../hooks/use-forgot-password';
 import { forgotPasswordSchema, type ForgotPasswordFormValues } from '../schemas/auth-schemas';
 
@@ -23,7 +23,7 @@ export function ForgotPasswordPage() {
 
   const apiErrorMessage =
     forgotPassword.error instanceof ApiError
-      ? forgotPassword.error.message
+      ? describeApiError(forgotPassword.error, forgotPassword.error.message)
       : forgotPassword.error
         ? 'Something went wrong. Please try again.'
         : null;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
@@ -115,7 +115,7 @@ export function AdminUserDetailPage() {
   if (error || !user) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'User not found.'}
+        {error instanceof ApiError ? describeApiError(error, error.message) : 'User not found.'}
       </Alert>
     );
   }
@@ -241,7 +241,11 @@ export function AdminUserDetailPage() {
         onClose={() => setPendingAction(null)}
         onConfirm={onConfirmAction}
         loading={actionMutation?.isPending ?? false}
-        error={actionMutation?.error instanceof ApiError ? actionMutation.error.message : null}
+        error={
+          actionMutation?.error instanceof ApiError
+            ? describeApiError(actionMutation.error, actionMutation.error.message)
+            : null
+        }
         title={pendingAction ? CONFIRM_COPY[pendingAction].title : ''}
         description={pendingAction ? CONFIRM_COPY[pendingAction].description : undefined}
         confirmLabel={pendingAction ? CONFIRM_COPY[pendingAction].confirmLabel : 'Confirm'}
@@ -255,7 +259,11 @@ export function AdminUserDetailPage() {
         onClose={() => setRevokeSessionId(null)}
         onConfirm={onConfirmRevokeSession}
         loading={sessions.revoke.isPending}
-        error={sessions.revoke.error instanceof ApiError ? sessions.revoke.error.message : null}
+        error={
+          sessions.revoke.error instanceof ApiError
+            ? describeApiError(sessions.revoke.error, sessions.revoke.error.message)
+            : null
+        }
         title="Revoke this session?"
         description="That device will be signed out immediately."
         confirmLabel="Revoke"

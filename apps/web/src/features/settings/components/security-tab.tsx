@@ -3,7 +3,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { KeyRound, Laptop2, ShieldCheck } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { ApiError } from '@/api/client';
+import { describeApiError } from '@/api/client';
+import { passwordRule } from '@/features/identity/schemas/auth-schemas';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,7 @@ import {
 const passwordSchema = z
   .object({
     currentPassword: z.string().min(1, 'Enter your current password.'),
-    newPassword: z.string().min(8, 'Must be at least 8 characters.'),
+    newPassword: passwordRule,
   })
   .required();
 type PasswordFormValues = z.infer<typeof passwordSchema>;
@@ -51,21 +52,33 @@ function PasswordSection() {
     }
   }
 
-  const errorMessage =
-    changePassword.error instanceof ApiError ? changePassword.error.message : null;
+  const errorMessage = changePassword.error
+    ? describeApiError(changePassword.error, 'Something went wrong. Please try again.')
+    : null;
 
   return (
-    <Card className="max-w-xl">
+    <Card>
       <CardHeader>
         <CardTitle as="h2" className="flex items-center gap-2">
           <KeyRound className="size-5 text-muted-foreground" aria-hidden="true" />
           Password
         </CardTitle>
+        <CardDescription>
+          Use at least 8 characters, with a mix of letters and numbers.
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-          {errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
-          {changePassword.isSuccess ? <Alert variant="success">Password updated.</Alert> : null}
+        <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          {errorMessage ? (
+            <Alert variant="danger" className="w-full">
+              {errorMessage}
+            </Alert>
+          ) : null}
+          {changePassword.isSuccess ? (
+            <Alert variant="success" className="w-full">
+              Password updated.
+            </Alert>
+          ) : null}
           <FormField
             label="Current password"
             type="password"
@@ -78,7 +91,7 @@ function PasswordSection() {
             error={form.formState.errors.newPassword?.message}
             {...form.register('newPassword')}
           />
-          <div className="flex justify-end">
+          <div className="flex w-full justify-end">
             <Button type="submit" loading={changePassword.isPending}>
               Update password
             </Button>
@@ -120,8 +133,10 @@ function MfaSection() {
             onChange={(event) => setCode(event.target.value)}
             maxLength={8}
           />
-          {confirmEnrollment.error instanceof ApiError ? (
-            <Alert variant="danger">{confirmEnrollment.error.message}</Alert>
+          {confirmEnrollment.error ? (
+            <Alert variant="danger">
+              {describeApiError(confirmEnrollment.error, 'Something went wrong. Please try again.')}
+            </Alert>
           ) : null}
           <Button
             loading={confirmEnrollment.isPending}
@@ -178,8 +193,10 @@ function MfaSection() {
             </Button>
           </div>
         ) : null}
-        {disableMfa.error instanceof ApiError ? (
-          <Alert variant="danger">{disableMfa.error.message}</Alert>
+        {disableMfa.error ? (
+          <Alert variant="danger">
+            {describeApiError(disableMfa.error, 'Something went wrong. Please try again.')}
+          </Alert>
         ) : null}
       </CardContent>
 

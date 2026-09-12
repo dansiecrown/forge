@@ -147,3 +147,71 @@ describe('MembershipsService.getAcademyScope', () => {
     });
   });
 });
+
+describe('MembershipsService.hasRoleKey', () => {
+  it('is true when the active membership holds that role', async () => {
+    const membershipsRepository: Partial<MembershipsRepository> = {
+      findActive: jest.fn(async () => fakeMembership(['organization'])),
+    };
+    const service = new MembershipsService(
+      membershipsRepository as MembershipsRepository,
+      {} as RolesRepository,
+      fakeAuditLog(),
+      {} as PermissionResolverService,
+    );
+
+    await expect(
+      service.hasRoleKey({ organizationId: 'org-1' }, 'user-1', 'SOME_ROLE'),
+    ).resolves.toBe(true);
+  });
+
+  it('is false when the active membership does not hold that role', async () => {
+    const membershipsRepository: Partial<MembershipsRepository> = {
+      findActive: jest.fn(async () => fakeMembership(['organization'])),
+    };
+    const service = new MembershipsService(
+      membershipsRepository as MembershipsRepository,
+      {} as RolesRepository,
+      fakeAuditLog(),
+      {} as PermissionResolverService,
+    );
+
+    await expect(
+      service.hasRoleKey({ organizationId: 'org-1' }, 'user-1', 'NOT_GRANTED'),
+    ).resolves.toBe(false);
+  });
+
+  it('is false when there is no active membership at all', async () => {
+    const membershipsRepository: Partial<MembershipsRepository> = {
+      findActive: jest.fn(async () => null),
+    };
+    const service = new MembershipsService(
+      membershipsRepository as MembershipsRepository,
+      {} as RolesRepository,
+      fakeAuditLog(),
+      {} as PermissionResolverService,
+    );
+
+    await expect(
+      service.hasRoleKey({ organizationId: 'org-1' }, 'user-1', 'SOME_ROLE'),
+    ).resolves.toBe(false);
+  });
+});
+
+describe('MembershipsService.activateAllInvitedMemberships', () => {
+  it('activates every invited membership this user holds, across every organization', async () => {
+    const membershipsRepository: Partial<MembershipsRepository> = {
+      activateAllInvited: jest.fn(async () => ({ count: 2 })),
+    };
+    const service = new MembershipsService(
+      membershipsRepository as MembershipsRepository,
+      {} as RolesRepository,
+      fakeAuditLog(),
+      {} as PermissionResolverService,
+    );
+
+    await service.activateAllInvitedMemberships('user-1');
+
+    expect(membershipsRepository.activateAllInvited).toHaveBeenCalledWith('user-1');
+  });
+});

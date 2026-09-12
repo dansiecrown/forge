@@ -19,10 +19,27 @@ import { useSession } from '@/contexts/session-context';
  * the next render resolved the correct organization and role. Waiting for
  * `memberships` to be non-empty (once loaded, a real membership set is
  * never emptied back to `[]` while authenticated) before deciding avoids
- * deciding on stale/incomplete data. */
+ * deciding on stale/incomplete data.
+ *
+ * A platform Super Admin's own `Membership` row still lives under one
+ * specific (bootstrap/home) organization — `SUPER_ADMIN`'s `scopeType` is
+ * `'platform'`, but every `Membership` still requires an `organizationId`.
+ * Scoping the role check to only `activeOrganizationId`'s membership (as
+ * below, for every other role) would deny a Super Admin the moment they
+ * navigate into any organization other than their own home one — exactly
+ * the bug docs/adr/0012-hierarchy-provisioning.md's own org-context-sync fix
+ * surfaced (visiting a *different* org's detail page now correctly makes it
+ * "active," which used to never happen, so this had never been hit before).
+ * Checked across every membership, unscoped by `activeOrganizationId`,
+ * mirroring `PermissionsGuard`'s own unconditional Super Admin bypass. */
 export function RequireRole({ roles }: { roles: string[] }) {
   const { memberships } = useSession();
   const { activeOrganizationId } = useActiveOrganization();
+
+  const isSuperAdmin = memberships.some((membership) => membership.roles.includes('SUPER_ADMIN'));
+  if (isSuperAdmin) {
+    return <Outlet />;
+  }
 
   if (memberships.length > 0 && activeOrganizationId === undefined) {
     return (

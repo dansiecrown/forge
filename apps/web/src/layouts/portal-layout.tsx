@@ -7,7 +7,9 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
+  Mail,
   Menu,
+  MessageSquare,
   Settings as SettingsIcon,
   TrendingUp,
   User,
@@ -25,6 +27,8 @@ const NAV_ITEMS = [
   { to: '/portal/weekly-learning', label: 'Weekly Learning', icon: BookOpen },
   { to: '/portal/resources', label: 'Learning Resources', icon: BookOpen },
   { to: '/portal/practical-tasks', label: 'Practical Tasks', icon: ListChecks },
+  { to: '/portal/chat', label: 'Chat', icon: MessageSquare },
+  { to: '/portal/messages', label: 'Messages', icon: Mail },
   { to: '/portal/progress', label: 'Progress', icon: TrendingUp },
   { to: '/portal/portfolio', label: 'Portfolio', icon: Award },
   { to: '/portal/register', label: 'Apply to a Cohort', icon: ClipboardCheck },
@@ -145,7 +149,7 @@ export function PortalLayout() {
             <span className="hidden text-sm font-medium text-foreground md:inline">
               Your learning portal
             </span>
-            <NotificationBell />
+            <NotificationBell role="student" />
           </header>
           <main className="flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
             <div className="mx-auto max-w-5xl">

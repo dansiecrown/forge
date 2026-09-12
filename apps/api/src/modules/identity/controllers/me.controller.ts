@@ -26,6 +26,7 @@ export class MeController {
       id: current.id,
       displayName: current.displayName,
       email: current.emailCanonical,
+      username: current.username,
       status: current.status,
       timezone: current.timezone,
       locale: current.locale,
@@ -35,6 +36,7 @@ export class MeController {
         organizationId: membership.organizationId,
         status: membership.status,
         roles: membership.membershipRoles.map((membershipRole) => membershipRole.role.key),
+        academyId: membership.academyId,
       })),
     };
   }
@@ -72,6 +74,7 @@ export class MeController {
       displayName: updated.displayName,
       timezone: updated.timezone,
       locale: updated.locale,
+      username: updated.username,
     };
   }
 }

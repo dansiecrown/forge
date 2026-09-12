@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { Cohort, CohortMentor, CohortStatus, Prisma } from '@prisma/client';
+import type { Cohort, CohortMentor, CohortStatus, Membership, Prisma, User } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import type { TenantScope } from '../../../shared/tenancy/tenant-scope';
+
+export type CohortMentorWithUser = CohortMentor & { membership: Membership & { user: User } };
 
 export interface ListCohortsOptions {
   fellowshipId?: string;
@@ -123,9 +125,12 @@ export class CohortsRepository {
 
   // --- Mentor assignment -----------------------------------------------
 
-  listMentors(cohortId: string): Promise<CohortMentor[]> {
+  /** Includes the membership's user — a mentor assignment must show a name,
+   * never a bare membership id (docs/adr/0015-name-first-display.md). */
+  listMentors(cohortId: string): Promise<CohortMentorWithUser[]> {
     return this.prisma.cohortMentor.findMany({
       where: { cohortId, unassignedAt: null },
+      include: { membership: { include: { user: true } } },
       orderBy: { assignedAt: 'asc' },
     });
   }
@@ -157,6 +162,56 @@ export class CohortsRepository {
       where: { cohortId, membershipId, unassignedAt: null },
       data: { unassignedAt: new Date() },
     });
+  }
+
+  // --- Track offerings (docs/adr/0016-cohort-scoped-tracks.md) -----------
+
+  /** The Mentor Portal's "my cohorts" list needs this for a Fellowship-wide
+   * track mentor — cohorts they have no `CohortMentor` row for at all, but
+   * reachable through one of their track assignments. Matches on *either*
+   * signal: the cohort's own explicit "offered tracks" declaration, or a
+   * real Enrollment already on that track — the two are independent
+   * (nothing constrains `Enrollment.currentLearningTrackId` to a track the
+   * cohort has explicitly opted into; it predates this feature), and a
+   * mentor must be able to discover a cohort with their track's actual
+   * students even if nobody remembered to also register the offering. See
+   * docs/adr/0016-cohort-scoped-tracks.md Decision 3. `organizationId` is
+   * defense-in-depth, not the only thing preventing cross-tenant leakage
+   * here — a track assignment can only ever be created within the
+   * assignee's own organization in the first place. */
+  listOfferingAnyTrack(organizationId: string, learningTrackIds: string[]): Promise<Cohort[]> {
+    if (learningTrackIds.length === 0) return Promise.resolve([]);
+    return this.prisma.cohort.findMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        OR: [
+          { offeredTracks: { some: { learningTrackId: { in: learningTrackIds } } } },
+          { enrollments: { some: { currentLearningTrackId: { in: learningTrackIds } } } },
+        ],
+      },
+    });
+  }
+
+  listOfferedTrackIds(cohortId: string): Promise<string[]> {
+    return this.prisma.cohortLearningTrack
+      .findMany({ where: { cohortId }, select: { learningTrackId: true } })
+      .then((rows) => rows.map((row) => row.learningTrackId));
+  }
+
+  /** Replace-all semantics — the caller (`CohortsService.setOfferedTracks`)
+   * has already validated every id belongs to this cohort's own Fellowship.
+   * A transaction keeps "clear, then re-add" atomic so a failed request
+   * never leaves a cohort with zero offered tracks by accident. */
+  setOfferedTracks(cohortId: string, learningTrackIds: string[]): Promise<void> {
+    return this.prisma
+      .$transaction([
+        this.prisma.cohortLearningTrack.deleteMany({ where: { cohortId } }),
+        this.prisma.cohortLearningTrack.createMany({
+          data: learningTrackIds.map((learningTrackId) => ({ cohortId, learningTrackId })),
+        }),
+      ])
+      .then(() => undefined);
   }
 }
 

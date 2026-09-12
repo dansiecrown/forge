@@ -95,12 +95,24 @@ export interface MeResponse {
   id: string;
   displayName: string;
   email: string;
+  /** Admin-set at creation, or self-set here from Settings — see
+   * docs/adr/0009-administration-platform.md's addendum. Null until set. */
+  username: string | null;
   status: string;
   timezone: string;
   locale: string;
   emailVerified: boolean;
   mfaEnabled: boolean;
-  memberships: { organizationId: string; status: string; roles: string[] }[];
+  /** `academyId` is set only for a membership restricted to one academy
+   * (an academy-scoped role grant, e.g. ACADEMY_ADMIN/MENTOR/STUDENT) — null
+   * for an org-wide role (SUPER_ADMIN/ORG_ADMIN). Powers the admin nav's
+   * "My Academy" entry point. */
+  memberships: {
+    organizationId: string;
+    status: string;
+    roles: string[];
+    academyId: string | null;
+  }[];
 }
 
 /** `isSuperAdmin: true` means "treat as having every permission" —

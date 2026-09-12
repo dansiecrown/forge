@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   CreateCohortRequest,
+  SelectEnrollmentTrackRequest,
+  SetCohortTracksRequest,
   UpdateCohortRequest,
   UpdateEnrollmentRequest,
 } from '@forge/api-contract';
@@ -11,10 +13,14 @@ import { getUserMemberships } from '@/features/organizations/api/organizations-a
 import {
   activateCohort,
   assignCohortMentor,
+  closeCohortTrackSwitching,
   completeCohort,
   createCohort,
   createEnrollment,
   pauseCohort,
+  reopenCohortTrackSwitching,
+  selectEnrollmentTrack,
+  setOfferedTracks,
   syncCohortCurriculum,
   unassignCohortMentor,
   updateCohort,
@@ -67,8 +73,16 @@ export function useCohortLifecycleActions(id: string) {
     mutationFn: (version: number) => syncCohortCurriculum(id, version, activeOrganizationId),
     onSuccess,
   });
+  const closeTrackSwitching = useMutation({
+    mutationFn: (version: number) => closeCohortTrackSwitching(id, version, activeOrganizationId),
+    onSuccess,
+  });
+  const reopenTrackSwitching = useMutation({
+    mutationFn: (version: number) => reopenCohortTrackSwitching(id, version, activeOrganizationId),
+    onSuccess,
+  });
 
-  return { activate, pause, complete, syncCurriculum };
+  return { activate, pause, complete, syncCurriculum, closeTrackSwitching, reopenTrackSwitching };
 }
 
 export function useMentorAssignment(cohortId: string) {
@@ -107,6 +121,18 @@ export function useMentorAssignment(cohortId: string) {
   return { assign, unassign };
 }
 
+export function useSetCohortTracks(cohortId: string) {
+  const { activeOrganizationId } = useActiveOrganization();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: SetCohortTracksRequest) =>
+      setOfferedTracks(cohortId, body, activeOrganizationId),
+    onSuccess: (tracks) => {
+      queryClient.setQueryData(['cohorts', 'tracks', cohortId, activeOrganizationId], tracks);
+    },
+  });
+}
+
 export function useEnrollmentActions(cohortId: string) {
   const { activeOrganizationId } = useActiveOrganization();
   const queryClient = useQueryClient();
@@ -134,4 +160,22 @@ export function useEnrollmentActions(cohortId: string) {
   });
 
   return { enroll, updateStatus };
+}
+
+/** Student self-service pick/switch — see
+ * docs/adr/0017-track-switch-grace-period.md. Invalidates both the shared
+ * `useMyEnrollment()` context query (`['enrollments','me',…]`) and every
+ * `student-curriculum` query, since the active track determines what
+ * curriculum content the learner sees. */
+export function useSelectEnrollmentTrack(enrollmentId: string) {
+  const { activeOrganizationId } = useActiveOrganization();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: SelectEnrollmentTrackRequest) =>
+      selectEnrollmentTrack(enrollmentId, body, activeOrganizationId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+      void queryClient.invalidateQueries({ queryKey: ['student-curriculum'] });
+    },
+  });
 }

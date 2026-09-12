@@ -16,12 +16,33 @@ import type { TenantScope } from '../../../shared/tenancy/tenant-scope';
  * email / applicant user) — see the migration SQL doc comment. */
 const UNIQUE_VIOLATION = 'P2002';
 
+/** Resolves the display fields the admin queue and detail view need —
+ * applicant identity for an authenticated (not prospect) application,
+ * fellowship/cohort/track names, reviewer name — so the API never hands the
+ * frontend a bare, unreadable foreign-key id. See
+ * `CohortApplicationEntity`/`toCohortApplicationEntity`. */
+const APPLICATION_INCLUDE = {
+  applicant: { select: { displayName: true, emailCanonical: true } },
+  fellowship: { select: { title: true } },
+  cohort: { select: { name: true } },
+  requestedLearningTrack: { select: { name: true } },
+  reviewedBy: { select: { displayName: true } },
+} satisfies Prisma.CohortApplicationInclude;
+
+export type CohortApplicationWithRelations = Prisma.CohortApplicationGetPayload<{
+  include: typeof APPLICATION_INCLUDE;
+}>;
+
 export interface ListCohortApplicationsOptions {
   status?: CohortApplicationStatus;
   /** Confines the list to a single Academy id — set only for a restricted
    * caller (e.g. ACADEMY_ADMIN), same convention as every other admin list
    * built on `MembershipsService.getAcademyScope()`. */
   restrictToAcademyId?: string;
+  fellowshipId?: string;
+  /** Matches `AdminUsersRepository`'s `q` convention — case-insensitive
+   * contains on the applicant's name/email. */
+  q?: string;
   applicantUserId?: string;
   cursor?: string;
   limit: number;
@@ -52,16 +73,28 @@ export class CohortApplicationsRepository {
   async list(
     scope: TenantScope,
     options: ListCohortApplicationsOptions,
-  ): Promise<{ rows: CohortApplication[]; hasMore: boolean }> {
+  ): Promise<{ rows: CohortApplicationWithRelations[]; hasMore: boolean }> {
     const where: Prisma.CohortApplicationWhereInput = {
       organizationId: scope.organizationId,
       ...(options.status ? { status: options.status } : {}),
       ...(options.restrictToAcademyId ? { academyId: options.restrictToAcademyId } : {}),
+      ...(options.fellowshipId ? { fellowshipId: options.fellowshipId } : {}),
       ...(options.applicantUserId ? { applicantUserId: options.applicantUserId } : {}),
+      ...(options.q
+        ? {
+            OR: [
+              { prospectDisplayName: { contains: options.q, mode: 'insensitive' } },
+              { prospectEmail: { contains: options.q.toLowerCase() } },
+              { applicant: { displayName: { contains: options.q, mode: 'insensitive' } } },
+              { applicant: { emailCanonical: { contains: options.q.toLowerCase() } } },
+            ],
+          }
+        : {}),
     };
 
     const rows = await this.prisma.cohortApplication.findMany({
       where,
+      include: APPLICATION_INCLUDE,
       take: options.limit + 1,
       ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
       orderBy: { createdAt: 'desc' },
@@ -71,9 +104,10 @@ export class CohortApplicationsRepository {
     return { rows: hasMore ? rows.slice(0, options.limit) : rows, hasMore };
   }
 
-  findById(scope: TenantScope, id: string): Promise<CohortApplication | null> {
+  findById(scope: TenantScope, id: string): Promise<CohortApplicationWithRelations | null> {
     return this.prisma.cohortApplication.findFirst({
       where: { id, organizationId: scope.organizationId },
+      include: APPLICATION_INCLUDE,
     });
   }
 

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { FellowshipTrackMentorsService } from '../../catalog/services/fellowship-track-mentors.service';
 import { CohortsService } from '../../cohorts/services/cohorts.service';
 import { EnrollmentsService } from '../../cohorts/services/enrollments.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
@@ -6,12 +7,13 @@ import { PermissionResolverService } from '../../organizations/services/permissi
 import { AuditLogService } from '../../platform/audit-log.service';
 import { AppException } from '../../../shared/errors/app.exception';
 import type { TenantScope } from '../../../shared/tenancy/tenant-scope';
+import type { EnrollmentEntity } from '../../cohorts/entities/enrollment.entity';
 import { toMentorNoteEntity, type MentorNoteEntity } from '../entities/mentor-note.entity';
 import {
   MentorNoteVersionConflictError,
   MentorNotesRepository,
 } from '../repositories/mentor-notes.repository';
-import { assertMentorAssignedToCohort } from '../support/mentor-cohort-scope';
+import { resolveMentorCohortAccess } from '../support/mentor-cohort-scope';
 
 /** Team-visible within a cohort's assigned mentors — any assigned mentor can
  * read/edit/delete any note about a shared student, not author-only. Never
@@ -27,17 +29,39 @@ export class MentorNotesService {
     private readonly membershipsService: MembershipsService,
     private readonly permissionResolver: PermissionResolverService,
     private readonly auditLog: AuditLogService,
+    private readonly fellowshipTrackMentorsService: FellowshipTrackMentorsService,
   ) {}
 
-  private assertMentor(scope: TenantScope, callerId: string, cohortId: string): Promise<void> {
-    return assertMentorAssignedToCohort(
+  /** Deliberately no self-access bypass — mentor notes are never exposed to
+   * any student-facing route (this class's own doc comment), unlike the
+   * read paths in ProgressionService/SubmissionReviewsService/
+   * PortfolioProjectsService that reuse `assertMentorCanAccessEnrollment`.
+   * A track-only mentor (no cohort-wide CohortMentor row) passes this only
+   * when the enrollment's own track matches one of their assignments —
+   * see docs/adr/0016-cohort-scoped-tracks.md Decision 3. */
+  private async assertMentor(
+    scope: TenantScope,
+    callerId: string,
+    enrollment: Pick<EnrollmentEntity, 'cohortId' | 'fellowshipId' | 'currentLearningTrackId'>,
+  ): Promise<void> {
+    const access = await resolveMentorCohortAccess(
       this.cohortsService,
       this.membershipsService,
       this.permissionResolver,
+      this.fellowshipTrackMentorsService,
       scope,
       callerId,
-      cohortId,
+      enrollment.cohortId,
+      enrollment.fellowshipId,
     );
+    if (access.fullAccess) return;
+    if (
+      enrollment.currentLearningTrackId &&
+      access.trackIds.includes(enrollment.currentLearningTrackId)
+    ) {
+      return;
+    }
+    throw AppException.forbidden('You are not assigned to this cohort.');
   }
 
   async list(
@@ -46,7 +70,7 @@ export class MentorNotesService {
     callerId: string,
   ): Promise<MentorNoteEntity[]> {
     const enrollment = await this.enrollmentsService.get(scope, enrollmentId);
-    await this.assertMentor(scope, callerId, enrollment.cohortId);
+    await this.assertMentor(scope, callerId, enrollment);
     const rows = await this.mentorNotesRepository.list(scope, enrollmentId);
     return rows.map(toMentorNoteEntity);
   }
@@ -58,7 +82,7 @@ export class MentorNotesService {
     callerId: string,
   ): Promise<MentorNoteEntity> {
     const enrollment = await this.enrollmentsService.get(scope, enrollmentId);
-    await this.assertMentor(scope, callerId, enrollment.cohortId);
+    await this.assertMentor(scope, callerId, enrollment);
     const membership = await this.membershipsService.getActiveMembership(scope, callerId);
     if (!membership) {
       throw AppException.validation([
@@ -97,7 +121,8 @@ export class MentorNotesService {
     if (!row) {
       throw AppException.notFound('Mentor note not found.');
     }
-    await this.assertMentor(scope, callerId, row.cohortId);
+    const enrollment = await this.enrollmentsService.get(scope, row.enrollmentId);
+    await this.assertMentor(scope, callerId, enrollment);
     return toMentorNoteEntity(row);
   }
 

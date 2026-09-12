@@ -500,6 +500,48 @@ const PERMISSIONS: PermissionSeed[] = [
     scopeCapability: 'organization',
     description: 'Approve or reject a cohort application.',
   },
+
+  // --- Fellowship Chat (pre-Milestone-8 additional scope) -----------------
+  // See docs/adr/0014-fellowship-chat.md. `chat.channel.manage` is also the
+  // signal `ChatAccessService` uses to distinguish an administrator from a
+  // participant — deliberately not granted to Mentor/Student. Own-message
+  // edit/delete needs no separate permission: authorship alone is enough,
+  // checked in ChatMessagesService, not the permission system.
+  {
+    key: 'chat.channel.read',
+    resource: 'chat',
+    action: 'channel.read',
+    scopeCapability: 'organization',
+    description: 'View a fellowship’s chat channels and message history.',
+  },
+  {
+    key: 'chat.channel.manage',
+    resource: 'chat',
+    action: 'channel.manage',
+    scopeCapability: 'organization',
+    description: 'Create, rename, archive, or restore a fellowship’s chat channels.',
+  },
+  {
+    key: 'chat.message.create',
+    resource: 'chat',
+    action: 'message.create',
+    scopeCapability: 'organization',
+    description: 'Post, edit, and delete your own chat messages.',
+  },
+  {
+    key: 'chat.message.moderate',
+    resource: 'chat',
+    action: 'message.moderate',
+    scopeCapability: 'organization',
+    description: 'Edit or delete any chat message in an authorized fellowship.',
+  },
+  {
+    key: 'chat.reaction.manage',
+    resource: 'chat',
+    action: 'reaction.manage',
+    scopeCapability: 'organization',
+    description: 'Add or remove your own reactions to chat messages.',
+  },
 ];
 
 interface RoleSeed {
@@ -578,6 +620,11 @@ const ROLES: RoleSeed[] = [
       'certificate.read',
       'cohort.application.read',
       'cohort.application.manage',
+      'chat.channel.read',
+      'chat.channel.manage',
+      'chat.message.create',
+      'chat.message.moderate',
+      'chat.reaction.manage',
     ],
   },
   {
@@ -627,6 +674,11 @@ const ROLES: RoleSeed[] = [
       'certificate.read',
       'cohort.application.read',
       'cohort.application.manage',
+      'chat.channel.read',
+      'chat.channel.manage',
+      'chat.message.create',
+      'chat.message.moderate',
+      'chat.reaction.manage',
     ],
   },
   {
@@ -646,6 +698,9 @@ const ROLES: RoleSeed[] = [
       'learning.note.manage',
       'announcement.read',
       'certificate.read',
+      'chat.channel.read',
+      'chat.message.create',
+      'chat.reaction.manage',
     ],
   },
   {
@@ -664,6 +719,9 @@ const ROLES: RoleSeed[] = [
       'announcement.read',
       'certificate.read',
       'cohort.application.submit',
+      'chat.channel.read',
+      'chat.message.create',
+      'chat.reaction.manage',
     ],
   },
 ];

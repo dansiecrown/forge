@@ -19,4 +19,23 @@ export const envValidationSchema = Joi.object({
   EMAIL_VERIFICATION_TOKEN_TTL_HOURS: Joi.number().positive().default(48),
 
   COOKIE_SECRET: Joi.string().min(32).required(),
+
+  // Provisioned in docker-compose since ADR-0002 but unwired until Fellowship
+  // Chat (docs/adr/0014-fellowship-chat.md) needed cross-instance pub/sub for
+  // its WebSocket gateway. Defaulted, not required, so every environment that
+  // predates this feature keeps working unchanged.
+  REDIS_URL: Joi.string().uri().default('redis://localhost:6379'),
+
+  // All optional and unset by default — `IdentityModule` falls back to the
+  // dev-mode `ConsoleEmailAdapter` (logs instead of sending) whenever
+  // `SMTP_HOST` is absent, so no environment breaks by not having these.
+  // Set all of `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM` (plus
+  // optionally `SMTP_PORT`/`SMTP_SECURE`) to switch to real delivery — see
+  // docs/adr/0009-administration-platform.md's 2026-09-06 email addendum.
+  SMTP_HOST: Joi.string().optional(),
+  SMTP_PORT: Joi.number().port().default(587),
+  SMTP_SECURE: Joi.boolean().default(false),
+  SMTP_USER: Joi.string().optional(),
+  SMTP_PASSWORD: Joi.string().optional(),
+  SMTP_FROM: Joi.string().optional(),
 });

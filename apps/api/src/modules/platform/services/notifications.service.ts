@@ -50,10 +50,26 @@ export class NotificationsService {
   }
 
   async markRead(userId: string, notificationId: string): Promise<void> {
+    const notification = await this.assertOwned(userId, notificationId);
+    await this.notificationsRepository.markRead(notification.id);
+  }
+
+  /** The explicit, deliberate exception to "once read, it shouldn't go back
+   * to unread" — a manual action only, never automatic. */
+  async markUnread(userId: string, notificationId: string): Promise<void> {
+    const notification = await this.assertOwned(userId, notificationId);
+    await this.notificationsRepository.markUnread(notification.id);
+  }
+
+  async markAllRead(userId: string): Promise<void> {
+    await this.notificationsRepository.markAllRead(userId);
+  }
+
+  private async assertOwned(userId: string, notificationId: string) {
     const notification = await this.notificationsRepository.findById(notificationId);
     if (!notification || notification.recipientUserId !== userId) {
       throw AppException.notFound('Notification not found.');
     }
-    await this.notificationsRepository.markRead(notificationId);
+    return notification;
   }
 }

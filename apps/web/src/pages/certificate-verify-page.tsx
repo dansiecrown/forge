@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { BadgeCheck, ShieldAlert } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,7 +56,7 @@ export function CertificateVerifyPage() {
                 <ShieldAlert className="size-5 shrink-0" aria-hidden="true" />
                 <p className="text-sm">
                   {error instanceof ApiError
-                    ? error.message
+                    ? describeApiError(error, error.message)
                     : 'No issued certificate matches this code.'}
                 </p>
               </div>

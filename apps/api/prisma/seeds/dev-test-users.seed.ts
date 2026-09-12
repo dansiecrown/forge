@@ -57,12 +57,31 @@ async function main(): Promise<void> {
     where: { slug: organizationSlug },
   });
 
+  // Prefer scoping the academy-level test accounts to whichever academy
+  // already has real content (a fellowship) rather than always minting an
+  // empty "Test Academy" of their own — an academy admin/mentor/student
+  // scoped to an academy with nothing under it has no way to actually
+  // exercise academy-scoped features (e.g. the cohort-applications queue
+  // would always render empty). Most-recently-created-with-content wins;
+  // falls back to any existing academy, then to creating "Test Academy"
+  // only when the organization has none at all.
   // No compound unique constraint on (organizationId, slug) in the Prisma
   // schema — it's a hand-written partial index (WHERE deleted_at IS NULL,
   // see the Academy model's header comment) — so upsert isn't available here.
   let academy = await prisma.academy.findFirst({
-    where: { organizationId: organization.id, slug: 'test-academy', deletedAt: null },
+    where: {
+      organizationId: organization.id,
+      deletedAt: null,
+      fellowships: { some: { deletedAt: null } },
+    },
+    orderBy: { createdAt: 'desc' },
   });
+  if (!academy) {
+    academy = await prisma.academy.findFirst({
+      where: { organizationId: organization.id, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
   if (!academy) {
     academy = await prisma.academy.create({
       data: {

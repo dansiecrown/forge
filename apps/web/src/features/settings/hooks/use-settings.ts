@@ -22,8 +22,12 @@ export function useMe() {
 export function useUpdateMe() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { displayName?: string; timezone?: string; locale?: string }) =>
-      updateMe(body),
+    mutationFn: (body: {
+      displayName?: string;
+      timezone?: string;
+      locale?: string;
+      username?: string;
+    }) => updateMe(body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me'] }),
   });
 }

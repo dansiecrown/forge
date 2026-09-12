@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { BookOpen, Loader2, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
@@ -75,7 +75,7 @@ export function CourseDetailPage() {
   if (error || !course) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Course not found.'}
+        {error instanceof ApiError ? describeApiError(error, error.message) : 'Course not found.'}
       </Alert>
     );
   }
@@ -104,7 +104,9 @@ export function CourseDetailPage() {
   }
 
   const updateErrorMessage =
-    updateCourse.error instanceof ApiError ? updateCourse.error.message : null;
+    updateCourse.error instanceof ApiError
+      ? describeApiError(updateCourse.error, updateCourse.error.message)
+      : null;
 
   async function onConfirmArchive() {
     if (!course) return;
@@ -148,7 +150,7 @@ export function CourseDetailPage() {
         }
       />
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2" className="flex items-center gap-2">
             <BookOpen className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -156,27 +158,21 @@ export function CourseDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {updateErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {updateErrorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Title"
               error={form.formState.errors.title?.message}
               {...form.register('title')}
             />
-            <TextareaField
-              label="Overview"
-              error={form.formState.errors.overview?.message}
-              {...form.register('overview')}
-            />
             <FormField
               label="Objectives (comma-separated)"
               error={form.formState.errors.objectives?.message}
               {...form.register('objectives')}
-            />
-            <TextareaField
-              label="Completion criteria"
-              error={form.formState.errors.completionCriteria?.message}
-              {...form.register('completionCriteria')}
             />
             <FormField
               label="Estimated hours"
@@ -184,7 +180,17 @@ export function CourseDetailPage() {
               error={form.formState.errors.estimatedHours?.message}
               {...form.register('estimatedHours')}
             />
-            <div className="flex justify-end pt-2">
+            <TextareaField
+              label="Overview"
+              error={form.formState.errors.overview?.message}
+              {...form.register('overview')}
+            />
+            <TextareaField
+              label="Completion criteria"
+              error={form.formState.errors.completionCriteria?.message}
+              {...form.register('completionCriteria')}
+            />
+            <div className="flex w-full justify-end pt-2">
               <Button type="submit" loading={updateCourse.isPending}>
                 Save changes
               </Button>
@@ -226,7 +232,11 @@ export function CourseDetailPage() {
         onClose={() => setConfirmingArchive(false)}
         onConfirm={onConfirmArchive}
         loading={archive.isPending}
-        error={archive.error instanceof ApiError ? archive.error.message : null}
+        error={
+          archive.error instanceof ApiError
+            ? describeApiError(archive.error, archive.error.message)
+            : null
+        }
         title="Archive this course?"
         description="You can restore it back to draft later if needed."
         confirmLabel="Archive"

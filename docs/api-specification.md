@@ -121,7 +121,7 @@ Each endpoint line supplies description, authentication/authorization, body sche
 | `DELETE /auth/sessions/:sessionId` | revoke own session; authenticated | no body; must own session | `204`; `404` |
 | `POST /auth/mfa/enroll` | begin TOTP factor enrolment; authenticated | `{ "type":"totp" }` | `201 {data:{factorId:"uuid",otpauthUri:"…",recoveryCodes:["…"]}}`; `409 MFA_ALREADY_ENABLED` |
 | `POST /auth/mfa/verify` | verify MFA challenge or enrollment; authenticated/challenge token | `{ "factorId":"uuid","code":"123456" }`; 6–8 chars, either a numeric TOTP code or an alphanumeric single-use recovery code | Completing enrolment (bearer is a full access token + `factorId`): `200 {data:{accessToken:"jwt",expiresIn:900,mfaVerified:true}}`. Completing a login challenge (bearer is the short-lived MFA challenge token from `POST /auth/login`, no `factorId`): `200 {data:{accessToken:"jwt",expiresIn:900,user:{…},mfaRequired:false}}` — the same shape `POST /auth/login` returns on a non-MFA success, since this *is* the login completing. Both: `401 INVALID_MFA_CODE` |
-| `GET /me` / `PATCH /me` | read/update caller profile; authenticated | PATCH `{ "displayName":"Ada", "timezone":"Africa/Lagos", "locale":"en-NG" }`; bounded/sanitized fields | `200 {data:{id:"uuid",displayName:"Ada",memberships:[…]}}`; `422`, `409` |
+| `GET /me` / `PATCH /me` | read/update caller profile; authenticated | PATCH `{ "displayName":"Ada", "timezone":"Africa/Lagos", "locale":"en-NG", "username":"ada" }`; bounded/sanitized fields, username unique lowercase `[a-z0-9_-]{3,30}` | `200 {data:{id:"uuid",displayName:"Ada",username:"ada",memberships:[…]}}`; `422`, `409 USERNAME_TAKEN` |
 
 ### 4.2 Users, roles and permissions
 
@@ -129,7 +129,8 @@ Each endpoint line supplies description, authentication/authorization, body sche
 | --- | --- | --- | --- |
 | `GET /users` | scoped people directory; Admin, `user.read` | filters `role,status,academyId,q,sort`; only allowed fields returned | `200 {data:[{id:"uuid",displayName:"Ada",roles:["STUDENT"]}],meta:{page:{…}}}`; `403` |
 | `GET /users/:userId` | user profile in active tenant; self or `user.read` | none | `200 {data:{user:{…},membership:{…},capabilities:{…}}}`; `403/404` |
-| `POST /users/invitations` | invite a person; Admin, `membership.invite` | `{ "email":"new@example.com","roles":["MENTOR"],"academyId":"uuid" }`; valid role/scope, invite expiry | `202 {data:{invitationId:"uuid",status:"sent"}}` — identity is global, membership is per-organization: an email already registered elsewhere on the platform is reused (no duplicate account, no new credential email) and just gets a membership in this organization, returning `status:"added"` instead; `409 ALREADY_MEMBER` if already a member of this organization, `422` |
+| `POST /users/invitations` | invite a person by email (no password set here); Admin, `membership.invite` | `{ "email":"new@example.com","displayName":"New Person","roles":["MENTOR"] }`; valid role, invite expiry | `202 {data:{invitationId:"uuid",status:"sent"}}` — identity is global, membership is per-organization: an email already registered elsewhere on the platform is reused (no duplicate account, no new credential email) and just gets a membership in this organization, returning `status:"added"` instead; `409 ALREADY_MEMBER` if already a member of this organization, `422` |
+| `POST /admin/users` | admin-set-password creation, alongside the invite above; Admin, `membership.invite` | `{ "email":"new@example.com","username":"new_person","password":"CorrectHorse123!","displayName":"New Person","roleKeys":["ACADEMY_ADMIN"],"academyId":"uuid" }`; `academyId` required iff `ACADEMY_ADMIN` in `roleKeys`; username unique, lowercase `[a-z0-9_-]{3,30}` | `201 {data:{id:"uuid",displayName:"…",email:"…"}}` — active immediately, no accept-invitation step; `409 EMAIL_ALREADY_EXISTS,USERNAME_TAKEN`; `422 ACADEMY_REQUIRED` — see docs/adr/0009-administration-platform.md's 2026-09-06 addendum |
 | `PATCH /users/:userId/status` | suspend/reactivate scoped membership; Admin, `membership.manage` | `{ "status":"suspended","reason":"…" }`; cannot remove last required admin | `200 {data:{membership:{status:"suspended"}}}`; `403`, `409` |
 | `GET /roles` / `POST /roles` | list/create tenant custom roles; Admin, `role.read/create` | POST `{ "name":"Coordinator","key":"coordinator","permissionIds":["uuid"] }`; unique key, permitted permission set | `200` list / `201 {data:{id:"uuid",…}}`; `409`, `422` |
 | `GET /roles/:roleId` / `PATCH /roles/:roleId` | role detail/update; Admin, `role.read/update` | PATCH `{ "name":"…","permissionIds":["uuid"],"version":2 }`; `If-Match`, system role restrictions | `200 {data:{id:"uuid",permissions:[…],version:3}}`; `409 VERSION_CONFLICT` |
@@ -183,8 +184,11 @@ Each endpoint line supplies description, authentication/authorization, body sche
 | `GET /cohorts` / `POST /cohorts` | list/create cohort; scoped read / Admin `cohort.create` | POST `{ "fellowshipId":"uuid","name":"Cohort 2026","slug":"cohort-2026","startsAt":"2026-09-01T08:00:00Z","endsAt":"2027-02-28T17:00:00Z","timezone":"Africa/Lagos","capacity":100 }`; valid chronology/capacity | `200` / `201 {data:{id:"uuid",status:"draft"}}`; `409/422` |
 | `GET /cohorts/:id` / `PATCH /cohorts/:id` | detail/update; scoped / Admin `cohort.update` | PATCH `{ "status":"enrolling","capacity":120,"version":1 }`; lifecycle and `If-Match` | `200`; `409 INVALID_STATE_TRANSITION` |
 | `POST /cohorts/:id/actions/activate` / `complete` / `pause` | change delivery state; Admin matching scope | `{ "reason":"…","version":2 }`; curriculum snapshot and dates valid | `200 {data:{status:"active"}}`; `422/409` |
+| `POST /cohorts/:id/actions/close-track-switching` / `reopen-track-switching` | manually close/reopen this Cohort's track-switch grace period; Admin `cohort.update` | `{ "version":2 }` | `200 {data:{id:"uuid",trackSwitchClosedAt:"2026-09-05T…Z"}}` / `{…trackSwitchClosedAt:null}`; `409 VERSION_CONFLICT` |
 | `GET /cohorts/:id/enrollments` / `POST /cohorts/:id/enrollments` | list/invite or enrol learner; Mentor read assigned, Admin create | POST `{ "studentUserId":"uuid","status":"invited" }`; capacity, progression rule, learner membership | `200` / `201 {data:{id:"uuid",status:"invited"}}`; `409 CAPACITY_REACHED/ACTIVE_ENROLLMENT_EXISTS` |
 | `PATCH /enrollments/:id` | update enrollment state/exception; Admin `enrollment.manage` | `{ "status":"active","reason":"approved","version":1 }`; documented exception where required | `200 {data:{id:"uuid",status:"active"}}`; `422/409` |
+| `GET /enrollments/me` | the caller's own enrollment(s); owner only (`enrollment.progress.read`) | no body | `200 {data:[{id:"uuid",cohortName:"…",fellowshipTitle:"…",academyName:"…",organizationName:"…",currentLearningTrackName:"…"}]}` |
+| `POST /enrollments/:id/actions/select-track` | learner self-service track pick/switch; owner only (`enrollment.progress.read` satisfies the guard, ownership enforced in-service) | `{ "learningTrackId":"uuid" }`; track must belong to the Enrollment's own Fellowship | `200 {data:{id:"uuid",currentLearningTrackId:"uuid"}}`; `404` (not owner) / `409 TRACK_SWITCHING_CLOSED,VERSION_CONFLICT` / `422 TRACK_NOT_IN_FELLOWSHIP` |
 | `GET /cohorts/:id/mentors` / `POST /cohorts/:id/mentors` / `DELETE /cohorts/:id/mentors/:mentorId` | manage mentor assignment; Admin manage, mentor read own | POST `{ "mentorUserId":"uuid","role":"primary","capacityAllocation":25 }`; valid mentor member, no duplicate | `200` / `201` / `204`; `409` |
 | `GET /cohorts/:id/huddles` / `POST /cohorts/:id/huddles` | list/schedule mentor huddle; cohort member read, Mentor/Admin create | POST `{ "title":"Weekly huddle","startsAt":"2026-09-08T17:00:00Z","endsAt":"2026-09-08T18:00:00Z","mentorUserId":"uuid","meetingType":"online" }`; assigned mentor and chronology | `200` / `201 {data:{id:"uuid",status:"scheduled"}}`; `422` |
 | `GET /huddles/:id` / `PATCH /huddles/:id` / `POST /huddles/:id/actions/cancel` | huddle detail/change/cancel; cohort scoped, Mentor owner/Admin write | PATCH `{ "agenda":"…","version":1 }`; cancellation reason if after publish | `200`; cancel `200 {data:{status:"cancelled"}}`; `403/409` |
@@ -225,13 +229,31 @@ Each endpoint line supplies description, authentication/authorization, body sche
 
 ### 4.9 Announcements, notifications and messaging
 
+**This section's tables below describe the originally-planned design, not the current
+implementation** — found and disclosed 2026-09-06, not silently reconciled (a rewrite of this whole
+section is a separate, larger cleanup than the notification-system flaw item that surfaced it). The
+real, implemented routes today: Announcements live under `/admin/announcements` (Admin-authored and
+-managed only — no member-facing `GET /announcements`, no scheduling/`publishAt`, no descendant
+audience validation beyond `scope`+`academyId`/`cohortId`); direct/group conversations
+(`/conversations`, `/messages`) do not exist at all — every "chat" in this codebase is
+`/fellowships/:id/chat` (§4.13), a single per-Fellowship channel model, not user-to-user DMs.
+`GET/PATCH /notification-preferences` does not exist (Settings' "Notification preferences" tab is
+client-only `localStorage`, not backend-enforced). The real Notification endpoints are:
+
+| Method / path | Description, auth/permission | Request sample & validation | Success response / errors |
+| --- | --- | --- | --- |
+| `GET /me/notifications` | caller's own notification inbox; authenticated, self-scoped only | `?unreadOnly=true` optional; cursor `sort=-createdAt` (fixed) | `200 {data:[{id:"uuid",type:"chat.message.reply",title:"…",body:"…",entityType:"fellowship_chat_message",entityId:"uuid",readAt:null,createdAt:"…"}],meta:{page:{…}}}` |
+| `POST /me/notifications/:id/actions/mark-read` | mark one of the caller's own notifications read; authenticated | no body | `204`; `404` if not the caller's own |
+| `POST /me/notifications/:id/actions/mark-unread` | the explicit, manual "set it back to unread" exception — never automatic; authenticated | no body | `204`; `404` if not the caller's own |
+| `POST /me/notifications/actions/mark-all-read` | bulk-mark every one of the caller's unread notifications read; authenticated | no body | `204` |
+
+Below this line, the original planned (not-yet-built) design:
+
 | Method / path | Description, auth/permission | Request sample & validation | Success response / errors |
 | --- | --- | --- | --- |
 | `GET /announcements` / `POST /announcements` | list scoped broadcasts/create; members read / Mentor/Admin `announcement.create` | POST `{ "title":"Welcome","body":"…","audience":{"type":"cohort","id":"uuid"},"publishAt":"2026-09-01T09:00:00Z" }`; audience descendant, sanitized content | `200` / `201 {data:{id:"uuid",status:"scheduled"}}`; `403/422` |
 | `GET /announcements/:id` / `PATCH /announcements/:id` | view/update draft/scheduled; audience member / author/admin | PATCH `{ "body":"…","publishAt":"…","version":1 }`; published edit policy | `200`; `403/409` |
 | `POST /announcements/:id/actions/publish` / `cancel` | publish/cancel; author/admin `announcement.publish` | `{ "version":1 }`; audience valid | `200 {data:{status:"published"}}`; `409` |
-| `GET /notifications` | caller notification inbox; authenticated | filters `unread,type,channel`; cursor `sort=-createdAt` | `200 {data:[{id:"uuid",type:"submission.reviewed",readAt:null,deepLink:"/…"}],meta:{page:{…}}}` |
-| `POST /notifications/:id/actions/read` / `POST /notifications/actions/mark-all-read` | mark own notification(s) read; authenticated | no body / `{ "before":"2026-…" }` optional | `200 {data:{readAt:"…"}}` / `200 {data:{updated:12}}`; `404` |
 | `GET /notification-preferences` / `PATCH /notification-preferences` | view/update caller channel preferences; authenticated | `{ "email":{"assignment_due":true},"whatsapp":{"optIn":true,"phone":"+234…"},"quietHours":{"start":"22:00","end":"07:00","timezone":"Africa/Lagos"} }`; consent/phone/timezone | `200 {data:{…}}`; `422` |
 | `GET /conversations` / `POST /conversations` | inbox/create direct/group conversation; authenticated; policy/moderation applies | POST `{ "type":"direct","participantUserIds":["uuid"],"initialMessage":"Hello" }`; active scoped participants, direct pair unique | `200` / `201 {data:{id:"uuid",status:"active"}}`; `403/409` |
 | `GET /conversations/:id` | conversation detail/participants; participant or moderator | no body | `200 {data:{id:"uuid",participants:[…],status:"active"}}`; `403/404` |
@@ -279,6 +301,90 @@ Each endpoint line supplies description, authentication/authorization, body sche
 | `DELETE /settings/integrations/:id` | disconnect integration; elevated Admin/Super, re-auth | `{ "reason":"…" }` optional | `204`; audit and queued cleanup; `403` |
 | `GET /audit-logs` | immutable scoped audit search; Admin restricted scope or Super | filters `actorUserId,action,entityType,entityId,start,end,outcome`, cursor; max range | `200 {data:[{id:"uuid",occurredAt:"…",action:"certificate.issued",actor:{…},outcome:"success"}],meta:{page:{…}}}`; `403` |
 | `GET /audit-logs/:id` | audit event detail; same authorization | no body | `200 {data:{id:"uuid",beforeRedacted:{…},afterRedacted:{…},requestId:"…"}}`; `404` |
+
+### 4.13 Fellowship chat
+
+Distinct from §4.9's `/conversations`/`/messages` (a still-undelivered *group* conversation design)
+and from §4.13a's real 1:1 Direct Messages below — Fellowship chat is a separate feature: one set of
+channels per Fellowship (not a per-user conversation), scoped by the same Enrollment/CohortMentor/
+admin-scope relationships every other module uses, with no new "Fellowship Admin" role. See
+`docs/adr/0014-fellowship-chat.md` and its 2026-09-07 addendum (member roster, rename/archive/
+restore UI) and 2026-09-12 addendum (Mentor channel creation, auto-created Track channels).
+
+`GET /fellowships/:fellowshipId/chat/channels`'s response shape changed 2026-09-12 — was a bare
+`ChatChannel[]`, now `{ channels, canManageChannels, canCreateChannels }`, the latter two being the
+caller's own capability *for this specific Fellowship* (a Mentor's `canCreateChannels` depends on
+which Fellowship they're assigned to; a static role-permission check can't express that).
+
+| Method / path | Description, auth/permission | Request sample & validation | Success response / errors |
+| --- | --- | --- | --- |
+| `GET /fellowships/:fellowshipId/chat/channels` / `POST …` | list visible channels (private and Track channels filtered per caller — see below) / create; `?includeArchived=true` honored only for a `chat.channel.manage` holder, silently ignored otherwise; `chat.channel.read` / `chat.channel.read` (real gating is `canCreateChannels`: every admin, or a Mentor assigned to this Fellowship — never a manual `type: "track"`, which is `TRACK_CHANNEL_NOT_MANUAL`) | POST `{ "name":"Announcements","slug":"announcements","type":"announcements","isPrivate":false }`; unique slug per Fellowship | `200 {data:{channels:[{id:"uuid",name:"general","type":"general"}],canManageChannels:true,canCreateChannels:true}}` / `201`; `403/404/409 SLUG_TAKEN` |
+| `GET /chat/channels/:id` / `PATCH /chat/channels/:id` | channel detail / rename+describe; participant read / `chat.channel.manage`, `If-Match` | PATCH `{ "name":"General","description":"…" }` | `200`; `403/404/409 VERSION_CONFLICT` |
+| `GET /chat/channels/:id/members` | this channel's roster (`{id,displayName,username}[]`), to start a DM with someone in it; `chat.channel.read` (any participant, not just managers) | no body | `200 [{id:"uuid",displayName:"Ada",username:"ada"}]`; `403/404` |
+| `POST /chat/channels/:id/actions/archive` / `.../restore` / `DELETE /chat/channels/:id` | archive/restore (DELETE archives, never hard-deletes); `chat.channel.manage` | `{ "version":1 }` | `200`; `403/404/409` |
+| `GET /chat/channels/:id/messages` / `POST …` | cursor message history (newest-first pages) / post; `chat.channel.read` / `chat.message.create` | POST `{ "content":"Hello","replyToMessageId":"uuid"? }`; 1–4000 chars, reply must be same channel | `200 {data:[…],meta:{page:{…}}}` / `201`; `403/404/422` |
+| `PATCH /chat/messages/:id` / `DELETE /chat/messages/:id` | edit-own (last-write-wins, no `version`) / soft-delete; author, or `chat.message.moderate` for someone else's | PATCH `{ "content":"Corrected" }` | `200`; `403/404` |
+| `POST /chat/messages/:id/reactions` / `DELETE …/reactions/:reaction` | add/remove own reaction (idempotent add); `chat.reaction.manage` | `{ "reaction":"👍" }` | `200`/`204`; `404` |
+| `GET /chat/channels/:id/read` / `POST /chat/channels/:id/read` | this caller's read marker + unread count / mark read; `chat.channel.read` | POST `{ "lastReadMessageId":"uuid"? }` | `200 {data:{lastReadMessageId,lastReadAt,unreadCount}}` / `200`; `403/404` |
+
+`type: "track"` channels (auto-created when a Cohort is assigned a Learning Track — see the ADR
+addendum) are visible only to a Student enrolled in that exact Cohort on that exact Track; every
+admin and any Mentor assigned to the Fellowship sees every Track channel, same as every other
+channel type. Direct access to one that isn't theirs (`GET`, message read/post, WebSocket subscribe)
+404s identically to a channel that doesn't exist.
+
+### 4.13a Direct messages (1:1)
+
+Added 2026-09-06, reversing ADR-0014's original "DMs out of scope" — see that ADR's addendum.
+Organization-scoped only (never platform-wide, even though `username` is a global identity);
+deliberately minimal relative to Fellowship chat above — no reactions, no reply-threading, no
+dedicated read-state (unread signaling reuses the Notification model instead, a
+`dm.message.received` row per message). Real-time delivery is REST + client polling, not the
+`ChatClientEvents` WebSocket gateway. All routes are self-scoped (`chat.message.create` only
+satisfies `PermissionsGuard`; ownership — is the caller one of exactly two participants — is
+enforced in the service).
+
+A Student may not message a Super Admin or Org Admin (added 2026-09-12, see that ADR's addendum) —
+one-way (the reverse is allowed), and hidden entirely rather than merely blocked: excluded from
+search outright, and `POST /me/conversations` returns the same `404` used for a non-member if
+addressed directly.
+
+| Method / path | Description, auth/permission | Request sample & validation | Success response / errors |
+| --- | --- | --- | --- |
+| `GET /me/people/search` | search active members of the caller's own organization by name or username, to start a DM; self-scoped. For a Student caller, Super Admin/Org Admin are excluded from results entirely | `?q=ada` (2+ chars) | `200 [{id:"uuid",displayName:"Ada",username:"ada"}]` |
+| `GET /me/conversations` | the caller's own DM conversations, most-recently-active first; self-scoped | no body | `200 [{id:"uuid",otherParticipant:{…},lastMessage:{…}|null,updatedAt:"…"}]` |
+| `POST /me/conversations` | start or return the existing conversation with a person; self-scoped | `{ "userId":"uuid" }`; not the caller themselves, target must have an active membership in the caller's org, and (for a Student caller) must not be a Super Admin/Org Admin | `200/201 {data:{id:"uuid",otherParticipant:{…}}}`; `404` (target not in this org, or a Student-restricted admin) / `422 CANNOT_MESSAGE_SELF` |
+| `GET /me/conversations/:id/messages` | cursor message history (newest-first pages); participant only | `cursor,limit` | `200 {data:[…],meta:{page:{…}}}`; `404` (not a participant) |
+| `POST /me/conversations/:id/messages` | send a message; participant only | `{ "content":"Hello" }`; 1–4000 chars | `201 {data:{id:"uuid",content:"Hello",createdAt:"…"}}`; `404` (not a participant) |
+
+**WebSocket** (`/chat` socket.io namespace, same access token as REST): client emits
+`chat.subscribe`/`chat.unsubscribe` `{channelId, organizationId}` and
+`chat.typing.start`/`.stop` `{channelId}`; server emits `chat.subscribed`, `chat.error
+{code}`, `chat.access.revoked`, `chat.typing.started`/`.stopped`, and the broadcast events
+`chat.message.created`/`.updated`/`.deleted`, `chat.reaction.updated`, `chat.channel.updated` (full
+entity payloads, matching the REST shapes above). The gateway never accepts a write over the
+socket — every mutation goes through the REST endpoints; the socket only subscribes and receives.
+See the ADR for authorization re-evaluation, Redis's role, and reconnection behavior.
+
+### 4.14 Cohort-scoped Learning Tracks and Fellowship-wide track mentors
+
+See `docs/adr/0016-cohort-scoped-tracks.md`. Track authoring/curriculum stays under §4.4's
+`/fellowships/:id/learning-tracks` — these endpoints only manage which tracks a Cohort offers and
+which mentors are assigned to a track.
+
+| Method / path | Description, auth/permission | Request sample & validation | Success response / errors |
+| --- | --- | --- | --- |
+| `GET /cohorts/:id/tracks` / `PUT /cohorts/:id/tracks` | this Cohort's offered tracks (empty means "every Fellowship track," the pre-existing default) / replace-all; `cohort.read` / `cohort.update` | PUT `{ "learningTrackIds":["uuid"] }`; every id must belong to this Cohort's own Fellowship | `200 {data:[{id:"uuid",name:"…"}]}`; `403/404/422 TRACK_NOT_IN_FELLOWSHIP` |
+| `GET /learning-tracks/:id/mentors` / `POST …` | Fellowship-wide track mentor roster / assign; `curriculum.read` / `cohort.mentor.manage` | POST `{ "membershipId":"uuid" }`; membership must belong to the active organization | `200 {data:[{id:"uuid",userDisplayName:"…"}]}` / `201`; `403/404/409 ALREADY_ASSIGNED` |
+| `DELETE /learning-tracks/:id/mentors/:membershipId` | unassign; `cohort.mentor.manage` | no body | `204`; `403/404` |
+
+### 4.15 Per-Cohort track switch grace period
+
+See `docs/adr/0017-track-switch-grace-period.md`. `Cohort.trackSwitchClosedAt` (surfaced on the
+`Cohort` resource, §4.6) is null by default — a learner's first Learning Track pick is always
+allowed regardless of its value; only a later *change* away from an already-set track is gated. The
+mutating endpoints (`close-track-switching`/`reopen-track-switching` on the Cohort, `select-track`
+on the Enrollment) are listed with the rest of §4.6 above, not duplicated here.
 
 ## 5. Super-admin and platform operations
 

@@ -2,8 +2,10 @@ name: forge-dev
 
 # Local development infrastructure only — never used for staging/production,
 # which use managed services per docs/system-architecture.md §14. Redis is
-# provisioned here for future milestones (Phase 2 data-platform kernel /
-# Phase 10 notifications) and is intentionally not wired into the API yet.
+# used by the API for Fellowship chat's real-time event fan-out
+# (docs/adr/0014-fellowship-chat.md) — never as the source of truth for
+# messages or authorization, and the API degrades gracefully (persisted
+# writes keep working, only live delivery is affected) if it's unreachable.
 
 services:
   postgres:

@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { CalendarDays, Loader2, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { buildPublishLifecycleItems } from '@/components/admin/publish-lifecycle-items';
@@ -85,7 +85,9 @@ export function WeeklyModuleDetailPage() {
   if (error || !module_) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Weekly module not found.'}
+        {error instanceof ApiError
+          ? describeApiError(error, error.message)
+          : 'Weekly module not found.'}
       </Alert>
     );
   }
@@ -121,7 +123,9 @@ export function WeeklyModuleDetailPage() {
   }
 
   const updateErrorMessage =
-    updateModule.error instanceof ApiError ? updateModule.error.message : null;
+    updateModule.error instanceof ApiError
+      ? describeApiError(updateModule.error, updateModule.error.message)
+      : null;
 
   async function onConfirmArchive() {
     if (!module_) return;
@@ -159,7 +163,7 @@ export function WeeklyModuleDetailPage() {
         }
       />
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2" className="flex items-center gap-2">
             <CalendarDays className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -167,22 +171,24 @@ export function WeeklyModuleDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Week number"
-                type="number"
-                error={form.formState.errors.weekNumber?.message}
-                {...form.register('weekNumber')}
-              />
-              <FormField
-                label="Estimated study hours"
-                type="number"
-                error={form.formState.errors.estimatedStudyHours?.message}
-                {...form.register('estimatedStudyHours')}
-              />
-            </div>
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {updateErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {updateErrorMessage}
+              </Alert>
+            ) : null}
+            <FormField
+              label="Week number"
+              type="number"
+              error={form.formState.errors.weekNumber?.message}
+              {...form.register('weekNumber')}
+            />
+            <FormField
+              label="Estimated study hours"
+              type="number"
+              error={form.formState.errors.estimatedStudyHours?.message}
+              {...form.register('estimatedStudyHours')}
+            />
             <FormField
               label="Title"
               error={form.formState.errors.title?.message}
@@ -193,12 +199,22 @@ export function WeeklyModuleDetailPage() {
               error={form.formState.errors.objectives?.message}
               {...form.register('objectives')}
             />
+            <FormField
+              label="Huddle meeting link"
+              error={form.formState.errors.huddleMeetingLink?.message}
+              {...form.register('huddleMeetingLink')}
+            />
             <TextareaField
               label="Summary"
               error={form.formState.errors.summary?.message}
               {...form.register('summary')}
             />
-            <div className="flex items-center gap-2">
+            <TextareaField
+              label="Mentor huddle notes"
+              error={form.formState.errors.mentorHuddleNotes?.message}
+              {...form.register('mentorHuddleNotes')}
+            />
+            <div className="flex w-full items-center gap-2">
               <input
                 type="checkbox"
                 id="requiresMentorHuddle"
@@ -207,7 +223,7 @@ export function WeeklyModuleDetailPage() {
               />
               <Label htmlFor="requiresMentorHuddle">Requires a mentor huddle this week</Label>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2">
               <input
                 type="checkbox"
                 id="requiresPracticalWork"
@@ -216,17 +232,7 @@ export function WeeklyModuleDetailPage() {
               />
               <Label htmlFor="requiresPracticalWork">Requires practical work this week</Label>
             </div>
-            <FormField
-              label="Huddle meeting link"
-              error={form.formState.errors.huddleMeetingLink?.message}
-              {...form.register('huddleMeetingLink')}
-            />
-            <TextareaField
-              label="Mentor huddle notes"
-              error={form.formState.errors.mentorHuddleNotes?.message}
-              {...form.register('mentorHuddleNotes')}
-            />
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2">
               <input
                 type="checkbox"
                 id="huddleAttendanceRequired"
@@ -235,7 +241,7 @@ export function WeeklyModuleDetailPage() {
               />
               <Label htmlFor="huddleAttendanceRequired">Huddle attendance is required</Label>
             </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex w-full justify-end pt-2">
               <Button type="submit" loading={updateModule.isPending}>
                 Save changes
               </Button>
@@ -368,7 +374,11 @@ export function WeeklyModuleDetailPage() {
         onClose={() => setConfirmingArchive(false)}
         onConfirm={onConfirmArchive}
         loading={archive.isPending}
-        error={archive.error instanceof ApiError ? archive.error.message : null}
+        error={
+          archive.error instanceof ApiError
+            ? describeApiError(archive.error, archive.error.message)
+            : null
+        }
         title="Archive this weekly module?"
         description="You can restore it back to draft later if needed."
         confirmLabel="Archive"

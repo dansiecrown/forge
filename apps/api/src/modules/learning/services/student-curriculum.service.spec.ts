@@ -1,4 +1,5 @@
 import type { CurriculumSnapshot } from '../../catalog/services/curriculum-snapshot.service';
+import type { FellowshipTrackMentorsService } from '../../catalog/services/fellowship-track-mentors.service';
 import type { LessonsService } from '../../catalog/services/lessons.service';
 import type { LearningResourcesService } from '../../catalog/services/learning-resources.service';
 import type { PracticalTasksService } from '../../catalog/services/practical-tasks.service';
@@ -139,8 +140,15 @@ function fakeEnrollment(): EnrollmentEntity {
     fellowshipId: 'fellowship-1',
     cohortId: 'cohort-1',
     userId: 'student-1',
+    userDisplayName: null,
+    userEmail: null,
     status: 'active',
     currentLearningTrackId: TRACK_ID,
+    organizationName: null,
+    academyName: null,
+    fellowshipTitle: null,
+    cohortName: null,
+    currentLearningTrackName: null,
     invitedAt: new Date(),
     joinedAt: new Date('2027-01-01T00:00:00Z'),
     endedAt: null,
@@ -167,6 +175,7 @@ function fakeCohort(): CohortEntity {
     enrollmentDeadline: null,
     curriculumSnapshot: fakeSnapshot(),
     curriculumSnapshotAt: new Date(),
+    trackSwitchClosedAt: null,
     version: 1,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -201,6 +210,9 @@ function buildService() {
     getActiveMembership: jest.fn(async () => null),
   } as unknown as MembershipsService;
   const auditLog = { record: jest.fn(async () => undefined) } as unknown as AuditLogService;
+  const fellowshipTrackMentorsService = {
+    listActiveAssignmentsForMembership: jest.fn(async () => []),
+  } as unknown as FellowshipTrackMentorsService;
 
   const progressionService = new ProgressionService(
     lessonCompletionsRepository,
@@ -214,6 +226,7 @@ function buildService() {
     permissionResolver,
     membershipsService,
     auditLog,
+    fellowshipTrackMentorsService,
   );
   const deadlineService = new DeadlineService(progressionService);
   const bookmarksStore: { enrollmentId: string; resourceId: string }[] = [];

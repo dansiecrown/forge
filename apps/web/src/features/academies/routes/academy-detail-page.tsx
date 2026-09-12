@@ -1,35 +1,67 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Pencil, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
-import { apiRequest, ApiError } from '@/api/client';
+import { useNavigate, useParams } from 'react-router-dom';
+import { apiRequest, ApiError, describeApiError } from '@/api/client';
 import { ActionsMenu, type ActionsMenuItem } from '@/components/admin/actions-menu';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { Breadcrumb } from '@/components/admin/breadcrumb';
+import { DataTable, type DataTableColumn } from '@/components/admin/data-table';
+import { DefinitionList } from '@/components/admin/definition-list';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ConfirmDialog } from '@/components/ui/dialog';
+import { ConfirmDialog, Dialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/toast';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useOrganization } from '@/features/organizations';
+import { useFellowshipsList } from '@/features/fellowships';
+import type { Fellowship } from '@forge/api-contract';
 import { useAcademy } from '../hooks/use-academies';
 import { useAcademyLifecycleActions, useUpdateAcademy } from '../hooks/use-academy-mutations';
 import { updateAcademySchema, type UpdateAcademyFormValues } from '../schemas/academy-schemas';
+
+const FELLOWSHIP_STATUS_TONE: Record<string, BadgeProps['tone']> = {
+  draft: 'neutral',
+  published: 'success',
+  retired: 'danger',
+};
+
+const fellowshipColumns: DataTableColumn<Fellowship>[] = [
+  {
+    key: 'title',
+    header: 'Title',
+    render: (row) => <span className="font-medium text-foreground">{row.title}</span>,
+  },
+  { key: 'slug', header: 'Slug', render: (row) => row.slug },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (row) => <Badge tone={FELLOWSHIP_STATUS_TONE[row.status]}>{row.status}</Badge>,
+  },
+];
 
 const STATUS_TONE: Record<string, BadgeProps['tone']> = { active: 'success', archived: 'danger' };
 
 export function AcademyDetailPage() {
   const { academyId } = useParams<{ academyId: string }>();
+  const navigate = useNavigate();
   const { data: academy, isLoading, error } = useAcademy(academyId);
   const updateAcademy = useUpdateAcademy(academyId ?? '');
   const { archive, restore } = useAcademyLifecycleActions(academyId ?? '');
   const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const toast = useToast();
   const { activeOrganizationId } = useActiveOrganization();
   const permissions = usePermissions();
+  const organization = useOrganization(academy?.organizationId, academy?.organizationId);
+  const fellowships = useFellowshipsList('', '', academyId);
   const stats = useQuery({
     queryKey: ['admin-academy-stats', academyId],
     queryFn: () =>
@@ -68,7 +100,7 @@ export function AcademyDetailPage() {
   if (error || !academy) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Academy not found.'}
+        {error instanceof ApiError ? describeApiError(error, error.message) : 'Academy not found.'}
       </Alert>
     );
   }
@@ -86,8 +118,12 @@ export function AcademyDetailPage() {
         },
         version: academy.version,
       });
-    } catch {
-      // surfaced below via updateAcademy.error
+      toast.success('Academy profile updated.');
+      setEditOpen(false);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? describeApiError(err, err.message) : 'Failed to update academy.',
+      );
     }
   }
 
@@ -101,7 +137,9 @@ export function AcademyDetailPage() {
   }
 
   const updateErrorMessage =
-    updateAcademy.error instanceof ApiError ? updateAcademy.error.message : null;
+    updateAcademy.error instanceof ApiError
+      ? describeApiError(updateAcademy.error, updateAcademy.error.message)
+      : null;
 
   const lifecycleItems: ActionsMenuItem[] = [];
   if (academy.status === 'active' && permissions.has('academy.archive')) {
@@ -124,12 +162,20 @@ export function AcademyDetailPage() {
       <AdminPageHeader
         title={academy.name}
         description={
-          <>
-            <Link to="/admin/academies" className="text-brand hover:underline">
-              Academies
-            </Link>{' '}
-            / {academy.slug}
-          </>
+          <Breadcrumb
+            items={[
+              { label: 'Organizations', to: '/admin/organizations' },
+              ...(organization.data
+                ? [
+                    {
+                      label: organization.data.name,
+                      to: `/admin/organizations/${organization.data.id}`,
+                    },
+                  ]
+                : []),
+              { label: academy.name },
+            ]}
+          />
         }
         action={
           <div className="flex items-center gap-3">
@@ -144,51 +190,80 @@ export function AcademyDetailPage() {
         </p>
       ) : null}
 
-      <Card className="max-w-xl">
-        <CardHeader>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle as="h2">Profile</CardTitle>
+          {permissions.has('academy.update') ? (
+            <Button
+              variant="secondary"
+              onClick={() => setEditOpen(true)}
+              aria-label="Edit academy profile"
+            >
+              <Pencil className="size-4" aria-hidden="true" />
+              Edit
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {updateErrorMessage ? <Alert variant="danger">{updateErrorMessage}</Alert> : null}
-            <FormField
-              label="Name"
-              error={form.formState.errors.name?.message}
-              {...form.register('name')}
-            />
-            <FormField
-              label="Timezone"
-              error={form.formState.errors.timezone?.message}
-              {...form.register('timezone')}
-            />
-            <FormField
-              label="Description"
-              error={form.formState.errors.description?.message}
-              {...form.register('description')}
-            />
-            <FormField
-              label="Contact email"
-              type="email"
-              error={form.formState.errors.contactEmail?.message}
-              {...form.register('contactEmail')}
-            />
-            <div className="flex items-center gap-2">
-              <input
-                id="isPublic"
-                type="checkbox"
-                className="size-4 rounded border-border"
-                {...form.register('isPublic')}
-              />
-              <Label htmlFor="isPublic">Visible in the public catalogue</Label>
-            </div>
-            <div className="flex justify-end pt-2">
-              <Button type="submit" loading={updateAcademy.isPending}>
-                Save changes
-              </Button>
-            </div>
-          </form>
+          <DefinitionList
+            items={[
+              { label: 'Name', value: academy.name },
+              { label: 'Timezone', value: academy.timezone },
+              { label: 'Description', value: academy.description },
+              { label: 'Contact email', value: academy.contactEmail },
+              { label: 'Visible in public catalogue', value: academy.isPublic ? 'Yes' : 'No' },
+            ]}
+          />
         </CardContent>
       </Card>
+
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} title="Edit academy profile">
+        <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          {updateErrorMessage ? (
+            <Alert variant="danger" className="w-full">
+              {updateErrorMessage}
+            </Alert>
+          ) : null}
+          <FormField
+            label="Name"
+            error={form.formState.errors.name?.message}
+            {...form.register('name')}
+          />
+          <FormField
+            label="Timezone"
+            error={form.formState.errors.timezone?.message}
+            {...form.register('timezone')}
+          />
+          <FormField
+            label="Description"
+            error={form.formState.errors.description?.message}
+            {...form.register('description')}
+          />
+          <FormField
+            label="Contact email"
+            type="email"
+            error={form.formState.errors.contactEmail?.message}
+            {...form.register('contactEmail')}
+          />
+          <div className="flex w-full items-center gap-2">
+            <input
+              id="isPublic"
+              type="checkbox"
+              className="size-4 rounded border-border"
+              {...form.register('isPublic')}
+            />
+            <Label htmlFor="isPublic">Visible in the public catalogue</Label>
+          </div>
+          <div className="flex w-full justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={updateAcademy.isPending}>
+              Save changes
+            </Button>
+          </div>
+        </form>
+      </Dialog>
 
       <Card className="max-w-xl">
         <CardHeader>
@@ -230,12 +305,43 @@ export function AcademyDetailPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle as="h2">Fellowships</CardTitle>
+          {permissions.has('fellowship.create') ? (
+            <Button
+              variant="secondary"
+              onClick={() => navigate(`/admin/fellowships/new?academyId=${academy.id}`)}
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              New fellowship
+            </Button>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            columns={fellowshipColumns}
+            rows={fellowships.rows}
+            rowKey={(row) => row.id}
+            isLoading={fellowships.isLoading}
+            error={fellowships.error}
+            emptyTitle="No fellowships yet"
+            emptyDescription="Create a fellowship programme to start scheduling cohorts under this academy."
+            onRowClick={(row) => navigate(`/admin/fellowships/${row.id}`)}
+          />
+        </CardContent>
+      </Card>
+
       <ConfirmDialog
         open={confirmingArchive}
         onClose={() => setConfirmingArchive(false)}
         onConfirm={onConfirmArchive}
         loading={archive.isPending}
-        error={archive.error instanceof ApiError ? archive.error.message : null}
+        error={
+          archive.error instanceof ApiError
+            ? describeApiError(archive.error, archive.error.message)
+            : null
+        }
         title="Archive this academy?"
         description="This affects every fellowship, cohort, and person in it. State why for the audit trail."
         reasonLabel="Reason to archive this academy"

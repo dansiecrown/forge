@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { AttendanceStatusToggle } from '@/components/mentor/attendance-status-toggle';
 import { EmptyState } from '@/components/portal/empty-state';
@@ -68,7 +68,10 @@ export function MentorHuddlesPage() {
     });
   }, [session, form]);
 
-  const errorMessage = upsertSession.error instanceof ApiError ? upsertSession.error.message : null;
+  const errorMessage =
+    upsertSession.error instanceof ApiError
+      ? describeApiError(upsertSession.error, upsertSession.error.message)
+      : null;
 
   if (cohortsLoading) {
     return (
@@ -138,7 +141,7 @@ export function MentorHuddlesPage() {
                 </Alert>
               ) : null}
               <form
-                className="space-y-4"
+                className="flex flex-wrap gap-4"
                 onSubmit={form.handleSubmit(async (values) => {
                   await upsertSession.mutateAsync({
                     notes: values.notes || undefined,
@@ -148,12 +151,6 @@ export function MentorHuddlesPage() {
                 })}
                 noValidate
               >
-                <TextareaField
-                  label="Notes"
-                  rows={4}
-                  error={form.formState.errors.notes?.message}
-                  {...form.register('notes')}
-                />
                 <FormField
                   label="Discussion topics (comma-separated)"
                   error={form.formState.errors.discussionTopics?.message}
@@ -164,7 +161,13 @@ export function MentorHuddlesPage() {
                   error={form.formState.errors.actionItems?.message}
                   {...form.register('actionItems')}
                 />
-                <div className="flex justify-end">
+                <TextareaField
+                  label="Notes"
+                  rows={4}
+                  error={form.formState.errors.notes?.message}
+                  {...form.register('notes')}
+                />
+                <div className="flex w-full justify-end">
                   <Button type="submit" loading={upsertSession.isPending}>
                     Save huddle
                   </Button>

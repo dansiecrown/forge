@@ -1,6 +1,6 @@
 import { Loader2, ChevronLeft, ChevronRight, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,7 @@ export function LessonReaderPage() {
   if (error || !lesson) {
     return (
       <Alert variant="danger">
-        {error instanceof ApiError ? error.message : 'Lesson not found.'}
+        {error instanceof ApiError ? describeApiError(error, error.message) : 'Lesson not found.'}
       </Alert>
     );
   }
@@ -41,7 +41,7 @@ export function LessonReaderPage() {
   const canEmbed = EMBEDDABLE_TYPES.has(lesson.lessonType) && Boolean(lesson.resourceUrl);
   const completeLessonError =
     completeLesson.error instanceof ApiError
-      ? completeLesson.error.message
+      ? describeApiError(completeLesson.error, completeLesson.error.message)
       : completeLesson.error
         ? 'Could not mark this lesson complete. Try again.'
         : null;

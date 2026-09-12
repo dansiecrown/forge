@@ -183,6 +183,323 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   `Fellowship.isPublic`/`Academy.isPublic` gate what's browsable, and `SystemSettings.registrationOpen`
   is the feature's kill switch. See `docs/adr/0010-cohort-applications.md`.
 
+## Public Fellowship Experience (2026-09-04)
+
+- **The public Tech Impact Fellowship landing page is vanilla HTML/CSS/JS, not a React route —
+  the first and only part of this codebase's frontend that isn't.** Served as a static asset from
+  `apps/web/public/fellowship/`, it never loads the React bundle, and calls the existing public
+  API (`GET /public/fellowships`, `POST /public/cohort-applications`) directly with `fetch()`. No
+  parallel application system, no duplicated curriculum data — same backend, same
+  `CohortApplication` entity as the authenticated `/apply` flow. See
+  `docs/adr/0011-public-fellowship-experience.md`.
+- **The admin Cohort Applications queue gained search, a fellowship filter, and real server-side
+  bulk approve/reject** — `CohortApplicationsService.bulkApprove()`/`bulkReject()` loop the
+  existing single-item `approve()`/`reject()` per item, each independently version-checked and
+  independently reported, so one bad row never blocks the rest of a batch. Same permission
+  (`cohort.application.manage`), no new authorization model. The queue also now resolves and
+  surfaces full applicant/fellowship/cohort/track/reviewer detail via `APPLICATION_INCLUDE` —
+  previously an authenticated (non-prospect) applicant showed as a bare user id with no name or
+  email anywhere in the admin UI.
+
+## Hierarchy, Provisioning & Role-Access Correction (2026-09-04)
+
+- **Audited before changing anything, and confirmed the backend hierarchy enforcement was already
+  correct**: required non-nullable FKs at every level, every `create()` already validates its
+  parent belongs to the caller's scope, every `list()`/`get()` already academy-scopes a restricted
+  caller, mentor assignment is already cohort-scoped, and no `FELLOWSHIP_ADMIN` role exists
+  anywhere. The real gaps were all frontend: no contextual creation flow, no child lists on parent
+  detail pages, no real breadcrumb, and a flat nav. See `docs/adr/0012-hierarchy-provisioning.md`
+  for the full decision record.
+- **Contextual creation, child lists, and a real `Breadcrumb` component replace the flat
+  "pick any parent from a dropdown" pattern** on the Fellowship/Cohort create pages and the
+  Organization/Academy/Fellowship/Cohort detail pages — additive to existing routes, not a
+  restructure of them.
+- **The admin nav now resolves to exactly one hierarchy entry point per role** (Organizations / My
+  Organization / My Academy, by permission key — `academy.create` vs `academy.update`, not a
+  hardcoded role name) instead of presenting Organizations/Academies/Fellowships/Cohorts as four
+  unrelated top-level items. The flat list routes still exist; they're reached by drilling down,
+  not linked from the sidebar directly anymore.
+- **Fixed a real cross-organization navigation bug** this task's own "Super Admin can navigate the
+  hierarchy regardless of their own organization membership" requirement surfaced: visiting an
+  organization's own detail page now sets it as the active tenant context for the rest of that
+  browsing session, so a Super Admin drilling into a different organization than their switcher
+  last had selected no longer 404s one level down. See DEBT-033 for the one path (a raw
+  Academy/Fellowship/Cohort URL, deep-linked without visiting the org page first) it doesn't cover.
+
+## Dashboard Bento Redesign (2026-09-04)
+
+- **The Admin, Mentor, and Student dashboards now use an asymmetric Bento layout, a skeleton
+  loading state, and glassmorphism content cards — a deliberate, disclosed exception to ADR-0004**
+  (which reserves glass for floating surfaces and uses spinners everywhere else). Every other page
+  in the app is untouched and stays on the ADR-0004 pattern. See
+  `docs/adr/0013-dashboard-bento-redesign.md` for the full decision record, including why this
+  exception was scoped to exactly these three pages.
+- **A new compound `DashboardState` component** replaces each dashboard's own hand-rolled
+  Loading/Error/Empty chain, and gives Error its own distinct visual with a working retry — before,
+  a real fetch failure and "nothing here yet" rendered the identical message with no way to recover
+  short of a full reload.
+- **No fabricated data.** Mentor and Student have no time-series data to chart, so their Bento focal
+  tile is their single most important *existing* element (Review queue; Progress ring + Continue
+  learning merged into one hero tile) rather than an invented chart.
+
+## Fellowship Real-Time Chat (2026-09-05)
+
+- **Fellowship is the chat boundary — not Cohort, not Organization — and there is no
+  `FELLOWSHIP_ADMIN` role.** Access to a Fellowship's chat is derived entirely from the same
+  relationships every other module already uses (active `Enrollment` for students, active
+  `CohortMentor` assignment for mentors, `chat.channel.manage` + academy scope for admins) via one
+  shared `ChatAccessService`, called by both the REST controllers and the WebSocket gateway so the
+  two can never drift apart. See `docs/adr/0014-fellowship-chat.md` for the full decision record.
+- **Redis is now wired into the API for the first time** — narrowly, only for real-time chat-event
+  fan-out via `@socket.io/redis-adapter`, never as the source of truth for messages or
+  authorization (Postgres and the existing permission system remain that). A Redis outage degrades
+  real-time delivery only; this was verified against a genuine outage in this project's own dev
+  environment, not merely reasoned about.
+- **The WebSocket gateway accepts no writes.** Every chat mutation goes through the existing REST
+  endpoints; the socket is subscribe-and-receive only, re-running the same authorization check the
+  REST `GET` route uses on every subscribe, with a periodic sweep that revokes a now-stale
+  subscription without waiting for a reconnect.
+- **Chat notifications reuse the existing `NotificationsService`** — reply notifications only, the
+  same plain-persisted-row model Announcements already uses. No `@mention` system was added (no
+  unique user handle exists to match against — see DEBT-034).
+
+## Name-First Display, and List-Then-Edit Detail Pages (2026-09-05)
+
+- **No id-bearing list or detail response the frontend renders may show a bare id where a name is
+  available.** Where a real Prisma relation exists, resolve it via `include`; where none does by
+  design (`Enrollment`/`AuditLog` deliberately have no FK to `User`, so history survives account
+  removal), batch-resolve via `UsersService.listByIds()` in the service layer. See
+  `docs/adr/0015-name-first-display.md`.
+- **Any control that picks one resource from a list of names supports type-to-search** via the new
+  generic `EntitySearchField<T>` (people search already existed; this generalizes it) — never a
+  plain dropdown of hundreds of names, never a raw-id text filter.
+- **Every editable "detail" section is read-only by default**, with an Edit button opening the
+  existing form in a dialog — never an always-visible inline form. A new app-wide `useToast()`
+  confirms success/failure after every such save.
+
+## Cohort-Scoped Learning Tracks and Fellowship-Wide Track Mentors (2026-09-05)
+
+- **A Cohort now selects which of its Fellowship's Learning Tracks it actually offers** — tracks
+  stay authored once at the Fellowship level (no curriculum duplication); an empty selection falls
+  back to every Fellowship track, so every Cohort created before this feature keeps working
+  unchanged. See `docs/adr/0016-cohort-scoped-tracks.md`.
+- **Mentor-to-track assignment is Fellowship-wide, not Cohort-scoped, and additive to (never a
+  replacement for) Cohort-wide mentor assignment.** A track mentor genuinely sees only students on
+  their track — this is a real, disclosed authorization change to every mentor-facing per-student
+  read (roster, student workspace, mentor notes, portfolio, submission review), routed through one
+  shared resolver (`learning/support/mentor-cohort-scope.ts`) rather than five separate
+  reimplementations.
+- **A Cohort's explicit "offered tracks" list and a student's actual enrolled track are two
+  independent signals, and mentor discovery checks both.** Found via live verification: relying on
+  only the explicit offering let a track mentor's own roster query return correct data while "my
+  cohorts" failed to surface that Cohort at all. Fixed before shipping — see the ADR's Decision 4.
+
+## Per-Cohort Track Switch Grace Period (2026-09-05)
+
+- **A learner selects and may later switch their Learning Track themselves**, via a new
+  self-service `POST /enrollments/:id/actions/select-track` — the pre-existing staff-only
+  `PATCH /enrollments/:id` is unchanged. See `docs/adr/0017-track-switch-grace-period.md`.
+- **Switching is closed by a manual admin action, not a timer, and scoped per Cohort.**
+  `Cohort.trackSwitchClosedAt` is null (open) by default; an admin explicitly closes or reopens it
+  per Cohort — there is no duration, deadline, or background job, and closing one Cohort never
+  affects another.
+- **The grace period only ever gates a *change* away from an already-set track — a learner's first
+  pick is always allowed**, regardless of the Cohort's switching state. This was a specific,
+  confirmed product decision, not an oversight: closing the window stops mid-stream track-hopping,
+  never blocks a new or newly-onboarded learner from choosing at all.
+
+## Student Profile/Dashboard Program Hierarchy (2026-09-06)
+
+- **A student's Profile page and Dashboard now show which
+  Organization/Academy/Fellowship/Cohort/Learning Track they belong to** —
+  applying the ADR-0015 name-first-display convention to a surface it hadn't
+  reached yet. Names are resolved server-side only on `GET /enrollments/me`
+  (`EnrollmentsService.listMine`), not the staff-facing cohort roster
+  (`GET /cohorts/:id/enrollments`) — a mentor/admin already has that
+  cohort's context from the page they're on, so resolving five extra names
+  on every roster row would be pure overhead with no product benefit.
+- **Hierarchy resolution never fails the whole call.** If any single
+  enrollment's Organization/Academy/Fellowship/Cohort/Track has since been
+  hard-deleted, that one enrollment degrades to all-null hierarchy names
+  (the same "since-removed record" convention `userDisplayName`/`userEmail`
+  already use) rather than 404ing `GET /enrollments/me` — every page in the
+  student portal depends on that one endpoint via `EnrollmentProvider`, not
+  just Profile. Found live, mid-implementation, against genuinely stale
+  dev-fixture data (an enrollment pointing at an already-deleted Academy),
+  not merely reasoned about.
+
+## Admin-Set-Password User Creation, and a Permanent Username (2026-09-06)
+
+- **`POST /admin/users` lets an admin create a user with a password they set directly**, alongside
+  (not instead of) the existing email-only `POST /users/invitations`. This is a deliberate,
+  disclosed reversal of ADR-0009's original "no direct password editing" brief requirement — see
+  that ADR's 2026-09-06 addendum for why: this environment's email adapter is a dev-mode stub with
+  no real delivery, so the reset-link-only flow left a new account unusable. An admin still cannot
+  view or silently overwrite an *existing* user's password — creation is rejected outright if the
+  email is already taken, never silently reused.
+- **A new, permanent `User.username`** (nullable, unique) — set by the admin at creation, or
+  self-set/changed later by anyone from Settings (`PATCH /me`). Lowercase `[a-z0-9_-]{3,30}`, the
+  same shape the not-yet-built user-to-user chat lookup can reuse without its own migration.
+- **Jurisdiction at creation covers only Organization (automatic) and Academy** (a picker, required
+  exactly when `ACADEMY_ADMIN` is among the selected roles) — Mentor/Student scoping stays on the
+  two already-built, separate flows (`Assign mentor`, `Enroll student` on their Cohort/Track pages)
+  rather than being duplicated into this dialog too.
+
+## Real Notification Center, All Three Roles (2026-09-06)
+
+- **The header bell and full Notification Center now read real data** (`GET /me/notifications`),
+  replacing hardcoded placeholder content that predated this — see DEBT-026's 2026-09-06 closure
+  note in `docs/KNOWN_TECHNICAL_DEBT.md`. Grouped into Unread/Read sections; a manual "mark unread"
+  action (`POST /me/notifications/:id/actions/mark-unread`, new) is the only way a read notification
+  ever reverts — never automatic.
+- **Clicking a notification navigates to its source when one exists for the caller's role,
+  otherwise opens a popup with the full title/body.** No fabricated destination — Student/Mentor
+  have no recipient-facing announcement page and Admin has no chat surface yet, so those cases
+  correctly fall through to the popup rather than a broken or misleading link
+  (`resolveNotificationTarget`).
+- **Extended to Admin and Mentor layouts**, not just Student — the backend already created
+  notifications for any role (a mentor gets a chat-reply notification same as a student); only the
+  UI to see them was Student-only before.
+- **`docs/api-specification.md` §4.9 disclosed as largely aspirational**, found while documenting
+  the real endpoints above: its tables describe direct/group DM conversations and a
+  member-facing/scheduled Announcements design that were never built. Left in place (rewriting it is
+  a separate, larger cleanup) but now clearly labeled, with the actually-implemented routes
+  documented above it.
+
+## Admin Chat Access, Channel Creation UI, and User-to-User DMs (2026-09-06)
+
+- **Admin chat access required zero backend changes.** `ChatAccessService`'s Super/Org/Academy
+  Admin authorization matrix (ADR-0014 Decision 1) already covered viewing, sending, moderating,
+  and creating channels in any Fellowship within an admin's scope — the reported gap was purely
+  that Admins had no chat UI at all. `FellowshipDetailPage` now has a "Chat" section reusing the
+  existing `ChatWorkspace` component; `ChannelSidebar` gained the previously-missing "Create
+  channel" action. See `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-035 (closed).
+- **User-to-user DMs are now built — a formal, disclosed reversal of ADR-0014's original "DMs out
+  of scope" decision** (see that ADR's 2026-09-06 addendum). Deliberately organization-scoped
+  (never platform-wide, despite `username` being a global identity) and deliberately minimal
+  relative to Fellowship chat — no reactions, no reply-threading, no dedicated read-state table;
+  unread signaling reuses the Notification Center built earlier this same day instead of new
+  infrastructure.
+- **DM real-time delivery is REST + client polling, not the WebSocket gateway** — a deliberate
+  scope narrowing, not an oversight. `ChatGateway`'s authorization is Fellowship/Cohort/Enrollment/
+  academy-scope-shaped; DMs need only "is the caller one of exactly two participants," a
+  categorically simpler check that didn't justify extending an already-intricate, already-tested
+  gateway.
+- **`User.username` (added earlier the same day for admin user creation) turned out to be exactly
+  the missing piece DEBT-034 (`@mention` notifications) had been blocked on** — that debt entry is
+  updated to reflect the schema now existing, though `@mention` parsing itself remains unbuilt and
+  unrequested.
+
+## Real Email Delivery (2026-09-06)
+
+- **Email is no longer a logging stub in any environment that configures it.** ADR-0003 originally,
+  correctly scoped email as a console-log stub for Milestone 2 (no async side effects existed yet)
+  and it was never revisited — every flow built on top of it since (invitation, password reset,
+  email verification, admin-created-account notice) has been silently undeliverable in every real
+  environment. `IdentityModule`'s `EMAIL_ADAPTER` is now a factory: a real `SmtpEmailAdapter`
+  (generic SMTP via `nodemailer`) when `SMTP_HOST` is configured, the original
+  `ConsoleEmailAdapter` otherwise — so every environment without SMTP credentials configured keeps
+  working exactly as before. See `docs/adr/0003-identity-and-access-control-foundation.md`'s
+  2026-09-06 addendum.
+- **Generic SMTP, not a vendor SDK** — works with whatever provider or account a deployment already
+  has (a personal account with an app password, a provider's own SMTP relay, or a sandbox like
+  Mailtrap for testing), without committing the codebase to one vendor's API shape.
+- **A second real gap found while tracing this**: `email-verification`'s emailed link had nowhere to
+  land — no frontend route ever consumed that token, unlike the other three template types which
+  all point at `/reset-password`. Added a minimal `/verify-email` page mirroring that page's exact
+  shape.
+
+## Chat Channel Rename/Archive/Restore UI, and a Real `#general` Member Roster (2026-09-07)
+
+- **Rename/archive/restore, the remaining gap DEBT-035's 2026-09-06 closure explicitly disclosed,
+  now have UI.** `ChannelInfoPanel` gained an edit action and an archive/restore action (both
+  `chat.channel.manage`-only, server-enforced regardless); `ChatChannelsService.list()` gained a
+  manager-only `includeArchived` option so a manager can find an archived channel to restore.
+  Zero new backend surface — the REST endpoints were already built and tested. DEBT-035 is now
+  fully closed.
+- **`FellowshipChatChannelMember` — modeled in the schema since ADR-0014 but never once populated
+  by any code path — now backs a real, listable roster for a Fellowship's `#general` channel, on
+  explicit product request.** A new `ChatMembershipSyncService`, called from
+  `EnrollmentsService.update()` on every status transition, keeps a student's row in sync with
+  whether their new status is one Decision 1's Student access check already treats as granting chat
+  access (`active`/`paused`/`completed`) — the two checks share one named constant so they cannot
+  drift apart. This **does not change authorization at all**: `ChatAccessService.authorize()` is
+  untouched, and `#general` is never a private channel, so this table's access-gating role (private
+  channels only) and its new roster-backing role (`#general` only) never overlap. See ADR-0014's
+  2026-09-07 addendum for the full reasoning, including why this is deliberately students-only (not
+  mentors) for now.
+- **New `GET /chat/channels/:channelId/members`**, gated by the already-broadly-granted
+  `chat.channel.read` (any participant, not just managers — the point is anyone in the channel can
+  find anyone else to message). The frontend roster lives in `ChannelInfoPanel`; clicking a member
+  starts a DM via the existing `POST /me/conversations` (2026-09-06) and deep-links to it exactly
+  like a `dm.message.received` notification already does.
+
+## Invited-User Membership Activation Fix, and App-Wide API Error Messages (2026-09-07)
+
+- **An invited/approved user's organization `Membership` never activated alongside their `User`
+  account, leaving them permanently stuck on the generic landing page with `/portal` spinning
+  forever.** `AuthService.resetPassword()` already activated the `User` row on invitation
+  completion but never the `Membership` row that same flow creates — a gap dating back to
+  `Membership` not existing yet when that activation logic was originally written. Fixed by a new
+  `MembershipsService.activateAllInvitedMemberships()`, called from the same code path. See
+  `docs/adr/0003-identity-and-access-control-foundation.md`'s 2026-09-07 addendum for the full
+  root-cause trace (`OrganizationProvider` → `HomePage`/`RequireRole`) and live verification. One
+  already-stuck real account was repaired directly via the existing membership-status endpoint.
+- **Every API error surface in the frontend (124 call sites, 51 files) now shows the server's
+  actual validation reason instead of the generic "The request contains invalid fields." wrapper.**
+  A new `describeApiError()` helper (`apps/web/src/api/client.ts`) prefers a validation error's
+  `details[0].message` over its generic top-level `message`. Applied via a verified, scripted
+  codemod (not hand-edited) after `tsc`/`eslint`/`prettier`/`vite build` all confirmed clean across
+  every touched file. Originated from a real user report: a weak password ("Osamuedeme" — no digit)
+  was correctly rejected server-side, but the reset-password page only ever showed the generic
+  wrapper text, hiding the real reason. Client-side password validation also now mirrors the
+  server's letter+digit rule for immediate feedback.
+
+## Students May Not DM Super Admin or Org Admin (2026-09-12)
+
+- **The 2026-09-06 "anyone active in the org" DM eligibility rule is narrowed: a Student may not
+  start a DM with a Super Admin or Org Admin.** Confirmed narrow on three specific points before
+  implementation: only those two roles (Academy Admin and Mentor remain reachable), one-way (an
+  admin can still message a Student), and hidden entirely rather than merely blocked — excluded from
+  `GET /me/people/search` outright (query-level exclusion, not a post-filter, so pagination still
+  fills a full page), and `POST /me/conversations` returns the identical `NOT_FOUND`/"not a member"
+  already used for a genuine non-member if addressed directly, so a restricted admin is
+  indistinguishable from someone who doesn't exist.
+- **New `MembershipsService.hasRoleKey()`** — an org-scoped role-key check, distinct from
+  `PermissionResolverService.hasPlatformRole()`'s platform-wide one (already used for Super Admin
+  elsewhere). Role-name checks on purpose here, not permission-key checks: this is about who a
+  Student may *reach*, not what either party may *do*.
+- **The Fellowship chat member roster needed no change** — it only ever lists students (this
+  session's earlier `ChatMembershipSyncService` work), so a Super Admin/Org Admin was never going to
+  appear there regardless of this restriction. See `docs/adr/0014-fellowship-chat.md`'s 2026-09-12
+  addendum for the full reasoning and verification.
+
+## Missing #general Backfilled, Mentor Channel Creation, and Auto-Created Track Channels (2026-09-12)
+
+- **Two Fellowships created before Fellowship Chat shipped (2026-09-03, two days before auto-creation
+  went live 2026-09-05) had no `#general` channel at all** — surfaced as "why can't I load my
+  fellowship chat." Not a code bug (verified the auto-creation hook works for everything created
+  since); backfilled the one in active use through the same path a real request would use, then
+  cycled the affected Enrollment's status to re-trigger the membership-roster sync now that the
+  channel exists.
+- **A Mentor may now create chat channels — create only, and only in a Fellowship they're actually
+  assigned to (an active `CohortMentor` assignment), never rename/archive/restore, never org-wide.**
+  `FellowshipChatAuthorization` gains `canCreateChannels`, distinct from `canManageChannels`.
+  `GET /fellowships/:id/chat/channels`'s response shape changes accordingly — a bare `ChatChannel[]`
+  becomes `{ channels, canManageChannels, canCreateChannels }`, since a Mentor's create capability is
+  per-Fellowship and a static role-permission check on the frontend can't express that (this also
+  incidentally fixes an Academy Admin viewing a Fellowship outside their academy seeing an
+  edit/archive action that would have 403'd on click — the frontend now reads the real, server-computed
+  capability instead of approximating it from a role name).
+- **A Cohort being assigned a Learning Track now auto-creates that pairing's own `type: 'track'`
+  channel** (new enum value + two new nullable `FellowshipChatChannel` columns, migration
+  `20260912200000_add_track_chat_channels`). A Student sees only their own Cohort+Track's channel,
+  never every Track channel in the Fellowship — enforced in three places that all had to be updated
+  together, since this codebase doesn't centralize channel-read authorization in one function
+  (`ChatChannelsService.list()`/`.requireReadAccess()` and `ChatMessagesService`'s own independent
+  access check, a pre-existing duplication, not introduced here). See
+  `docs/adr/0014-fellowship-chat.md`'s 2026-09-12 addendum for the full design and live verification.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

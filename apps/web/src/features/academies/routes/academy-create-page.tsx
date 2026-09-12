@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,9 @@ export function AcademyCreatePage() {
   }
 
   const apiErrorMessage =
-    createAcademy.error instanceof ApiError ? createAcademy.error.message : null;
+    createAcademy.error instanceof ApiError
+      ? describeApiError(createAcademy.error, createAcademy.error.message)
+      : null;
 
   if (!activeOrganizationId) {
     return <p className="text-sm text-muted-foreground">Select an organization first.</p>;
@@ -47,10 +49,14 @@ export function AcademyCreatePage() {
         title="New academy"
         description="Create a learning brand within this organization."
       />
-      <Card className="max-w-xl">
+      <Card>
         <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            {apiErrorMessage ? <Alert variant="danger">{apiErrorMessage}</Alert> : null}
+          <form className="flex flex-wrap gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            {apiErrorMessage ? (
+              <Alert variant="danger" className="w-full">
+                {apiErrorMessage}
+              </Alert>
+            ) : null}
             <FormField
               label="Name"
               autoFocus
@@ -80,7 +86,7 @@ export function AcademyCreatePage() {
               error={form.formState.errors.contactEmail?.message}
               {...form.register('contactEmail')}
             />
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2">
               <input
                 id="isPublic"
                 type="checkbox"
@@ -89,7 +95,7 @@ export function AcademyCreatePage() {
               />
               <Label htmlFor="isPublic">Visible in the public catalogue</Label>
             </div>
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex w-full justify-end gap-3 pt-2">
               <Button
                 type="button"
                 variant="secondary"

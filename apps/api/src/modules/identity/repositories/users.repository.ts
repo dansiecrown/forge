@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { User } from '@prisma/client';
+import type { User, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { CollectionResult, type PageMeta } from '../../../shared/pagination/collection-result';
 
@@ -10,6 +10,11 @@ export interface CreateUserInput {
   familyName?: string;
   locale?: string;
   timezone?: string;
+  /** Admin-set at creation, or self-set later from Settings — see
+   * docs/adr/0009-administration-platform.md's addendum. */
+  username?: string;
+  status?: UserStatus;
+  emailVerifiedAt?: Date;
 }
 
 export interface ListUsersOptions {
@@ -24,6 +29,10 @@ export class UsersRepository {
 
   findByEmail(emailCanonical: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { emailCanonical: emailCanonical.toLowerCase() } });
+  }
+
+  findByUsername(username: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { username } });
   }
 
   findById(id: string): Promise<User | null> {
@@ -45,6 +54,9 @@ export class UsersRepository {
         familyName: input.familyName,
         locale: input.locale ?? 'en-NG',
         timezone: input.timezone ?? 'Africa/Lagos',
+        username: input.username,
+        status: input.status,
+        emailVerifiedAt: input.emailVerifiedAt,
       },
     });
   }
@@ -62,6 +74,7 @@ export class UsersRepository {
         | 'status'
         | 'emailVerifiedAt'
         | 'lastLoginAt'
+        | 'username'
       >
     >,
   ): Promise<User> {

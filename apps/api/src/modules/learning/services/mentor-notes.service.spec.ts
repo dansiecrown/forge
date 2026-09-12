@@ -1,4 +1,5 @@
 import type { MentorNote } from '@prisma/client';
+import type { FellowshipTrackMentorsService } from '../../catalog/services/fellowship-track-mentors.service';
 import type { CohortsService } from '../../cohorts/services/cohorts.service';
 import type { EnrollmentEntity } from '../../cohorts/entities/enrollment.entity';
 import type { EnrollmentsService } from '../../cohorts/services/enrollments.service';
@@ -72,6 +73,10 @@ function buildService(options: {
 
   const auditLog = { record: jest.fn(async () => undefined) } as unknown as AuditLogService;
 
+  const fellowshipTrackMentorsService = {
+    listActiveAssignmentsForMembership: jest.fn(async () => []),
+  } as unknown as FellowshipTrackMentorsService;
+
   const service = new MentorNotesService(
     mentorNotesRepository,
     enrollmentsService,
@@ -79,6 +84,7 @@ function buildService(options: {
     membershipsService,
     permissionResolver,
     auditLog,
+    fellowshipTrackMentorsService,
   );
   return { service, mentorNotesRepository, auditLog };
 }

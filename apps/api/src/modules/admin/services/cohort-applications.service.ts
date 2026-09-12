@@ -32,6 +32,12 @@ export interface SubmitStudentApplicationInput {
   note?: string;
 }
 
+export interface BulkCohortApplicationResult {
+  id: string;
+  success: boolean;
+  message?: string;
+}
+
 const STUDENT_ROLE_KEY = 'STUDENT';
 
 @Injectable()
@@ -199,7 +205,13 @@ export class CohortApplicationsService {
   async list(
     scope: TenantScope,
     callerId: string,
-    options: { status?: string; cursor?: string; limit?: string },
+    options: {
+      status?: string;
+      fellowshipId?: string;
+      q?: string;
+      cursor?: string;
+      limit?: string;
+    },
   ): Promise<CollectionResult<CohortApplicationEntity>> {
     const limit = parseLimit(options.limit);
     const academyScope = await this.membershipsService.getAcademyScope(scope, callerId);
@@ -215,6 +227,8 @@ export class CohortApplicationsService {
     const { rows, hasMore } = await this.cohortApplicationsRepository.list(scope, {
       status: options.status as never,
       restrictToAcademyId: academyScope.restricted ? (academyScope.academyId as string) : undefined,
+      fellowshipId: options.fellowshipId,
+      q: options.q,
       cursor: options.cursor,
       limit,
     });
@@ -384,6 +398,56 @@ export class CohortApplicationsService {
       }
       throw error;
     }
+  }
+
+  /** Bulk approve/reject are a real server-side operation, not N frontend
+   * requests — but each item still goes through the exact same `approve()`/
+   * `reject()` this page's single-item action already calls, one at a time,
+   * so per-item authorization, state-transition, and optimistic-concurrency
+   * checks are never bypassed. One bad row (stale version, already
+   * decided, capacity reached) fails independently and reports its own
+   * reason rather than aborting the rest of the batch. */
+  async bulkApprove(
+    scope: TenantScope,
+    items: { id: string; version: number }[],
+    actorUserId: string,
+  ): Promise<BulkCohortApplicationResult[]> {
+    const results: BulkCohortApplicationResult[] = [];
+    for (const item of items) {
+      try {
+        await this.approve(scope, item.id, item.version, actorUserId);
+        results.push({ id: item.id, success: true });
+      } catch (error) {
+        results.push({
+          id: item.id,
+          success: false,
+          message: error instanceof Error ? error.message : 'Could not approve this application.',
+        });
+      }
+    }
+    return results;
+  }
+
+  async bulkReject(
+    scope: TenantScope,
+    items: { id: string; version: number }[],
+    reason: string | undefined,
+    actorUserId: string,
+  ): Promise<BulkCohortApplicationResult[]> {
+    const results: BulkCohortApplicationResult[] = [];
+    for (const item of items) {
+      try {
+        await this.reject(scope, item.id, item.version, reason, actorUserId);
+        results.push({ id: item.id, success: true });
+      } catch (error) {
+        results.push({
+          id: item.id,
+          success: false,
+          message: error instanceof Error ? error.message : 'Could not reject this application.',
+        });
+      }
+    }
+    return results;
   }
 
   /** Authenticated-applicant-only — a prospect has no session to withdraw

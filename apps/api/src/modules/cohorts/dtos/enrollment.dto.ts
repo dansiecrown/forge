@@ -22,3 +22,8 @@ export class UpdateEnrollmentDto {
   @Length(1, 500)
   reason?: string;
 }
+
+export class SelectEnrollmentTrackDto {
+  @IsUUID()
+  learningTrackId!: string;
+}

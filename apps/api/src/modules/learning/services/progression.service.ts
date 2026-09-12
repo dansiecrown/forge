@@ -12,6 +12,7 @@ import type {
 import { LessonsService } from '../../catalog/services/lessons.service';
 import { LearningResourcesService } from '../../catalog/services/learning-resources.service';
 import { PracticalTasksService } from '../../catalog/services/practical-tasks.service';
+import { FellowshipTrackMentorsService } from '../../catalog/services/fellowship-track-mentors.service';
 import type { CohortEntity } from '../../cohorts/entities/cohort.entity';
 import type { EnrollmentEntity } from '../../cohorts/entities/enrollment.entity';
 import { CohortsService } from '../../cohorts/services/cohorts.service';
@@ -26,7 +27,7 @@ import { LessonCompletionsRepository } from '../repositories/lesson-completions.
 import { PracticalTaskSubmissionsRepository } from '../repositories/practical-task-submissions.repository';
 import { ResourceAcknowledgmentsRepository } from '../repositories/resource-acknowledgments.repository';
 import { assertOwnEnrollment } from '../support/enrollment-ownership';
-import { assertMentorAssignedToCohort } from '../support/mentor-cohort-scope';
+import { assertMentorCanAccessEnrollment } from '../support/mentor-cohort-scope';
 
 export function flattenModules(track: CurriculumSnapshotTrack): CurriculumSnapshotModule[] {
   return track.courses.flatMap((course) => course.weeklyModules);
@@ -104,6 +105,7 @@ export class ProgressionService {
     private readonly permissionResolver: PermissionResolverService,
     private readonly membershipsService: MembershipsService,
     private readonly auditLog: AuditLogService,
+    private readonly fellowshipTrackMentorsService: FellowshipTrackMentorsService,
   ) {}
 
   async completeLesson(
@@ -235,16 +237,14 @@ export class ProgressionService {
     enrollment: EnrollmentEntity,
     callerId: string,
   ): Promise<void> {
-    if (enrollment.userId === callerId) {
-      return;
-    }
-    await assertMentorAssignedToCohort(
+    await assertMentorCanAccessEnrollment(
       this.cohortsService,
       this.membershipsService,
       this.permissionResolver,
+      this.fellowshipTrackMentorsService,
       scope,
       callerId,
-      enrollment.cohortId,
+      enrollment,
     );
   }
 

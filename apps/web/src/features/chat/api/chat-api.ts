@@ -1,0 +1,186 @@
+import type {
+  AddChatReactionRequest,
+  ChatChannel,
+  ChatChannelMember,
+  ChatChannelReadState,
+  ChatChannelTransitionRequest,
+  ChatMessage,
+  Cohort,
+  CreateChatChannelRequest,
+  CreateChatMessageRequest,
+  ListChatChannelsResponse,
+  MarkChannelReadRequest,
+  UpdateChatChannelRequest,
+  UpdateChatMessageRequest,
+} from '@forge/api-contract';
+import { apiRequest, apiRequestPage, type Page } from '@/api/client';
+
+/** Response shape changed 2026-09-12 (was a bare `ChatChannel[]`) — the
+ * caller's own `canManageChannels`/`canCreateChannels` for *this* Fellowship
+ * now travel alongside the list. See
+ * docs/adr/0014-fellowship-chat.md's 2026-09-12 addendum. */
+export function listChatChannels(
+  fellowshipId: string,
+  organizationId?: string,
+  includeArchived?: boolean,
+): Promise<ListChatChannelsResponse> {
+  const query = includeArchived ? '?includeArchived=true' : '';
+  return apiRequest<ListChatChannelsResponse>(
+    `/fellowships/${fellowshipId}/chat/channels${query}`,
+    { organizationId },
+  );
+}
+
+export function createChatChannel(
+  fellowshipId: string,
+  body: CreateChatChannelRequest,
+  organizationId?: string,
+): Promise<ChatChannel> {
+  return apiRequest<ChatChannel>(`/fellowships/${fellowshipId}/chat/channels`, {
+    method: 'POST',
+    body,
+    organizationId,
+  });
+}
+
+export function updateChatChannel(
+  channelId: string,
+  body: UpdateChatChannelRequest,
+  version: number,
+  organizationId?: string,
+): Promise<ChatChannel> {
+  return apiRequest<ChatChannel>(`/chat/channels/${channelId}`, {
+    method: 'PATCH',
+    body,
+    ifMatch: version,
+    organizationId,
+  });
+}
+
+export function archiveChatChannel(
+  channelId: string,
+  body: ChatChannelTransitionRequest,
+  organizationId?: string,
+): Promise<ChatChannel> {
+  return apiRequest<ChatChannel>(`/chat/channels/${channelId}/actions/archive`, {
+    method: 'POST',
+    body,
+    organizationId,
+  });
+}
+
+export function restoreChatChannel(
+  channelId: string,
+  body: ChatChannelTransitionRequest,
+  organizationId?: string,
+): Promise<ChatChannel> {
+  return apiRequest<ChatChannel>(`/chat/channels/${channelId}/actions/restore`, {
+    method: 'POST',
+    body,
+    organizationId,
+  });
+}
+
+/** Every participant with `chat.channel.read` can see this, not just
+ * managers — the roster's whole point is letting anyone in the channel
+ * find anyone else to DM. See docs/adr/0014-fellowship-chat.md's
+ * 2026-09-07 addendum. */
+export function listChatChannelMembers(
+  channelId: string,
+  organizationId?: string,
+): Promise<ChatChannelMember[]> {
+  return apiRequest<ChatChannelMember[]>(`/chat/channels/${channelId}/members`, {
+    organizationId,
+  });
+}
+
+export function listChatMessages(
+  channelId: string,
+  cursor: string | undefined,
+  organizationId?: string,
+): Promise<Page<ChatMessage>> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+  return apiRequestPage<ChatMessage>(`/chat/channels/${channelId}/messages${query}`, {
+    organizationId,
+  });
+}
+
+export function createChatMessage(
+  channelId: string,
+  body: CreateChatMessageRequest,
+  organizationId?: string,
+): Promise<ChatMessage> {
+  return apiRequest<ChatMessage>(`/chat/channels/${channelId}/messages`, {
+    method: 'POST',
+    body,
+    organizationId,
+  });
+}
+
+export function updateChatMessage(
+  messageId: string,
+  body: UpdateChatMessageRequest,
+  organizationId?: string,
+): Promise<ChatMessage> {
+  return apiRequest<ChatMessage>(`/chat/messages/${messageId}`, {
+    method: 'PATCH',
+    body,
+    organizationId,
+  });
+}
+
+export function deleteChatMessage(messageId: string, organizationId?: string): Promise<void> {
+  return apiRequest<void>(`/chat/messages/${messageId}`, { method: 'DELETE', organizationId });
+}
+
+export function addChatReaction(
+  messageId: string,
+  body: AddChatReactionRequest,
+  organizationId?: string,
+): Promise<void> {
+  return apiRequest<void>(`/chat/messages/${messageId}/reactions`, {
+    method: 'POST',
+    body,
+    organizationId,
+  });
+}
+
+export function removeChatReaction(
+  messageId: string,
+  reaction: string,
+  organizationId?: string,
+): Promise<void> {
+  return apiRequest<void>(`/chat/messages/${messageId}/reactions/${encodeURIComponent(reaction)}`, {
+    method: 'DELETE',
+    organizationId,
+  });
+}
+
+export function getChatChannelReadState(
+  channelId: string,
+  organizationId?: string,
+): Promise<ChatChannelReadState> {
+  return apiRequest<ChatChannelReadState>(`/chat/channels/${channelId}/read`, { organizationId });
+}
+
+export function markChannelRead(
+  channelId: string,
+  body: MarkChannelReadRequest,
+  organizationId?: string,
+): Promise<void> {
+  return apiRequest<void>(`/chat/channels/${channelId}/read`, {
+    method: 'POST',
+    body,
+    organizationId,
+  });
+}
+
+/** A mentor's own context (`useMentorContext`) only carries cohort summaries
+ * (id/name/slug/status/counts) — no `fellowshipId` (see
+ * `MentorCohortSummary` in @forge/api-contract). Mentors already hold
+ * `cohort.read` (docs/database-design.md's permission seed), so resolving
+ * the one extra field chat needs reuses the existing single-cohort read
+ * endpoint rather than adding a new one. */
+export function getCohortFellowshipId(cohortId: string, organizationId?: string): Promise<string> {
+  return apiRequest<Cohort>(`/cohorts/${cohortId}`, { organizationId }).then((c) => c.fellowshipId);
+}

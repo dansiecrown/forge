@@ -6,6 +6,7 @@ import { generateOpaqueToken, hashOpaqueToken } from '../../../shared/crypto/opa
 import { EMAIL_ADAPTER, type EmailAdapter } from '../../../shared/email/email-adapter';
 import { AppException } from '../../../shared/errors/app.exception';
 import { assertPasswordIsStrong } from '../../../shared/validation/password-strength';
+import { MembershipsService } from '../../organizations/services/memberships.service';
 import { PasswordCredentialsRepository } from '../repositories/password-credentials.repository';
 import {
   EmailVerificationTokensRepository,
@@ -59,6 +60,7 @@ export class AuthService {
     private readonly mfaService: MfaService,
     private readonly auditLog: AuditLogService,
     private readonly config: AppConfigService,
+    private readonly membershipsService: MembershipsService,
     @Inject(EMAIL_ADAPTER) private readonly emailAdapter: EmailAdapter,
   ) {}
 
@@ -262,6 +264,19 @@ export class AuthService {
         status: 'active',
         emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
       });
+      // The User activating is only half of "this invitation is complete" —
+      // every Membership created alongside it (cohort-application approval,
+      // the original email-invite flow) started at `invited` too and, until
+      // this fix, had no code path that ever moved it to `active`: nothing
+      // else in the app ever re-checks or reconciles Membership status
+      // against User status. Left undone, the org-scoped web app has no
+      // active membership to resolve a default organization from, so a
+      // newly-activated user's role-based redirect silently falls through
+      // to the generic landing stub and every org-scoped query hangs
+      // waiting on an organization id that never arrives. See
+      // docs/adr/0003-identity-and-access-control-foundation.md's
+      // 2026-09-07 addendum.
+      await this.membershipsService.activateAllInvitedMemberships(user.id);
     }
 
     await this.refreshSessionService.revokeAllForUser(record.userId);

@@ -57,3 +57,20 @@ export interface ReorderItem {
   id: string;
   displayOrder: number;
 }
+
+/** Fellowship-wide, per-track mentor assignment — see
+ * docs/adr/0016-cohort-scoped-tracks.md. Independent of a Cohort's own
+ * mentor roster (`CohortMentorAssignment` in cohorts.ts). */
+export interface FellowshipTrackMentorAssignment {
+  id: string;
+  fellowshipId: string;
+  learningTrackId: string;
+  membershipId: string;
+  userDisplayName: string;
+  userEmail: string;
+  assignedAt: string;
+}
+
+export interface AssignFellowshipTrackMentorRequest {
+  membershipId: string;
+}

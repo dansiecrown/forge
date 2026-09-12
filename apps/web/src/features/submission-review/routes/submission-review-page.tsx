@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { SubmissionReviewHistory } from '@/components/mentor/submission-review-history';
 import { Alert } from '@/components/ui/alert';
@@ -46,9 +46,9 @@ export function SubmissionReviewPage() {
   const canReview = submission.status === 'submitted';
   const actionError =
     approve.error instanceof ApiError
-      ? approve.error.message
+      ? describeApiError(approve.error, approve.error.message)
       : requestRevision.error instanceof ApiError
-        ? requestRevision.error.message
+        ? describeApiError(requestRevision.error, requestRevision.error.message)
         : null;
 
   return (

@@ -19,10 +19,20 @@ export const forgotPasswordSchema = z.object({
 });
 export type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 
-const passwordRule = z
+// Mirrors the server's own strength gate
+// (apps/api/src/shared/validation/password-strength.ts) — length here, plus
+// the letter+digit mix, so a weak password is caught before the round trip
+// instead of only surfacing as a generic 422 the caller has to decode. The
+// common-password denylist stays server-only (a small, deliberately
+// non-exhaustive list not worth duplicating client-side); that one check
+// still only ever surfaces after submit, via `describeApiError`.
+export const passwordRule = z
   .string()
   .min(8, 'Use at least 8 characters.')
-  .max(128, 'Use at most 128 characters.');
+  .max(128, 'Use at most 128 characters.')
+  .refine((value) => /[a-zA-Z]/.test(value) && /\d/.test(value), {
+    message: 'Include both letters and numbers.',
+  });
 
 export const resetPasswordSchema = z
   .object({

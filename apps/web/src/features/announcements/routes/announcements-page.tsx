@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Announcement } from '@forge/api-contract';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { FormField } from '@/components/form-field';
-import { Select } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
+import { SelectField } from '@/components/select-field';
+import { TextareaField } from '@/components/textarea-field';
 import { useActiveOrganization } from '@/contexts/organization-context';
 import {
   archiveAnnouncement,
@@ -81,37 +81,33 @@ export function AnnouncementsPage() {
         description="Announcements and platform notices — direct persistence, no email/SMS delivery."
       />
 
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader>
           <CardTitle as="h2">New announcement</CardTitle>
         </CardHeader>
         <CardContent>
           {create.error instanceof ApiError ? (
-            <Alert variant="danger">{create.error.message}</Alert>
+            <Alert variant="danger">{describeApiError(create.error, create.error.message)}</Alert>
           ) : null}
           <form
-            className="space-y-4"
+            className="flex flex-wrap gap-4"
             onSubmit={(event) => {
               event.preventDefault();
               create.mutate();
             }}
             noValidate
           >
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground" htmlFor="scope">
-                Scope
-              </label>
-              <Select
-                id="scope"
-                value={scope}
-                onChange={(e) => setScope(e.target.value as typeof scope)}
-              >
-                <option value="organization">Organization</option>
-                <option value="academy">Academy</option>
-                <option value="cohort">Cohort</option>
-                <option value="platform">Platform (Super Admin only)</option>
-              </Select>
-            </div>
+            <SelectField
+              label="Scope"
+              name="scope"
+              value={scope}
+              onChange={(e) => setScope(e.target.value as typeof scope)}
+            >
+              <option value="organization">Organization</option>
+              <option value="academy">Academy</option>
+              <option value="cohort">Cohort</option>
+              <option value="platform">Platform (Super Admin only)</option>
+            </SelectField>
             {scope === 'academy' || scope === 'cohort' ? (
               <FormField
                 label="Academy id"
@@ -134,13 +130,14 @@ export function AnnouncementsPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground" htmlFor="body">
-                Body
-              </label>
-              <Textarea id="body" value={body} onChange={(e) => setBody(e.target.value)} rows={4} />
-            </div>
-            <div className="flex justify-end">
+            <TextareaField
+              label="Body"
+              name="body"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={4}
+            />
+            <div className="flex w-full justify-end">
               <Button type="submit" loading={create.isPending}>
                 Save as draft
               </Button>

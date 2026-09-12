@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { IdCard } from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import { ApiError } from '@/api/client';
+import { ApiError, describeApiError } from '@/api/client';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ interface AccountFormValues {
   displayName: string;
   timezone: string;
   locale: string;
+  username: string;
 }
 
 export function AccountTab() {
@@ -21,14 +22,22 @@ export function AccountTab() {
 
   useEffect(() => {
     if (me) {
-      form.reset({ displayName: me.displayName, timezone: me.timezone, locale: me.locale });
+      form.reset({
+        displayName: me.displayName,
+        timezone: me.timezone,
+        locale: me.locale,
+        username: me.username ?? '',
+      });
     }
   }, [me, form]);
 
-  const errorMessage = updateMe.error instanceof ApiError ? updateMe.error.message : null;
+  const errorMessage =
+    updateMe.error instanceof ApiError
+      ? describeApiError(updateMe.error, updateMe.error.message)
+      : null;
 
   return (
-    <Card className="max-w-xl">
+    <Card>
       <CardHeader>
         <CardTitle as="h2" className="flex items-center gap-2">
           <IdCard className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -37,16 +46,40 @@ export function AccountTab() {
       </CardHeader>
       <CardContent>
         <form
-          className="space-y-4"
-          onSubmit={form.handleSubmit((values) => updateMe.mutate(values))}
+          className="flex flex-wrap gap-4"
+          onSubmit={form.handleSubmit((values) =>
+            updateMe.mutate({
+              displayName: values.displayName,
+              timezone: values.timezone,
+              locale: values.locale,
+              username: values.username || undefined,
+            }),
+          )}
           noValidate
         >
-          {errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
-          {updateMe.isSuccess ? <Alert variant="success">Account updated.</Alert> : null}
+          {errorMessage ? (
+            <Alert variant="danger" className="w-full">
+              {errorMessage}
+            </Alert>
+          ) : null}
+          {updateMe.isSuccess ? (
+            <Alert variant="success" className="w-full">
+              Account updated.
+            </Alert>
+          ) : null}
           <FormField label="Display name" {...form.register('displayName')} />
+          <FormField
+            label="Username"
+            placeholder="lowercase, no spaces"
+            {...form.register('username', {
+              onChange: (event) => {
+                event.target.value = event.target.value.toLowerCase();
+              },
+            })}
+          />
           <FormField label="Timezone" {...form.register('timezone')} />
           <FormField label="Locale" {...form.register('locale')} />
-          <div className="flex justify-end">
+          <div className="flex w-full justify-end">
             <Button type="submit" loading={updateMe.isPending}>
               Save
             </Button>

@@ -12,6 +12,7 @@ import type {
   RefreshResponse,
   ResetPasswordRequest,
   SessionSummary,
+  VerifyEmailRequest,
 } from '@forge/api-contract';
 import { apiRequest, apiRequestPage, type Page } from '@/api/client';
 
@@ -44,6 +45,10 @@ export function resetPassword(body: ResetPasswordRequest): Promise<void> {
   return apiRequest<void>('/auth/reset-password', { method: 'POST', body, authenticated: false });
 }
 
+export function verifyEmail(body: VerifyEmailRequest): Promise<void> {
+  return apiRequest<void>('/auth/verify-email', { method: 'POST', body, authenticated: false });
+}
+
 export function fetchMe(): Promise<MeResponse> {
   return apiRequest<MeResponse>('/me');
 }
@@ -52,8 +57,19 @@ export function fetchMyPermissions(organizationId: string): Promise<MyPermission
   return apiRequest<MyPermissions>(`/me/permissions?organizationId=${organizationId}`);
 }
 
-export function updateMe(body: { displayName?: string; timezone?: string; locale?: string }) {
-  return apiRequest<{ id: string; displayName: string; timezone: string; locale: string }>('/me', {
+export function updateMe(body: {
+  displayName?: string;
+  timezone?: string;
+  locale?: string;
+  username?: string;
+}) {
+  return apiRequest<{
+    id: string;
+    displayName: string;
+    timezone: string;
+    locale: string;
+    username: string | null;
+  }>('/me', {
     method: 'PATCH',
     body,
   });

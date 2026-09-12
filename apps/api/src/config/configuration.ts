@@ -3,6 +3,23 @@ export interface AppConfig {
   webOrigin: string;
 }
 
+export interface RedisConfig {
+  url: string;
+}
+
+/** `host` is the switch: null means "no real provider configured," and
+ * `IdentityModule` binds the dev-mode `ConsoleEmailAdapter` instead of
+ * `SmtpEmailAdapter` in that case — see
+ * docs/adr/0009-administration-platform.md's 2026-09-06 email addendum. */
+export interface EmailConfig {
+  host: string | null;
+  port: number;
+  secure: boolean;
+  user: string | null;
+  password: string | null;
+  from: string | null;
+}
+
 export interface AuthConfig {
   jwtAccessSecret: string;
   jwtAccessTtlSeconds: number;
@@ -32,6 +49,17 @@ export default () => ({
     port: Number(process.env.API_PORT ?? 3000),
     webOrigin: requireEnv('WEB_ORIGIN'),
   } satisfies AppConfig,
+  redis: {
+    url: process.env.REDIS_URL ?? 'redis://localhost:6379',
+  } satisfies RedisConfig,
+  email: {
+    host: process.env.SMTP_HOST ?? null,
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    user: process.env.SMTP_USER ?? null,
+    password: process.env.SMTP_PASSWORD ?? null,
+    from: process.env.SMTP_FROM ?? null,
+  } satisfies EmailConfig,
   auth: {
     jwtAccessSecret: requireEnv('JWT_ACCESS_SECRET'),
     jwtAccessTtlSeconds: Number(process.env.JWT_ACCESS_TTL_SECONDS ?? 900),

@@ -5,7 +5,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/form-field';
-import { ApiError } from '@/api/client';
+import { describeApiError } from '@/api/client';
 import { useResetPassword } from '../hooks/use-reset-password';
 import { resetPasswordSchema, type ResetPasswordFormValues } from '../schemas/auth-schemas';
 
@@ -60,18 +60,17 @@ export function ResetPasswordPage() {
     );
   }
 
-  const apiErrorMessage =
-    resetPassword.error instanceof ApiError
-      ? resetPassword.error.message
-      : resetPassword.error
-        ? 'Something went wrong. Please try again.'
-        : null;
+  const apiErrorMessage = resetPassword.error
+    ? describeApiError(resetPassword.error, 'Something went wrong. Please try again.')
+    : null;
 
   return (
     <Card glass>
       <CardHeader>
         <CardTitle>Set a new password</CardTitle>
-        <CardDescription>Use at least 8 characters.</CardDescription>
+        <CardDescription>
+          Use at least 8 characters, with a mix of letters and numbers.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
