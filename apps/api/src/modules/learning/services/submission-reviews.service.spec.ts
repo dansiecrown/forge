@@ -8,6 +8,7 @@ import type { UsersService } from '../../identity/services/users.service';
 import type { MembershipsService } from '../../organizations/services/memberships.service';
 import type { PermissionResolverService } from '../../organizations/services/permission-resolver.service';
 import type { AuditLogService } from '../../platform/audit-log.service';
+import type { NotificationsService } from '../../platform/services/notifications.service';
 import type { PracticalTaskSubmissionsRepository } from '../repositories/practical-task-submissions.repository';
 import type { SubmissionReviewsRepository } from '../repositories/submission-reviews.repository';
 import { SubmissionReviewsService } from './submission-reviews.service';
@@ -108,6 +109,10 @@ function buildService(options: {
     listActiveAssignmentsForMembership: jest.fn(async () => options.trackMentorAssignments ?? []),
   } as unknown as FellowshipTrackMentorsService;
 
+  const notifications = {
+    notify: jest.fn(async () => undefined),
+  } as unknown as NotificationsService;
+
   const service = new SubmissionReviewsService(
     submissionReviewsRepository,
     practicalTaskSubmissionsRepository,
@@ -119,8 +124,9 @@ function buildService(options: {
     practicalTasksService,
     auditLog,
     fellowshipTrackMentorsService,
+    notifications,
   );
-  return { service, submissionReviewsRepository };
+  return { service, submissionReviewsRepository, notifications };
 }
 
 describe('SubmissionReviewsService.recordDecision', () => {
@@ -151,6 +157,42 @@ describe('SubmissionReviewsService.recordDecision', () => {
       'approved',
       undefined,
     );
+  });
+
+  // Milestone 10: a student previously had no way to learn a mentor reviewed
+  // their work short of manually re-checking the submission — confirmed live
+  // during Milestone 9 launch testing. These guard the fix.
+  it('notifies the submitting student when their submission is approved', async () => {
+    const { service, notifications } = buildService({});
+    await service.recordDecision(SCOPE, 'submission-1', 'mentor-1', 'approved', undefined);
+    expect(notifications.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientUserId: 'student-1',
+        actorUserId: 'mentor-1',
+        type: 'practical_task_submission.approved',
+        entityType: 'practical_task_submission',
+        entityId: 'submission-1',
+      }),
+    );
+  });
+
+  it('notifies the submitting student when a revision is requested', async () => {
+    const { service, notifications } = buildService({});
+    await service.recordDecision(SCOPE, 'submission-1', 'mentor-1', 'revision_requested', 'Fix it');
+    expect(notifications.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientUserId: 'student-1',
+        type: 'practical_task_submission.revision_requested',
+      }),
+    );
+  });
+
+  it('never fails the review decision when the notification itself fails', async () => {
+    const { service, notifications } = buildService({});
+    (notifications.notify as jest.Mock).mockRejectedValueOnce(new Error('notification store down'));
+    await expect(
+      service.recordDecision(SCOPE, 'submission-1', 'mentor-1', 'approved', undefined),
+    ).resolves.toBeDefined();
   });
 
   it('rejects a mentor not assigned to this submissions cohort', async () => {
