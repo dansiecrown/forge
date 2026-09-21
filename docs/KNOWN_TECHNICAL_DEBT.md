@@ -442,3 +442,22 @@ without first visiting that organization's own detail page**
   `docs/adr/0014-fellowship-chat.md`'s 2026-09-07 addendum.
 - **Priority:** N/A (closed)
 - **Planned milestone:** N/A (closed).
+
+**DEBT-036 — Practical task submission form has only `repositoryUrl`/`liveDemoUrl`, doesn't fit non-code deliverables**
+- **Description:** `PracticalTaskSubmission` (and the student submission form built on top of it,
+  `practical-task-portal-detail-page.tsx`) has exactly two fields: "GitHub repository URL" and
+  "Live demo URL." That shape fits a coding project well but has nothing for a design deliverable
+  (a Canva/Figma file, an exported image, a Google Drive folder). The Tech Impact Fellowship Cohort 1
+  seed (`apps/api/prisma/seeds/tech-impact-cohort1.seed.ts`) added a Graphics Design track whose
+  tasks are exactly this kind of deliverable; rather than changing the model, its task instructions
+  explicitly direct students to paste a Canva/Figma/Drive share link into "Live demo URL" and leave
+  "GitHub repository URL" blank. `submissionMetadata` (a `Json` column on the same model) exists but
+  is dead — explicitly commented as superseded and never read by the UI — so it isn't a ready escape
+  hatch either.
+- **Priority:** Low
+- **Reason for deferral:** A real fix (a generic "deliverable link" field, or file upload, or
+  per-track submission field sets) is a product/schema decision on the submission model, not a
+  mechanical change; out of scope for a data-and-content milestone that was explicitly told not to
+  redesign existing architecture.
+- **Planned milestone:** Whichever milestone next revisits the practical task submission UX, or adds
+  a second non-code track that makes the workaround recur.

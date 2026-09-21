@@ -500,6 +500,54 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   access check, a pre-existing duplication, not introduced here). See
   `docs/adr/0014-fellowship-chat.md`'s 2026-09-12 addendum for the full design and live verification.
 
+## Tech Impact Fellowship — Cohort 1 realistic learning data (2026-09-14)
+
+A data-and-experience milestone: seed a genuinely usable Tech Impact Fellowship "Cohort 1" (3
+tracks, 9 weeks, real lessons/resources/tasks, a test student account) so the existing learning
+engine can be exercised end-to-end as a real student, without any architecture change. New file
+`apps/api/prisma/seeds/tech-impact-cohort1.seed.ts` (run via `pnpm --filter @forge/api
+seed:cohort1`), following the existing `identity.seed.ts`/`dev-test-users.seed.ts` direct-Prisma,
+idempotent-upsert convention — no new service, module, or API route.
+
+- **No `Assignment` entity exists, and none was added.** `PracticalTask` + `PracticalTaskSubmission`
+  is the only task/assignment system in the schema. The seed represents the brief's "task" vs.
+  "assignment" distinction as two `PracticalTask` rows per week — a lighter `Practice:`-prefixed one
+  (small `maxScore`, no rubric) and a fuller `Assignment:`-prefixed one (the brief's exact titles,
+  `maxScore: 100`, a rubric, a longer due offset) — both live in the same table, distinguished only
+  by content, not by schema.
+- **Students read only `Cohort.curriculumSnapshot`, never the live catalog tables** — confirmed by
+  reading `ProgressionService.buildContext()`. The seed writes live `LearningTrack`/`Course`/
+  `WeeklyModule`/`Lesson`/`LearningResource`/`PracticalTask` rows and then calls its own
+  `rebuildCurriculumSnapshot()`, an exact structural mirror of `CurriculumSnapshotService.build()`,
+  so the new content is actually visible to a student. Any future seed touching the live catalog for
+  an already-created cohort must do the same, or its content will be silently invisible.
+- **The 3 new tracks (Web Development, WordPress Website Design, Graphics Design) are additive.**
+  Cohort 1 already had two empty, unrelated `LearningTrack`s ("Software Engineering", "Product
+  Design") offered to it from earlier session testing. These were left untouched — not deleted, not
+  populated — per "implement only the requested milestone."
+  See [[DEBT-036]] tracking of a follow-on gap this surfaced. All 3 new tracks were added as further
+  `CohortLearningTrack` offering rows alongside the existing two.
+- **Reused the pre-existing Organization/Academy** rather than creating new ones: the seed looks up
+  an Academy already hosting a Fellowship titled "Tech Impact" (falls back to slug `ota-doyen`, then
+  creates one) instead of assuming a fixed id, so it works whichever earlier-session fixture state
+  the database is in.
+- **The seeded test student's `currentLearningTrackId` is deliberately left unset at seed time.**
+  Track selection is a real, student-callable, ownership-checked endpoint
+  (`POST /enrollments/:id/actions/select-track`, `EnrollmentsService.selectTrack()`); the seed only
+  enrolls the student in Cohort 1 and leaves track selection to be performed live through the
+  product, the way a real student would, rather than pre-setting it via direct DB write.
+- **Idempotency key for `Lesson`/`LearningResource`/`PracticalTask`:** these have no unique
+  slug/natural key in the schema, so the seed uses `findFirst({ weeklyModuleId, title })` as its
+  lookup-before-write key, relying on titles being authored uniquely within a given week. Verified
+  by running the seed twice and diffing row counts/ids — no duplicates.
+- **All YouTube URLs are real, verified links** (via live web search, each confirmed to appear in a
+  search result's own link data rather than accepted from summary text), converted to `/embed/<id>`
+  form — the lesson reader's `<iframe>` renders `lesson.resourceUrl` directly and a `/watch?v=` URL
+  is refused by YouTube's frame-ancestors policy.
+- **Test student credentials are development-only** (see the README's "Tech Impact Fellowship
+  Cohort 1 seed data" section) and must never be set as real credentials in any deployed
+  configuration — same convention already established for `dev-test-users.seed.ts`.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.
