@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentType } from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Outlet, RouterProvider } from 'react-router-dom';
 import { AcademiesListPage, AcademyCreatePage, AcademyDetailPage } from '@/features/academies';
 import {
   AdminCohortApplicationDetailPage,
@@ -57,6 +57,7 @@ import { ApplyPage } from '@/features/apply';
 import { CertificateVerifyPage } from '@/pages/certificate-verify-page';
 import { HomePage } from '@/pages/home-page';
 import { NotFoundPage } from '@/pages/not-found-page';
+import { RouteErrorPage } from '@/pages/route-error-page';
 import { UnauthorizedPage } from '@/pages/unauthorized-page';
 import { ProtectedRoute } from './protected-route';
 import { RequireRole } from './require-role';
@@ -153,158 +154,184 @@ function suspended(element: React.ReactNode) {
   return <Suspense fallback={<PortalRouteSkeleton />}>{element}</Suspense>;
 }
 
+// A single pathless root route carrying `errorElement` (Milestone 8
+// production hardening) — every route below is nested under it so an
+// uncaught render/loader error anywhere in the tree renders `RouteErrorPage`
+// instead of unmounting the whole app to a blank screen. `element` is just
+// `<Outlet />` since this route contributes no layout of its own.
 const router = createBrowserRouter([
   {
-    element: <ProtectedRoute />,
+    element: <Outlet />,
+    errorElement: <RouteErrorPage />,
     children: [
-      { path: '/', element: <HomePage /> },
       {
-        path: '/admin',
-        element: <RequireRole roles={ADMIN_ROLES} />,
+        element: <ProtectedRoute />,
         children: [
+          { path: '/', element: <HomePage /> },
           {
-            element: <AdminLayout />,
+            path: '/admin',
+            element: <RequireRole roles={ADMIN_ROLES} />,
             children: [
-              { index: true, element: <AdminDashboardPage /> },
-              { path: 'organizations', element: <OrganizationsListPage /> },
-              { path: 'organizations/new', element: <OrganizationCreatePage /> },
-              { path: 'organizations/:orgId', element: <OrganizationDetailPage /> },
-              { path: 'academies', element: <AcademiesListPage /> },
-              { path: 'academies/new', element: <AcademyCreatePage /> },
-              { path: 'academies/:academyId', element: <AcademyDetailPage /> },
-              { path: 'fellowships', element: <FellowshipsListPage /> },
-              { path: 'fellowships/new', element: <FellowshipCreatePage /> },
-              { path: 'fellowships/:fellowshipId', element: <FellowshipDetailPage /> },
-              { path: 'fellowships/:fellowshipId/tracks', element: <LearningTracksListPage /> },
               {
-                path: 'fellowships/:fellowshipId/tracks/new',
-                element: <LearningTrackCreatePage />,
+                element: <AdminLayout />,
+                children: [
+                  { index: true, element: <AdminDashboardPage /> },
+                  { path: 'organizations', element: <OrganizationsListPage /> },
+                  { path: 'organizations/new', element: <OrganizationCreatePage /> },
+                  { path: 'organizations/:orgId', element: <OrganizationDetailPage /> },
+                  { path: 'academies', element: <AcademiesListPage /> },
+                  { path: 'academies/new', element: <AcademyCreatePage /> },
+                  { path: 'academies/:academyId', element: <AcademyDetailPage /> },
+                  { path: 'fellowships', element: <FellowshipsListPage /> },
+                  { path: 'fellowships/new', element: <FellowshipCreatePage /> },
+                  { path: 'fellowships/:fellowshipId', element: <FellowshipDetailPage /> },
+                  { path: 'fellowships/:fellowshipId/tracks', element: <LearningTracksListPage /> },
+                  {
+                    path: 'fellowships/:fellowshipId/tracks/new',
+                    element: <LearningTrackCreatePage />,
+                  },
+                  { path: 'tracks/:trackId', element: <LearningTrackDetailPage /> },
+                  { path: 'tracks/:trackId/courses/new', element: <CourseCreatePage /> },
+                  { path: 'courses/:courseId', element: <CourseDetailPage /> },
+                  { path: 'courses/:courseId/modules/new', element: <WeeklyModuleCreatePage /> },
+                  { path: 'modules/:moduleId', element: <WeeklyModuleDetailPage /> },
+                  { path: 'modules/:moduleId/lessons/new', element: <LessonCreatePage /> },
+                  { path: 'lessons/:lessonId', element: <LessonDetailPage /> },
+                  {
+                    path: 'modules/:moduleId/resources/new',
+                    element: <LearningResourceCreatePage />,
+                  },
+                  {
+                    path: 'learning-resources/:resourceId',
+                    element: <LearningResourceDetailPage />,
+                  },
+                  { path: 'modules/:moduleId/tasks/new', element: <PracticalTaskCreatePage /> },
+                  { path: 'practical-tasks/:taskId', element: <PracticalTaskDetailPage /> },
+                  { path: 'cohorts', element: <CohortsListPage /> },
+                  { path: 'cohorts/new', element: <CohortCreatePage /> },
+                  { path: 'cohorts/:cohortId', element: <CohortDetailPage /> },
+                  { path: 'users', element: <AdminUsersListPage /> },
+                  { path: 'users/:userId', element: <AdminUserDetailPage /> },
+                  { path: 'roles', element: <RolesListPage /> },
+                  { path: 'roles/new', element: <RoleCreatePage /> },
+                  { path: 'roles/permission-matrix', element: <PermissionMatrixPage /> },
+                  { path: 'roles/:roleId', element: <RoleDetailPage /> },
+                  { path: 'audit', element: <AuditCenterPage /> },
+                  { path: 'reports', element: <ReportsPage /> },
+                  { path: 'announcements', element: <AnnouncementsPage /> },
+                  { path: 'notifications', element: suspended(<NotificationsPage role="admin" />) },
+                  { path: 'messages', element: suspended(<DirectMessagesPage />) },
+                  { path: 'certificates', element: <CertificatesPage /> },
+                  { path: 'applications', element: <AdminCohortApplicationsListPage /> },
+                  { path: 'applications/:id', element: <AdminCohortApplicationDetailPage /> },
+                  { path: 'settings', element: <AdminSettingsPage /> },
+                ],
               },
-              { path: 'tracks/:trackId', element: <LearningTrackDetailPage /> },
-              { path: 'tracks/:trackId/courses/new', element: <CourseCreatePage /> },
-              { path: 'courses/:courseId', element: <CourseDetailPage /> },
-              { path: 'courses/:courseId/modules/new', element: <WeeklyModuleCreatePage /> },
-              { path: 'modules/:moduleId', element: <WeeklyModuleDetailPage /> },
-              { path: 'modules/:moduleId/lessons/new', element: <LessonCreatePage /> },
-              { path: 'lessons/:lessonId', element: <LessonDetailPage /> },
-              { path: 'modules/:moduleId/resources/new', element: <LearningResourceCreatePage /> },
-              { path: 'learning-resources/:resourceId', element: <LearningResourceDetailPage /> },
-              { path: 'modules/:moduleId/tasks/new', element: <PracticalTaskCreatePage /> },
-              { path: 'practical-tasks/:taskId', element: <PracticalTaskDetailPage /> },
-              { path: 'cohorts', element: <CohortsListPage /> },
-              { path: 'cohorts/new', element: <CohortCreatePage /> },
-              { path: 'cohorts/:cohortId', element: <CohortDetailPage /> },
-              { path: 'users', element: <AdminUsersListPage /> },
-              { path: 'users/:userId', element: <AdminUserDetailPage /> },
-              { path: 'roles', element: <RolesListPage /> },
-              { path: 'roles/new', element: <RoleCreatePage /> },
-              { path: 'roles/permission-matrix', element: <PermissionMatrixPage /> },
-              { path: 'roles/:roleId', element: <RoleDetailPage /> },
-              { path: 'audit', element: <AuditCenterPage /> },
-              { path: 'reports', element: <ReportsPage /> },
-              { path: 'announcements', element: <AnnouncementsPage /> },
-              { path: 'notifications', element: suspended(<NotificationsPage role="admin" />) },
-              { path: 'messages', element: suspended(<DirectMessagesPage />) },
-              { path: 'certificates', element: <CertificatesPage /> },
-              { path: 'applications', element: <AdminCohortApplicationsListPage /> },
-              { path: 'applications/:id', element: <AdminCohortApplicationDetailPage /> },
-              { path: 'settings', element: <AdminSettingsPage /> },
             ],
           },
-        ],
-      },
-      {
-        path: '/portal',
-        element: <RequireRole roles={['STUDENT']} />,
-        children: [
           {
-            element: <PortalLayout />,
+            path: '/portal',
+            element: <RequireRole roles={['STUDENT']} />,
             children: [
-              { index: true, element: suspended(<PortalDashboardPage />) },
-              { path: 'weekly-learning', element: suspended(<WeeklyLearningPage />) },
-              { path: 'weekly-learning/:moduleId', element: suspended(<WeeklyModulePage />) },
-              { path: 'lessons/:lessonId', element: suspended(<LessonReaderPage />) },
-              { path: 'resources', element: suspended(<LearningResourcesPortalPage />) },
-              { path: 'practical-tasks', element: suspended(<PracticalTasksPortalPage />) },
               {
-                path: 'practical-tasks/:taskId',
-                element: suspended(<PracticalTaskPortalDetailPage />),
+                element: <PortalLayout />,
+                children: [
+                  { index: true, element: suspended(<PortalDashboardPage />) },
+                  { path: 'weekly-learning', element: suspended(<WeeklyLearningPage />) },
+                  { path: 'weekly-learning/:moduleId', element: suspended(<WeeklyModulePage />) },
+                  { path: 'lessons/:lessonId', element: suspended(<LessonReaderPage />) },
+                  { path: 'resources', element: suspended(<LearningResourcesPortalPage />) },
+                  { path: 'practical-tasks', element: suspended(<PracticalTasksPortalPage />) },
+                  {
+                    path: 'practical-tasks/:taskId',
+                    element: suspended(<PracticalTaskPortalDetailPage />),
+                  },
+                  { path: 'progress', element: suspended(<ProgressCenterPage />) },
+                  { path: 'portfolio', element: suspended(<PortfolioPage />) },
+                  { path: 'portfolio/new', element: suspended(<PortfolioProjectCreatePage />) },
+                  { path: 'portfolio/:id', element: suspended(<PortfolioProjectEditPage />) },
+                  { path: 'profile', element: suspended(<ProfilePage />) },
+                  { path: 'settings', element: suspended(<SettingsPage />) },
+                  {
+                    path: 'notifications',
+                    element: suspended(<NotificationsPage role="student" />),
+                  },
+                  { path: 'messages', element: suspended(<DirectMessagesPage />) },
+                  { path: 'chat', element: suspended(<StudentChatPage />) },
+                  { path: 'register', element: suspended(<StudentRegisterPage />) },
+                ],
               },
-              { path: 'progress', element: suspended(<ProgressCenterPage />) },
-              { path: 'portfolio', element: suspended(<PortfolioPage />) },
-              { path: 'portfolio/new', element: suspended(<PortfolioProjectCreatePage />) },
-              { path: 'portfolio/:id', element: suspended(<PortfolioProjectEditPage />) },
-              { path: 'profile', element: suspended(<ProfilePage />) },
-              { path: 'settings', element: suspended(<SettingsPage />) },
-              { path: 'notifications', element: suspended(<NotificationsPage role="student" />) },
-              { path: 'messages', element: suspended(<DirectMessagesPage />) },
-              { path: 'chat', element: suspended(<StudentChatPage />) },
-              { path: 'register', element: suspended(<StudentRegisterPage />) },
+            ],
+          },
+          {
+            path: '/mentor',
+            element: <RequireRole roles={['MENTOR']} />,
+            children: [
+              {
+                element: <MentorLayout />,
+                children: [
+                  { index: true, element: suspended(<MentorDashboardPage />) },
+                  { path: 'cohorts', element: suspended(<MentorCohortsListPage />) },
+                  { path: 'cohorts/:cohortId', element: suspended(<CohortWorkspacePage />) },
+                  { path: 'students/:enrollmentId', element: suspended(<StudentWorkspacePage />) },
+                  { path: 'review-queue', element: suspended(<ReviewQueuePage />) },
+                  {
+                    path: 'submissions/:submissionId',
+                    element: suspended(<SubmissionReviewPage />),
+                  },
+                  { path: 'huddles', element: suspended(<MentorHuddlesPage />) },
+                  { path: 'chat', element: suspended(<MentorChatPage />) },
+                  { path: 'messages', element: suspended(<DirectMessagesPage />) },
+                  {
+                    path: 'notifications',
+                    element: suspended(<NotificationsPage role="mentor" />),
+                  },
+                  { path: 'settings', element: suspended(<SettingsPage variant="mentor" />) },
+                ],
+              },
             ],
           },
         ],
       },
       {
-        path: '/mentor',
-        element: <RequireRole roles={['MENTOR']} />,
-        children: [
-          {
-            element: <MentorLayout />,
-            children: [
-              { index: true, element: suspended(<MentorDashboardPage />) },
-              { path: 'cohorts', element: suspended(<MentorCohortsListPage />) },
-              { path: 'cohorts/:cohortId', element: suspended(<CohortWorkspacePage />) },
-              { path: 'students/:enrollmentId', element: suspended(<StudentWorkspacePage />) },
-              { path: 'review-queue', element: suspended(<ReviewQueuePage />) },
-              { path: 'submissions/:submissionId', element: suspended(<SubmissionReviewPage />) },
-              { path: 'huddles', element: suspended(<MentorHuddlesPage />) },
-              { path: 'chat', element: suspended(<MentorChatPage />) },
-              { path: 'messages', element: suspended(<DirectMessagesPage />) },
-              { path: 'notifications', element: suspended(<NotificationsPage role="mentor" />) },
-              { path: 'settings', element: suspended(<SettingsPage variant="mentor" />) },
-            ],
-          },
-        ],
+        path: '/sign-in',
+        element: (
+          <AuthLayout>
+            <SignInPage />
+          </AuthLayout>
+        ),
       },
+      {
+        path: '/forgot-password',
+        element: (
+          <AuthLayout>
+            <ForgotPasswordPage />
+          </AuthLayout>
+        ),
+      },
+      {
+        path: '/reset-password',
+        element: (
+          <AuthLayout>
+            <ResetPasswordPage />
+          </AuthLayout>
+        ),
+      },
+      {
+        path: '/verify-email',
+        element: (
+          <AuthLayout>
+            <VerifyEmailPage />
+          </AuthLayout>
+        ),
+      },
+      { path: '/certificates/verify', element: <CertificateVerifyPage /> },
+      { path: '/certificates/verify/:code', element: <CertificateVerifyPage /> },
+      { path: '/apply', element: <ApplyPage /> },
+      { path: '/unauthorized', element: <UnauthorizedPage /> },
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
-  {
-    path: '/sign-in',
-    element: (
-      <AuthLayout>
-        <SignInPage />
-      </AuthLayout>
-    ),
-  },
-  {
-    path: '/forgot-password',
-    element: (
-      <AuthLayout>
-        <ForgotPasswordPage />
-      </AuthLayout>
-    ),
-  },
-  {
-    path: '/reset-password',
-    element: (
-      <AuthLayout>
-        <ResetPasswordPage />
-      </AuthLayout>
-    ),
-  },
-  {
-    path: '/verify-email',
-    element: (
-      <AuthLayout>
-        <VerifyEmailPage />
-      </AuthLayout>
-    ),
-  },
-  { path: '/certificates/verify', element: <CertificateVerifyPage /> },
-  { path: '/certificates/verify/:code', element: <CertificateVerifyPage /> },
-  { path: '/apply', element: <ApplyPage /> },
-  { path: '/unauthorized', element: <UnauthorizedPage /> },
-  { path: '*', element: <NotFoundPage /> },
 ]);
 
 export function AppRouter() {
