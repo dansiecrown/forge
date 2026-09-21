@@ -9,6 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { RequirePermissions } from '../../../decorators/require-permissions.decorator';
 import { AppException } from '../../../shared/errors/app.exception';
@@ -61,6 +62,7 @@ export class UsersController {
 
   @Post('invitations')
   @RequirePermissions('membership.invite')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @HttpCode(HttpStatus.ACCEPTED)
   async invite(
     @Body() dto: InviteUserDto,

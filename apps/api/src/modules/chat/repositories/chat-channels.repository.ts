@@ -134,6 +134,21 @@ export class ChatChannelsRepository {
     });
   }
 
+  /** Every channel `ChatMembershipSyncService.syncMentorMembership()` should
+   * keep a Mentor's roster row in for a given Cohort: the Fellowship's one
+   * `#general` channel (not itself Cohort-scoped, so matched on type alone)
+   * plus every `type: 'track'` channel that actually belongs to this
+   * Cohort. */
+  listCohortChannels(fellowshipId: string, cohortId: string): Promise<FellowshipChatChannel[]> {
+    return this.prisma.fellowshipChatChannel.findMany({
+      where: {
+        fellowshipId,
+        archivedAt: null,
+        OR: [{ type: 'general' }, { cohortId }],
+      },
+    });
+  }
+
   /** Idempotency check for `ChatChannelsService.createTrackChannel()` — the
    * same Cohort should never end up with two channels for the same Track,
    * even if `CohortsService.setOfferedTracks()`'s creation call somehow

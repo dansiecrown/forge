@@ -1,6 +1,7 @@
 export interface AppConfig {
   port: number;
   webOrigin: string;
+  nodeEnv: string;
 }
 
 export interface RedisConfig {
@@ -48,6 +49,7 @@ export default () => ({
   app: {
     port: Number(process.env.API_PORT ?? 3000),
     webOrigin: requireEnv('WEB_ORIGIN'),
+    nodeEnv: process.env.NODE_ENV ?? 'development',
   } satisfies AppConfig,
   redis: {
     url: process.env.REDIS_URL ?? 'redis://localhost:6379',

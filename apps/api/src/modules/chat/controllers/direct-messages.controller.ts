@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ActiveOrganizationId } from '../../../decorators/active-organization-id.decorator';
 import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { RequirePermissions } from '../../../decorators/require-permissions.decorator';
@@ -46,6 +47,7 @@ export class DirectMessagesController {
 
   @Post('conversations')
   @RequirePermissions('chat.message.create')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   startConversation(
     @Body() dto: StartDirectConversationDto,
     @ActiveOrganizationId() organizationId: string | undefined,
@@ -77,6 +79,7 @@ export class DirectMessagesController {
 
   @Post('conversations/:id/messages')
   @RequirePermissions('chat.message.create')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   sendMessage(
     @Param('id') id: string,
     @Body() dto: CreateDirectMessageDto,

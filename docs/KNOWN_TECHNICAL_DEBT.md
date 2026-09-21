@@ -18,11 +18,11 @@ Format: **ID** — Title, then Description / Priority / Reason for deferral / Pl
 - **Reason for deferral:** Requires a product decision about ended-membership semantics (does history persist? does re-joining reset role grants?), not a mechanical bug fix. Guessing this now risks building the wrong model.
 - **Planned milestone:** Same milestone as DEBT-001, or whenever an "offboard then re-invite" flow becomes a real product requirement.
 
-**DEBT-003 — Per-endpoint rate limiting**
+**DEBT-003 — Per-endpoint rate limiting — CLOSED (2026-09-21, Milestone 8)**
 - **Description:** Rate limiting is one flat global rule (300 req/min/IP) rather than the documented per-endpoint tiers (sign-in/reset 5/15 min, refresh 30/min, etc.) in `docs/system-architecture.md` §6.
-- **Priority:** Medium-High
-- **Reason for deferral:** Explicitly scoped out of Milestone 2's "right-sized kernel" (ADR-0003) — proper tiered limiting belongs with the fuller observability/rate-limit kernel from roadmap Phase 2, not bolted on ad hoc.
-- **Planned milestone:** Phase 2 kernel revisit, or Phase 12 (production hardening) at the latest.
+- **Status (2026-09-21):** Closed. `@Throttle({ default: { limit, ttl } })` overrides added to login (5/min), refresh (20/min), forgot-password (3/min), reset-password (5/min), resend-verification (3/min), every MFA route (5/min), invitations (20/min), and chat/DM message-send and conversation-start (20-30/min) — all on top of the unchanged 300/min global default. Tracked per-IP, same as the global default; see DEBT-037 below for why per-authenticated-user tracking wasn't added in the same pass. Verified live (6 rapid login attempts: first 5 pass through to real auth logic, 6th returns `429 RATE_LIMITED`).
+- **Priority:** N/A (closed)
+- **Planned milestone:** N/A (closed).
 
 **DEBT-004 — Mandatory MFA enforcement**
 - **Description:** TOTP MFA enrollment/verification is fully built and works, but nothing yet *requires* enrollment for admins/mentors at first sign-in or for students at cohort start, as `docs/system-architecture.md` §6 specifies.
@@ -442,3 +442,123 @@ without first visiting that organization's own detail page**
   `docs/adr/0014-fellowship-chat.md`'s 2026-09-07 addendum.
 - **Priority:** N/A (closed)
 - **Planned milestone:** N/A (closed).
+
+**DEBT-036 — Practical task submission form has only `repositoryUrl`/`liveDemoUrl`, doesn't fit non-code deliverables**
+- **Description:** `PracticalTaskSubmission` (and the student submission form built on top of it,
+  `practical-task-portal-detail-page.tsx`) has exactly two fields: "GitHub repository URL" and
+  "Live demo URL." That shape fits a coding project well but has nothing for a design deliverable
+  (a Canva/Figma file, an exported image, a Google Drive folder). The Tech Impact Fellowship Cohort 1
+  seed (`apps/api/prisma/seeds/tech-impact-cohort1.seed.ts`) added a Graphics Design track whose
+  tasks are exactly this kind of deliverable; rather than changing the model, its task instructions
+  explicitly direct students to paste a Canva/Figma/Drive share link into "Live demo URL" and leave
+  "GitHub repository URL" blank. `submissionMetadata` (a `Json` column on the same model) exists but
+  is dead — explicitly commented as superseded and never read by the UI — so it isn't a ready escape
+  hatch either.
+- **Priority:** Low
+- **Reason for deferral:** A real fix (a generic "deliverable link" field, or file upload, or
+  per-track submission field sets) is a product/schema decision on the submission model, not a
+  mechanical change; out of scope for a data-and-content milestone that was explicitly told not to
+  redesign existing architecture.
+- **Planned milestone:** Whichever milestone next revisits the practical task submission UX, or adds
+  a second non-code track that makes the workaround recur.
+
+**DEBT-037 — Per-route rate limits are tracked per-IP, never per-authenticated-user**
+- **Description:** `AppModule` registers global guards in the order `ThrottlerGuard` -> `JwtAuthGuard` ->
+  `PermissionsGuard`. `ThrottlerGuard` runs first, so `request.user` (set by `JwtAuthGuard`) does not
+  exist yet when the throttler's tracker function would need it — a per-route `getTracker` keyed on
+  the authenticated user id is therefore not viable without reordering these guards. Every rate limit
+  added in Milestone 8 (see the closed DEBT-003 above) is IP-based, same as the pre-existing global
+  default: coarser than per-account for a shared-IP scenario (office/campus NAT, mobile carrier CGNAT),
+  though still a real improvement over one flat 300/min rule, and login itself has an independent,
+  identity-scoped defense already (`AuthService.registerFailedAttempt`'s account lockout).
+- **Priority:** Low
+- **Reason for deferral:** Reordering global guard execution changes *when* authentication happens
+  relative to throttling for every route in the app, not just the newly-throttled ones — a
+  significant-enough behavior change that Milestone 8's own instructions required stopping to ask
+  before making it, and it wasn't clearly justified for this pass alone.
+- **Planned milestone:** Whenever guard ordering is revisited for its own reasons, or if IP-based
+  limiting proves insufficient in production traffic.
+
+**DEBT-038 — WebSocket rate limiting is in-memory, per-instance, not shared across a horizontally-scaled API**
+- **Description:** `ChatGateway`'s connection-flood (30/min/IP) and event-flood (60/10s/socket)
+  counters (Milestone 8) are plain in-memory `Map`s, reset on a `setInterval`. In a single-instance
+  deployment this is a complete guarantee; across multiple API instances behind a load balancer, each
+  instance enforces its own window independently, so a client distributed across N instances could in
+  principle achieve roughly N times the intended limit.
+- **Priority:** Low
+- **Reason for deferral:** This repository runs one API instance today; a shared, cross-instance limit
+  would need Redis-backed counters (Redis is already used for this gateway's cross-instance *event
+  fan-out*, per docs/adr/0014-fellowship-chat.md Decision 2, but never yet as a rate-limit store) —
+  introducing that store is exactly the kind of infrastructure decision Milestone 8's own instructions
+  said to leave for explicit approval rather than add speculatively.
+- **Planned milestone:** Whenever horizontal WebSocket scaling is actually load-tested/deployed.
+
+**DEBT-039 — `apps/api/Dockerfile` is written but not build-verified**
+- **Description:** No production Dockerfile existed before Milestone 8. The multi-stage pnpm-workspace
+  Dockerfile added this milestone follows standard, documented conventions (`pnpm deploy` to extract
+  `@forge/api`'s production-only `node_modules`, a distinct minimal runtime stage, a non-root user) but
+  could not be validated with a real `docker build` — Docker was not available in the environment this
+  was authored in (confirmed: no `docker` executable on PATH, no Docker Desktop installed).
+- **Priority:** Medium
+- **Reason for deferral:** Requires an environment with Docker actually installed to build and smoke-
+  test (start the container, hit `/api/v1/health` and `/api/v1/health/ready`, confirm `prisma migrate
+  deploy` runs cleanly against a real database from inside the image) before it should be trusted for
+  a real deploy.
+- **Planned milestone:** Before this Dockerfile is used for any real deployment — build and smoke-test
+  it first.
+
+**DEBT-040 — One ~863 KB (235 KB gzipped) JS chunk in the production web build**
+- **Description:** `pnpm build` reports `assets/index-B13aRAYH.js` at 862.65 kB (234.80 kB gzip),
+  well past Vite's 500 kB chunk-size warning. The router's own code comment already documents that
+  `/portal` (student) and `/mentor` routes are lazy-loaded (`lazyNamed`), but `/admin` is explicitly
+  "eager and untouched" — almost certainly the source of this chunk, since it alone covers dozens of
+  routes across organizations, academies, fellowships, cohorts, curriculum authoring, users, roles,
+  and settings.
+- **Priority:** Low
+- **Reason for deferral:** Converting the entire admin route tree to lazy imports is a mechanical but
+  broad change (dozens of route entries) with real regression risk if done hastily, and Milestone 8's
+  own instructions were explicit: "do not prematurely optimize... only make measurable or clearly
+  justified improvements" and "do not perform a major redesign." The size is now measured and
+  documented rather than guessed at, which is what makes this a clearly scoped, low-risk follow-up
+  rather than a redesign.
+- **Planned milestone:** Whenever `/admin`'s initial load time is actually a measured problem, or as a
+  bundled part of any future admin-portal work.
+
+**DEBT-041 — `apps/web/public/fellowship/index.html` fails `pnpm format` (pre-existing, unrelated to Milestone 8)**
+- **Description:** Discovered while running the required `pnpm format` gate for Milestone 8: this one
+  static public-marketing HTML file has formatting drift from the repo's Prettier config. Not
+  introduced by this milestone — reverted a fix here specifically to keep this milestone's diff scoped
+  to production hardening rather than bundle an unrelated ~144-line whitespace-only diff.
+- **Priority:** Low
+- **Reason for deferral:** Purely cosmetic (Prettier formatting only, no behavior change); safe to fix
+  in an unrelated, dedicated pass.
+- **Planned milestone:** Any future touch to that file, or a dedicated formatting cleanup pass.
+
+**DEBT-042 — No "resend invitation" action for a bounced approval/invite email**
+- **Description:** `CohortApplicationsService.approve()` and `UsersService.invite()` both send an
+  invitation email as a side effect, but if it fails to deliver (bounced address, provider rejection),
+  there is no dedicated action to resend it — confirmed live during Milestone 9 launch testing (a
+  deliberately-fake test address bounced; the approval itself still succeeded, but the resulting
+  account had no way to receive a fresh invite email specifically).
+- **Priority:** Low
+- **Reason for deferral:** `POST /auth/forgot-password` already serves as a working recovery path once
+  the email address is corrected (same underlying reset-token/email mechanism) — a dedicated resend
+  action would be a convenience, not a capability gap, and building new functionality was out of scope
+  for a launch-readiness milestone.
+- **Planned milestone:** If bounced invitations recur often enough post-launch to be operationally
+  annoying.
+
+**DEBT-043 — Production launch candidate database still holds development/test fixtures**
+- **Description:** The shared development database used throughout this project's milestones holds
+  roughly 300 auto-generated integration-test accounts (`*@chat-access-test.local`, from repeatedly
+  running `*.integration.spec.ts` against it rather than an isolated test database) and three
+  documented, intentional development fixtures (`student@test.local`, `student@techimpact.test`,
+  `mentor@test.local`) that still hold real enrollment/mentor-assignment slots in the actual Cohort 1 —
+  full inventory in `docs/runbooks/database-operations.md`'s Production Data Safety section.
+- **Priority:** Medium
+- **Reason for deferral:** The recommended, documented resolution is launching on a genuinely fresh
+  database (migrations + `identity.seed.ts` only) rather than cleaning this one — see
+  `docs/PRODUCTION_LAUNCH_CHECKLIST.md`. If this exact database is instead promoted to production
+  directly, this item becomes a hard launch blocker, not deferrable debt.
+- **Planned milestone:** Resolved automatically if launch uses a fresh database; otherwise must be
+  resolved before real applicants populate Cohort 1.

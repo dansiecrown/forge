@@ -8,6 +8,48 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    # Milestone 8 production hardening: `pnpm test` was previously run with
+    # no database or Redis at all, even though six `*.integration.spec.ts`
+    # suites connect to a real PostgreSQL (and one also to Redis and boots
+    # the full AppModule) — every one of those suites was failing (verified
+    # locally: `DATABASE_URL` pointed at an unreachable host reproduces
+    # `PrismaClientInitializationError` immediately), just never on a
+    # service this workflow provisioned. These service containers match
+    # docker-compose.dev.yml's images so CI and local dev stay equivalent.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: forge
+          POSTGRES_PASSWORD: forge
+          POSTGRES_DB: forge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U forge -d forge"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://forge:forge@localhost:5432/forge?schema=public
+      REDIS_URL: redis://localhost:6379
+      API_PORT: '3000'
+      WEB_ORIGIN: http://localhost:5173
+      # CI-only values — never used outside this workflow. Real enough to
+      # satisfy env.validation.ts's shape/length checks (including the
+      # placeholder-secret rejection added this milestone), not real secrets.
+      JWT_ACCESS_SECRET: ${{ vars.CI_JWT_ACCESS_SECRET || 'xXsALVGSbxQbdFfYWCrIsHmAZ3iso7lg-ci-only' }}
+      COOKIE_SECRET: ${{ vars.CI_COOKIE_SECRET || 'fB7ofUl3ZbrR3EGn7jcGwg9aH0DZ6Xf3-ci-only' }}
+      MFA_ENCRYPTION_KEY: 6be258939b707d049cc3a98b08ec605bccf03e5b308fe85415f1fa963aaaad72
     steps:
       - uses: actions/checkout@v4
 
@@ -24,5 +66,19 @@ jobs:
       - run: pnpm lint
       - run: pnpm format
       - run: pnpm typecheck
+      - name: Validate Prisma schema
+        run: pnpm --filter @forge/api exec prisma validate
+      - name: Apply migrations to a clean database
+        run: pnpm --filter @forge/api exec prisma migrate deploy
       - run: pnpm test
       - run: pnpm build
+      # Informational, not blocking: `--prod` in a pnpm workspace still
+      # surfaces devDependency-only advisories (eslint's own dependency
+      # tree, confirmed via `pnpm why`) that never reach a shipped runtime,
+      # so failing the build on every one of those would make this check
+      # noise, not signal. Runtime-reachable advisories (react-router, qs,
+      # multer, joi) are fixed as of this milestone — see
+      # docs/KNOWN_TECHNICAL_DEBT.md for the remaining devDependency-only
+      # ones and why they're deferred rather than force-overridden.
+      - name: Audit dependencies (informational)
+        run: pnpm audit --audit-level=high --prod || true

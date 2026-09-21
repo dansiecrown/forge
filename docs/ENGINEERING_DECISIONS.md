@@ -500,6 +500,265 @@ Established: 2026-07-24, Architecture Lock milestone. Carries forward decisions 
   access check, a pre-existing duplication, not introduced here). See
   `docs/adr/0014-fellowship-chat.md`'s 2026-09-12 addendum for the full design and live verification.
 
+## Tech Impact Fellowship — Cohort 1 realistic learning data (2026-09-14)
+
+A data-and-experience milestone: seed a genuinely usable Tech Impact Fellowship "Cohort 1" (3
+tracks, 9 weeks, real lessons/resources/tasks, a test student account) so the existing learning
+engine can be exercised end-to-end as a real student, without any architecture change. New file
+`apps/api/prisma/seeds/tech-impact-cohort1.seed.ts` (run via `pnpm --filter @forge/api
+seed:cohort1`), following the existing `identity.seed.ts`/`dev-test-users.seed.ts` direct-Prisma,
+idempotent-upsert convention — no new service, module, or API route.
+
+- **No `Assignment` entity exists, and none was added.** `PracticalTask` + `PracticalTaskSubmission`
+  is the only task/assignment system in the schema. The seed represents the brief's "task" vs.
+  "assignment" distinction as two `PracticalTask` rows per week — a lighter `Practice:`-prefixed one
+  (small `maxScore`, no rubric) and a fuller `Assignment:`-prefixed one (the brief's exact titles,
+  `maxScore: 100`, a rubric, a longer due offset) — both live in the same table, distinguished only
+  by content, not by schema.
+- **Students read only `Cohort.curriculumSnapshot`, never the live catalog tables** — confirmed by
+  reading `ProgressionService.buildContext()`. The seed writes live `LearningTrack`/`Course`/
+  `WeeklyModule`/`Lesson`/`LearningResource`/`PracticalTask` rows and then calls its own
+  `rebuildCurriculumSnapshot()`, an exact structural mirror of `CurriculumSnapshotService.build()`,
+  so the new content is actually visible to a student. Any future seed touching the live catalog for
+  an already-created cohort must do the same, or its content will be silently invisible.
+- **The 3 new tracks (Web Development, WordPress Website Design, Graphics Design) are additive.**
+  Cohort 1 already had two empty, unrelated `LearningTrack`s ("Software Engineering", "Product
+  Design") offered to it from earlier session testing. These were left untouched — not deleted, not
+  populated — per "implement only the requested milestone."
+  See [[DEBT-036]] tracking of a follow-on gap this surfaced. All 3 new tracks were added as further
+  `CohortLearningTrack` offering rows alongside the existing two.
+- **Reused the pre-existing Organization/Academy** rather than creating new ones: the seed looks up
+  an Academy already hosting a Fellowship titled "Tech Impact" (falls back to slug `ota-doyen`, then
+  creates one) instead of assuming a fixed id, so it works whichever earlier-session fixture state
+  the database is in.
+- **The seeded test student's `currentLearningTrackId` is deliberately left unset at seed time.**
+  Track selection is a real, student-callable, ownership-checked endpoint
+  (`POST /enrollments/:id/actions/select-track`, `EnrollmentsService.selectTrack()`); the seed only
+  enrolls the student in Cohort 1 and leaves track selection to be performed live through the
+  product, the way a real student would, rather than pre-setting it via direct DB write.
+- **Idempotency key for `Lesson`/`LearningResource`/`PracticalTask`:** these have no unique
+  slug/natural key in the schema, so the seed uses `findFirst({ weeklyModuleId, title })` as its
+  lookup-before-write key, relying on titles being authored uniquely within a given week. Verified
+  by running the seed twice and diffing row counts/ids — no duplicates.
+- **All YouTube URLs are real, verified links** (via live web search, each confirmed to appear in a
+  search result's own link data rather than accepted from summary text), converted to `/embed/<id>`
+  form — the lesson reader's `<iframe>` renders `lesson.resourceUrl` directly and a `/watch?v=` URL
+  is refused by YouTube's frame-ancestors policy.
+- **Test student credentials are development-only** (see the README's "Tech Impact Fellowship
+  Cohort 1 seed data" section) and must never be set as real credentials in any deployed
+  configuration — same convention already established for `dev-test-users.seed.ts`.
+
+## Track chat channel membership now syncs instantly (2026-09-14)
+
+Reported live: a Student selecting "Web Development" for the Tech Impact Fellowship Cohort 1 did
+not see/appear in that track's chat channel.
+
+- **Root cause was two-fold.** (1) The Cohort 1 seed script (`tech-impact-cohort1.seed.ts`) wrote
+  its 3 new tracks into `CohortLearningTrack` directly via Prisma, bypassing
+  `CohortsService.setOfferedTracks()` — the only code path that auto-creates a track's chat channel
+  (`ChatChannelsService.createTrackChannel()`). Result: Web Development, WordPress Website Design,
+  and Graphics Design had no `type: 'track'` channel at all. Fixed by driving the real
+  `PUT /cohorts/:id/tracks` endpoint (remove-then-restore the 3 tracks so `setOfferedTracks()`'s
+  own newly-added-track diff sees them as new), not a direct Prisma write — see this doc's own
+  "Tech Impact Fellowship — Cohort 1 realistic learning data" entry above for why that seed bypassed
+  the service layer in the first place, since this is the fallout of that same shortcut.
+  (2) Even once a track channel exists, `ChatMembershipSyncService` (the `FellowshipChatChannelMember`
+  roster-sync introduced 2026-09-07) only ever covered `#general` + Enrollment status — track
+  channels and Mentor assignment were never wired into it at all, so a channel's "who's in this
+  channel" roster (`GET /chat/channels/:id/members`) would stay empty regardless. **Access itself
+  was never actually blocked** — `ChatChannelsService.list()`/`ChatMessagesService.requireChannelAccess()`
+  already compute track-channel read/write access live from `Enrollment.currentLearningTrackId` and
+  `CohortMentor`, never from this roster table — but the roster not reflecting reality is what a
+  real user sees as "I wasn't added."
+- **Fix:** `ChatMembershipSyncService` gains three methods. `syncTrackMembership()` — called from
+  `EnrollmentsService.selectTrack()` (self-service) and `.update()` (admin-driven) whenever
+  `currentLearningTrackId` changes — adds the student to their new track's channel roster and
+  removes them from their previous one on a switch. `syncMentorMembership()` — called from
+  `CohortsService.assignMentor()`/`.unassignMentor()` — adds/removes a Mentor from a Cohort's
+  `#general` and every one of its track channels. `backfillTrackChannelRoster()` — called right
+  after `createTrackChannel()` creates a *new* channel — populates it immediately with every
+  Student already on that track and every Mentor already on that cohort, so a channel created after
+  those relationships already existed (a track added mid-cohort, or backfilled as above) doesn't
+  start with an empty roster despite already-granted access. None of these change how access is
+  authorized; they only keep the roster (`FellowshipChatChannelMember`) — which the codebase already
+  keeps solely as a display convenience, per that service's own file-level doc comment — accurate.
+- **Mentors have no per-track assignment in the schema** (`CohortMentor` is Cohort-wide, not scoped
+  to a Learning Track), matching `ChatAccessService`'s existing design where a Mentor's
+  `canCreateChannels` already grants them every track channel in a Fellowship they're assigned to,
+  not just one. "Instant access when added to a track" for a Mentor is therefore satisfied by the
+  Cohort-level sync above; there is no narrower "this track only" concept to build without a schema
+  change, which was out of scope for this fix.
+
+## Milestone 8 — Production hardening (2026-09-21)
+
+A security/reliability/deployability pass over the existing platform — explicitly not a new-feature
+milestone. Full findings, fixes, and live verification are in the milestone completion report; the
+decisions worth recording here are the ones with lasting effect on how the codebase works.
+
+- **Rate limiting is now tiered, not one flat global rule.** `@nestjs/throttler`'s existing
+  (already-installed) named-throttler support is used via per-route `@Throttle({ default: {...} })`
+  overrides on login, refresh, forgot/reset-password, every MFA route, invitations, and chat/DM
+  message-send — closing DEBT-003. Deliberately still IP-based, not per-authenticated-user: global
+  guard order (`ThrottlerGuard` before `JwtAuthGuard`) means no authenticated identity exists yet when
+  the throttler's tracker runs, and reordering guards app-wide was judged too broad a change to make
+  silently in a hardening pass — see DEBT-037.
+- **`ChatGateway` gained its own flood protection**, since `ThrottlerGuard` never runs for WebSocket
+  gateways at all (it only reads `ExecutionContext.switchToHttp()`). Two independent in-memory,
+  per-instance, fixed-window counters: a per-IP connection limit (30/min) and a per-socket event limit
+  (60/10s, covering `chat.subscribe` and both typing events — message *sending* was already
+  REST-only, per ADR-0014 Decision 3, so it was already covered by the HTTP throttler). Not
+  Redis-backed — see DEBT-038 for the multi-instance caveat this leaves open.
+- **`GET /health` (liveness) and `GET /health/ready` (readiness) are now two different checks.**
+  Liveness never touches the database, so a real Postgres outage can't cause an orchestrator to kill
+  otherwise-healthy API instances on top of the outage; readiness does check the database (`SELECT 1`
+  via Prisma) and returns `503 NOT_READY` if it's unreachable. Redis is deliberately not part of
+  readiness — chat's REST read/write paths keep working without it (ADR-0014 Decision 2), so an
+  unreachable Redis is not a reason to report the whole API as not ready.
+- **`env.validation.ts` now rejects the literal placeholder secret value `.env.example` ships**
+  (`"replace-with-a-random-32-byte-minimum-secret"`) for `JWT_ACCESS_SECRET`/`COOKIE_SECRET`, in every
+  environment, not only production — it happened to be long enough to pass the existing `.min(32)`
+  check, meaning a `.env` copied without actually generating real secrets would previously boot
+  "successfully" on a publicly-known value. `NODE_ENV` is now a recognized, validated config value
+  (default `development`); `main.ts` logs an explicit warning at boot if `NODE_ENV=production` with no
+  SMTP configured (password reset/verification emails would only be console-logged) or a non-HTTPS
+  `WEB_ORIGIN`.
+- **CI now actually runs what it claims to.** `pnpm test` was previously executed with no database or
+  Redis at all, even though six `*.integration.spec.ts` suites need a real PostgreSQL (one also needs
+  Redis and boots the full `AppModule`) — verified locally that these suites fail immediately
+  (`PrismaClientInitializationError`) without a reachable database, so this was very likely failing
+  silently or being ignored rather than actually validating anything. `.github/workflows/ci.yml` now
+  provisions `postgres:16-alpine` and `redis:7-alpine` service containers (matching
+  `docker-compose.dev.yml`), sets the required env vars as CI-only throwaway values, and adds
+  `prisma validate` and `prisma migrate deploy` steps before `pnpm test`. Also adds an informational
+  (non-blocking) `pnpm audit --prod` step — non-blocking because pnpm's `--prod` flag does not cleanly
+  exclude devDependency-only advisories in this workspace, confirmed by testing it; making it blocking
+  now would fail CI on tooling vulnerabilities that never reach a shipped runtime.
+- **Runtime-reachable dependency vulnerabilities fixed via version bumps**, not overrides where a
+  direct bump was possible: `react-router-dom` (CSRF-bypass advisory, was resolving to a vulnerable
+  7.18.1), `joi` (prototype-pollution advisories). `qs` and `multer` — both transitive, both actually
+  reachable in the API's production dependency graph via Express/`@nestjs/platform-express` — pinned
+  via a new root `pnpm.overrides` entry. Six remaining advisories (`brace-expansion`, `fast-uri`,
+  `js-yaml`, `nanoid`, `deepmerge-ts`, `postcss`) confirmed via `pnpm why` to be devDependency-only
+  (eslint's and Tailwind's own dependency trees) — never shipped to a production runtime — and left
+  alone rather than force-overridden under time pressure; see the CI audit step above.
+- **A production Dockerfile for the API now exists** (`apps/api/Dockerfile`) — none did before, despite
+  `docs/system-architecture.md` §14 calling for a "containerized Nest API." Standard multi-stage
+  pnpm-workspace build using `pnpm deploy` to extract `@forge/api`'s own production `node_modules`.
+  **Not build-verified** — Docker was unavailable in the environment this was written in — see
+  DEBT-039. No cloud provider or hosting platform was selected; this is a build artifact only.
+- **The web app gained a router-level `errorElement`** (`RouteErrorPage`) and a configured
+  `QueryClient` (bounded retry that skips 4xx client errors, since `client.ts`'s own 401
+  refresh-and-retry logic already handles the one 4xx retrying could ever fix). Both are production
+  reliability fixes, not redesigns: previously an uncaught render error anywhere in the route tree
+  unmounted the whole app to a blank screen, and every failed query retried 3 times by default
+  regardless of whether the error was retryable.
+
+## Milestone 9 — Production launch readiness (2026-09-21)
+
+A launch-readiness audit and documentation pass, not a feature milestone — the goal was verifying the
+existing system is genuinely ready for the real Tech Impact Fellowship Cohort 1 launch, fixing only
+genuine launch-blocking issues found, and documenting everything an operator needs. No product code was
+changed this milestone; every fix was a live data/configuration correction through real, existing APIs.
+
+- **Found and fixed: a duplicate public Fellowship listing.** A stale "Tech Impact Fellowship" row
+  (slug `tif`, under an already-archived academy, left over from early Milestone 3/4 testing) was
+  independently `isPublic: true` alongside the real one (slug `tech-impact-fellowship`, the one Cohort 1
+  actually belongs to) — the public catalog (`GET /public/fellowships`) would have shown a real
+  applicant two "Tech Impact Fellowship" entries, one of them a dead end. Fixed via the real admin API
+  (`PATCH /fellowships/:id { isPublic: false }`), not a database edit — confirmed the catalog now shows
+  exactly one.
+- **Found and fixed (explicit product decision): Cohort 1 was not actually applyable.** The public
+  application system correctly only lists cohorts with status `enrolling` (an already-`active` cohort
+  shouldn't accept new applicants) — but Cohort 1's status had been set to `active`, and its dates
+  backdated two weeks, by the Milestone 7 seed script specifically to let the student learning
+  experience be tested immediately. That meant zero cohorts appeared on the public page at all. Per
+  explicit user decision, Cohort 1 was reopened: status set to `enrolling`, dates moved to a real future
+  window (`startsAt` ~3 weeks out, `endsAt` = `startsAt` + the Fellowship's 12-week duration). Verified
+  safe beforehand by reading `DeadlineService.computeFromContext()`: it uses
+  `enrollment.joinedAt ?? cohort.startsAt`, and every already-enrolled student has a real `joinedAt`
+  already set, so their progress/deadlines are unaffected by the date change; `cohort.endsAt` is only
+  ever surfaced as a display "estimated completion date," never gating logic. `CohortsService`'s
+  lifecycle state machine has no `active → enrolling` transition (by design — a real running cohort
+  shouldn't normally un-start), so this was a one-time, explicitly-approved direct data correction, not
+  a new admin feature — the same category of action this codebase's own seed scripts already use for
+  controlled initialization, not a precedent for routine cohort management.
+- **Removed clearly-disposable test fixtures from the real Cohort 1**: three synthetic
+  `CohortApplication` rows used to verify the admin review queue
+  (`ada.tester`/`bola.tester`/`chidi.tester`@example.com) and four stale application-history rows
+  against the Milestone 2 `student@test.local` fixture, plus the two never-activated "invited"
+  enrollments the approved ones had created. Two now-orphaned, never-activated `User`/`Membership` rows
+  (Ada/Bola) were deliberately left in place rather than hard-deleted — they hold no enrollment or
+  application anywhere and can never log in (no password was ever set), and `User` has enough
+  `onDelete: Restrict` relations elsewhere that verifying the full deletion blast radius for two already
+  -harmless rows wasn't worth the risk under launch time pressure.
+- **Confirmed, not fixed: this shared development database is not a direct production candidate.**
+  Full audit found ~300 auto-generated integration-test fixture accounts (from repeatedly running
+  `*.integration.spec.ts` against this database rather than an isolated one) and three documented,
+  intentional development fixtures (`student@test.local`, `student@techimpact.test`, `mentor@test.local`)
+  still holding real enrollment/mentor-assignment slots in Cohort 1. Recommendation, documented in
+  `docs/runbooks/database-operations.md`: launch on a genuinely fresh database (migrations +
+  `identity.seed.ts` only), not by promoting this one.
+- **Confirmed live: email is real, not a stub.** SMTP credentials were already configured in this
+  environment; a real send was attempted through the configured relay as part of live E2E testing and
+  produced a genuine SMTP-level rejection (because the test recipient was intentionally fake) — proving
+  the relay is live and reachable, not a console-log stub. Also confirmed: a failed email send does not
+  roll back or corrupt the triggering action (a user/enrollment was still created despite the bounce).
+- **No dedicated "resend invitation" action exists** — if an invitation email fails to deliver, the
+  practical recovery is `POST /auth/forgot-password` once the address is corrected (reuses the existing
+  reset-password flow). Documented as a real, disclosed gap rather than built, per this milestone's
+  explicit "document as backlog instead of implementing" instruction for anything not required for
+  launch itself.
+- **New documentation**: `docs/runbooks/production-deployment.md`, `environment-configuration.md`,
+  `database-operations.md`, `admin-operations.md`, `student-onboarding.md`, `mentor-onboarding.md`,
+  `incident-recovery.md`, `release-checklist.md`, and the top-level
+  `docs/PRODUCTION_LAUNCH_CHECKLIST.md` — see that checklist for the complete, item-by-item verified/
+  not-verified launch status.
+
+## Milestone 10 — Post-launch stabilization (2026-09-21)
+
+An evidence-driven stabilization pass, not a feature milestone. Project Forge has not yet been
+deployed to real production (Milestone 9 concluded "READY WITH DOCUMENTED BLOCKERS"), so there is no
+real production error log or user feedback to draw from — this is stated explicitly rather than
+invented, per this milestone's own instruction. Evidence instead came from a live, read-only
+data-integrity audit of the full Application → Approval → Enrollment → Track → Cohort → Curriculum
+Snapshot → Submission → Mentor Review → Chat Membership chain, `docs/KNOWN_TECHNICAL_DEBT.md`'s
+accumulated register, and direct code inspection of hot paths this project's own prior live testing
+actually exercised. Full findings in `docs/V1.1_ISSUE_REGISTER.md`.
+
+- **Fixed: a real chat-roster gap found by the audit.** An enrolled student was missing from their
+  track's chat channel roster — `ChatMembershipSyncService.backfillTrackChannelRoster()` (Milestone 8)
+  only ever backfills a channel's roster at the moment that channel is *newly created*, so a channel
+  that already existed before that fix shipped never got reconciled. Fixed with a new, permanent,
+  idempotent reconciliation script (`apps/api/prisma/repairs/repair-chat-membership.ts`,
+  `pnpm --filter @forge/api repair:chat-membership`) — safe to re-run any time, in production too,
+  since it only ever adds rows via the existing upsert and never touches access authorization (which
+  was already computed live and was never actually affected by this gap). Run once against the live
+  database this milestone: 5 track channels reconciled, 1 real gap closed, re-verified at zero
+  remaining gaps. `ChatMembershipSyncService` had zero unit test coverage before this milestone despite
+  being exactly where the gap lived — 7 new tests added.
+- **Fixed: no notification when a mentor reviews a submission.** Directly observed during Milestone 9's
+  own live testing (a revision request went unnoticed until the submission was manually re-opened) and
+  confirmed by data (100% of this database's 18 ever-created `Notification` rows were
+  `dm.message.received` — no application-status, task-review, or mentor-assignment event had ever
+  fired one). `SubmissionReviewsService.recordDecision()` now calls the existing
+  `NotificationsService.notify()` after recording the decision, reusing the exact fire-and-forget,
+  never-blocks-the-transaction pattern `ChatMessagesService.notifyReply()` already established — no new
+  notification infrastructure, no new schema. 3 new regression tests.
+- **Found, documented, deliberately not fixed: an N+1 query pattern in the mentor review queue.**
+  `MentorDashboardService.listReviewQueue()` looks up enrollments, tasks, and review history one ID at
+  a time via `Promise.all(ids.map(...))` rather than batched `findMany` calls. Real finding, but no
+  measured production slowness exists at Cohort 1's actual scale (capacity 30) — fixing it now would be
+  exactly the "premature optimization" this milestone's own instructions warned against. Documented in
+  `docs/V1.1_ISSUE_REGISTER.md` (V11-003) and `docs/POST_LAUNCH_BACKLOG.md` with the exact fix already
+  described for whoever picks it up once there's a real reason to.
+- **Security/isolation regression check: no regression found.** Re-ran the login rate-limit check (5
+  attempts through, 6th blocked) and the full automated suite including
+  `tenant-isolation.integration.spec.ts` and `chat-websocket-isolation.integration.spec.ts` — every
+  previously-fixed boundary from Milestones 8/9 remains intact.
+- **New documents**: `docs/V1.1_ISSUE_REGISTER.md` (the full evidence-driven findings register) and
+  `docs/POST_LAUNCH_BACKLOG.md` (consolidating deferred items already tracked across
+  `docs/KNOWN_TECHNICAL_DEBT.md` and `docs/development-roadmap.md` — nothing newly invented).
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

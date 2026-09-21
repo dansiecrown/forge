@@ -109,6 +109,7 @@ function fakeFellowshipsService(): FellowshipsService {
 function fakeChatMembershipSync(): ChatMembershipSyncService {
   return {
     syncStudentMembership: jest.fn(async () => undefined),
+    syncTrackMembership: jest.fn(async () => undefined),
   } as unknown as ChatMembershipSyncService;
 }
 

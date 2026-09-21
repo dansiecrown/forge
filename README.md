@@ -33,3 +33,45 @@ pnpm --filter @forge/api prisma:seed             # loads permissions, system rol
 
 - Run `pnpm --filter @forge/api prisma:seed` to load the permission catalogue, the five system roles, and (if `SEED_SUPER_ADMIN_EMAIL`/`SEED_SUPER_ADMIN_PASSWORD` are set) a bootstrap platform super-admin.
 - Sign in at `/sign-in`; `/forgot-password` and `/reset-password` complete the password-recovery loop. User invitations (`POST /users/invitations`) reuse the reset-password flow to set an initial password for a brand-new identity — see the ADR for why. Inviting an email that already has an account elsewhere on the platform reuses that identity and just adds a membership in the target organization, since identity is global and membership is per-organization (see the ADR's 2026-07-24 addendum).
+
+## Tech Impact Fellowship — Cohort 1 seed data (DEVELOPMENT ONLY)
+
+A realistic, ready-to-use "Cohort 1" of the Tech Impact Fellowship — 3 learning tracks (Web Development, WordPress Website Design, Graphics Design), 3 weeks each, with real lessons, resources, and practical tasks/assignments — plus a test student account already enrolled, so the learning experience can be exercised end-to-end without hand-building data.
+
+```sh
+pnpm --filter @forge/api seed:cohort1   # ts-node --transpile-only prisma/seeds/tech-impact-cohort1.seed.ts
+```
+
+- Safe to re-run any time — every write is an idempotent upsert/lookup, so re-running never creates duplicate organizations, tracks, weeks, lessons, resources, tasks, or users. Re-running is also how you "reset" the environment after manually editing seeded rows: it restores them to the seed's definitions and rebuilds `Cohort.curriculumSnapshot` (the frozen read-model students actually load from) from the live catalog.
+- Requires the same `.env` / running Postgres as any other API command; run `prisma:migrate:deploy` and `prisma:generate` first if this is a fresh database, and `prisma:seed` at least once (for permissions/roles) before this script.
+- **Test student login — development only, never set these as real credentials in any deployed environment:**
+  - Email: `student@techimpact.test`
+  - Password: `TestPass123!` (the same convention `dev-test-users.seed.ts` already uses)
+  - The student is enrolled in Cohort 1 with no track pre-selected — pick one from `/dashboard` to start, the same first step a real student takes.
+- See `docs/ENGINEERING_DECISIONS.md`'s "Tech Impact Fellowship — Cohort 1 realistic learning data" entry for the assumptions this seed makes, and `docs/KNOWN_TECHNICAL_DEBT.md`'s DEBT-036 for a submission-form limitation it works around rather than fixes.
+
+## Production hardening (Milestone 8)
+
+- **Health checks:** `GET /api/v1/health` (liveness — never touches the database) and `GET /api/v1/health/ready` (readiness — pings PostgreSQL, returns `503` if unreachable). A container orchestrator should use liveness to decide whether to restart the process, and readiness to decide whether to route traffic to it.
+- **Rate limiting:** a global 300 req/min/IP default, tightened per-route for the most abuse-sensitive endpoints (login, refresh, password reset, MFA, invitations, chat/DM message-send) — see `docs/ENGINEERING_DECISIONS.md`'s Milestone 8 entry and `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-003/037 for exact limits and known limitations. Fellowship Chat's WebSocket gateway has its own separate connection/event flood protection, since the HTTP rate limiter never runs for WebSocket traffic.
+- **Required production environment variables** (see `.env.example` for the full documented list): `NODE_ENV=production`, `DATABASE_URL`, `WEB_ORIGIN` (should be an `https://` origin in production), `JWT_ACCESS_SECRET`, `COOKIE_SECRET`, `MFA_ENCRYPTION_KEY` — all four secrets must be freshly generated, real random values; the literal placeholder values in `.env.example` are rejected at boot. Set `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM` for real email delivery — without them, password reset/verification/invitation emails are only logged to the console, which the API will warn loudly about at boot if `NODE_ENV=production`.
+- **Container image:** `apps/api/Dockerfile` is a multi-stage pnpm-workspace build (`docker build -f apps/api/Dockerfile -t forge-api .` from the repo root). It has not been build-verified in this environment (no Docker available) — build and smoke-test it before using it for a real deployment; see `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-039.
+- **CI** (`.github/workflows/ci.yml`) now provisions real PostgreSQL and Redis service containers and runs `prisma validate`/`prisma migrate deploy` before the test suite, since several integration tests need a real database and were not previously running against one in CI.
+- See `docs/ENGINEERING_DECISIONS.md`'s "Milestone 8 — Production hardening" entry for the full list of changes, and `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-037 through DEBT-041 for what remains open.
+
+## Production launch readiness (Milestone 9)
+
+Operational documentation for actually deploying and running Project Forge — start at
+**`docs/PRODUCTION_LAUNCH_CHECKLIST.md`** for the single authoritative, item-by-item launch status.
+Detailed guides live in `docs/runbooks/`:
+
+- `production-deployment.md` — infrastructure requirements, deploy/verify/rollback, CI/CD
+- `environment-configuration.md` — every environment variable, dev/test/production differences, how the first Super Admin is created
+- `database-operations.md` — migrations, backup/restore requirements, what's system config vs. seed/demo data
+- `admin-operations.md` — the Organization → Academy → Fellowship → Cohort hierarchy, applications, curriculum snapshots, mentors
+- `student-onboarding.md` / `mentor-onboarding.md` — the real, verified end-to-end flows
+- `incident-recovery.md` — what to do when production fails, by symptom
+- `release-checklist.md` — the repeatable checklist for every release after launch
+
+See `docs/ENGINEERING_DECISIONS.md`'s "Milestone 9 — Production launch readiness" entry for what was
+audited, fixed, and found during this pass.

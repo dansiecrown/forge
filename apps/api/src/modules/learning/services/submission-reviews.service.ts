@@ -9,6 +9,7 @@ import { UsersService } from '../../identity/services/users.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
 import { PermissionResolverService } from '../../organizations/services/permission-resolver.service';
 import { AuditLogService } from '../../platform/audit-log.service';
+import { NotificationsService } from '../../platform/services/notifications.service';
 import { AppException } from '../../../shared/errors/app.exception';
 import type { TenantScope } from '../../../shared/tenancy/tenant-scope';
 import {
@@ -58,6 +59,7 @@ export class SubmissionReviewsService {
     private readonly practicalTasksService: PracticalTasksService,
     private readonly auditLog: AuditLogService,
     private readonly fellowshipTrackMentorsService: FellowshipTrackMentorsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private async loadSubmissionAndEnrollment(
@@ -149,7 +151,55 @@ export class SubmissionReviewsService {
       actorUserId: callerId,
       metadata: { decision, enrollmentId: enrollment.id },
     });
+    await this.notifyDecision(
+      scope,
+      callerId,
+      enrollment.userId,
+      submission.practicalTaskId,
+      submissionId,
+      decision,
+    );
     return toSubmissionReviewEntity(review);
+  }
+
+  /** Milestone 10 (post-launch stabilization): a student had no way to learn
+   * a mentor reviewed their work short of manually re-checking the
+   * submission — confirmed live during Milestone 9's own launch testing,
+   * where a revision request went unnoticed until the submission was
+   * re-opened by hand. Same `NotificationsService.notify()` primitive
+   * `ChatMessagesService.notifyReply()` already uses; never blocks the
+   * review decision itself if it fails (matches that precedent — a
+   * notification is a convenience, not part of the reviewed transaction). */
+  private async notifyDecision(
+    scope: TenantScope,
+    actorUserId: string,
+    recipientUserId: string,
+    practicalTaskId: string,
+    submissionId: string,
+    decision: SubmissionReviewDecision,
+  ): Promise<void> {
+    const task = await this.practicalTasksService.get(scope, practicalTaskId).catch(() => null);
+    const title =
+      decision === 'approved' ? 'Your submission was approved' : 'A revision was requested';
+    const body = task
+      ? decision === 'approved'
+        ? `"${task.title}" was approved.`
+        : `A mentor requested changes to "${task.title}".`
+      : decision === 'approved'
+        ? 'Your task submission was approved.'
+        : 'A mentor requested changes to your task submission.';
+    await this.notifications
+      .notify({
+        organizationId: scope.organizationId,
+        recipientUserId,
+        actorUserId,
+        type: `practical_task_submission.${decision}`,
+        title,
+        body,
+        entityType: 'practical_task_submission',
+        entityId: submissionId,
+      })
+      .catch(() => undefined);
   }
 
   async listHistory(
