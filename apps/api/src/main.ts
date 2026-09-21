@@ -1,7 +1,7 @@
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { ValidationPipe, type INestApplicationContext } from '@nestjs/common';
+import { Logger, ValidationPipe, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AppModule } from './app.module';
@@ -51,9 +51,34 @@ class RedisIoAdapter extends IoAdapter {
   }
 }
 
+/** Milestone 8 production hardening: neither of these is invalid enough to
+ * fail startup over (both are legitimately optional per `env.validation.ts`
+ * — an unconfigured SMTP host means requests keep working via the dev-mode
+ * console-log stub, and a non-HTTPS `WEB_ORIGIN` is normal for local dev),
+ * but silently shipping either to a real production deploy is a genuine
+ * gap worth surfacing loudly rather than only in a runbook someone has to
+ * remember to check. */
+function warnAboutProductionMisconfiguration(config: AppConfigService, logger: Logger): void {
+  if (config.app.nodeEnv !== 'production') return;
+  if (!config.email.host) {
+    logger.warn(
+      'NODE_ENV=production but no SMTP_HOST is configured — password reset, email verification, ' +
+        'and invitation emails will only be logged to the console, never actually delivered.',
+    );
+  }
+  if (!config.app.webOrigin.startsWith('https://')) {
+    logger.warn(
+      `NODE_ENV=production but WEB_ORIGIN (${config.app.webOrigin}) is not an https:// origin — ` +
+        'the Secure refresh-token cookie will still be sent, but CORS is allowing a non-HTTPS origin.',
+    );
+  }
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(AppConfigService);
+  const logger = new Logger('Bootstrap');
+  warnAboutProductionMisconfiguration(config, logger);
 
   app.setGlobalPrefix('api/v1');
   app.use(helmet());
