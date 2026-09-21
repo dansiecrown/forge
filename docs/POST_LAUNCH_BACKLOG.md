@@ -1,0 +1,22 @@
+# Post-Launch Backlog
+
+Work intentionally **not** implemented in Milestone 10 (or earlier), so it isn't silently forgotten.
+Only items actually discovered during real audits/testing, or already decided as future-version scope
+in `docs/development-roadmap.md`, are listed — nothing invented for this document.
+
+| Feature | Reason deferred | Evidence | Affected users | Dependency | Recommended milestone |
+| --- | --- | --- | --- | --- | --- |
+| Dedicated "resend invitation" admin action | `POST /auth/forgot-password` already provides a working recovery path once an address is corrected; a dedicated action is a convenience, not a capability gap | Observed live during Milestone 9: an approval with a bounced test email left no resend path (`docs/KNOWN_TECHNICAL_DEBT.md` DEBT-042) | Admins, applicants with a bounced invite | None | If bounced invitations recur often enough post-launch to be operationally annoying |
+| Batch the mentor review-queue's per-ID lookups (N+1) | No measured production slowness at Cohort 1's actual scale; fixing without evidence risks premature optimization of a working path | Code inspection, `docs/V1.1_ISSUE_REGISTER.md` V11-003 | Mentors, once review-queue volume grows | None | If a real cohort's review queue is ever observed loading slowly, or before scaling to many concurrent cohorts |
+| Per-authenticated-user rate limiting (currently per-IP) | Requires reordering global guards (`ThrottlerGuard` before `JwtAuthGuard`), a wider behavior change than a single-route fix | `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-037 | All authenticated users, in a shared-IP abuse scenario | Guard-ordering decision | Whenever guard ordering is revisited for its own reasons |
+| Redis-backed (cross-instance) WebSocket rate limiting | Current in-memory per-instance limiting is a complete guarantee at today's single-API-instance scale | `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-038 | Fellowship Chat users, only once horizontally scaled | Multi-instance deployment | Whenever horizontal WebSocket scaling is actually load-tested/deployed |
+| Build-verify and smoke-test `apps/api/Dockerfile` | Written to standard conventions but never run through a real `docker build` — no Docker available in the authoring environment | `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-039 | Whoever deploys first | A Docker-capable environment | Before any real container-based deployment |
+| Code-split the `/admin` route tree (862 KB chunk) | No measured admin-portal load-time complaint; a mechanical but broad change across dozens of routes | `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-040 | Admins on slow connections | None | Whenever `/admin`'s load time is a measured problem, or alongside future admin-portal work |
+| Mandatory MFA enforcement at first admin/mentor sign-in and student cohort-start | MFA enrollment/verification is fully built; nothing yet *requires* it | `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-004 (open since Milestone 2) | Admins, mentors, students | An onboarding/enrollment-gating flow | Next milestone that touches onboarding UI |
+| A submission-form field shape that fits non-code deliverables (Graphics Design track) | Current form is `repositoryUrl`/`liveDemoUrl` only; a real fix is a schema/product decision, not a mechanical patch | `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-036 | Graphics Design students | A submission-model decision | Whenever the submission UX is next revisited, or a second non-code track is added |
+| Automated database backups + a live restore drill | No hosting/managed-database provider selected yet — backups are a provider capability | `docs/runbooks/database-operations.md` | Everyone, in a real data-loss scenario | Hosting provider selection | Before real Tech Impact Fellowship data is at risk |
+| Certificates, payments, richer analytics, SAML, elective/micro-credential catalogue | Already-decided, explicitly out-of-v1-scope future-version items | `docs/development-roadmap.md` §10 "Future roadmap" (Version 2.0/3.0) — unchanged, not newly discovered | Depends on feature | Commercial/legal readiness (payments), template/signatory decisions (certificates) | Version 2.0/3.0, per the existing roadmap — not this milestone's decision |
+
+Nothing else was found this milestone that warrants a backlog entry — the live data-integrity audit,
+security regression pass, and code review surfaced two real, fixable issues (both fixed — see
+`docs/V1.1_ISSUE_REGISTER.md`) and no new large gaps.

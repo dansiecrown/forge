@@ -533,3 +533,32 @@ without first visiting that organization's own detail page**
 - **Reason for deferral:** Purely cosmetic (Prettier formatting only, no behavior change); safe to fix
   in an unrelated, dedicated pass.
 - **Planned milestone:** Any future touch to that file, or a dedicated formatting cleanup pass.
+
+**DEBT-042 — No "resend invitation" action for a bounced approval/invite email**
+- **Description:** `CohortApplicationsService.approve()` and `UsersService.invite()` both send an
+  invitation email as a side effect, but if it fails to deliver (bounced address, provider rejection),
+  there is no dedicated action to resend it — confirmed live during Milestone 9 launch testing (a
+  deliberately-fake test address bounced; the approval itself still succeeded, but the resulting
+  account had no way to receive a fresh invite email specifically).
+- **Priority:** Low
+- **Reason for deferral:** `POST /auth/forgot-password` already serves as a working recovery path once
+  the email address is corrected (same underlying reset-token/email mechanism) — a dedicated resend
+  action would be a convenience, not a capability gap, and building new functionality was out of scope
+  for a launch-readiness milestone.
+- **Planned milestone:** If bounced invitations recur often enough post-launch to be operationally
+  annoying.
+
+**DEBT-043 — Production launch candidate database still holds development/test fixtures**
+- **Description:** The shared development database used throughout this project's milestones holds
+  roughly 300 auto-generated integration-test accounts (`*@chat-access-test.local`, from repeatedly
+  running `*.integration.spec.ts` against it rather than an isolated test database) and three
+  documented, intentional development fixtures (`student@test.local`, `student@techimpact.test`,
+  `mentor@test.local`) that still hold real enrollment/mentor-assignment slots in the actual Cohort 1 —
+  full inventory in `docs/runbooks/database-operations.md`'s Production Data Safety section.
+- **Priority:** Medium
+- **Reason for deferral:** The recommended, documented resolution is launching on a genuinely fresh
+  database (migrations + `identity.seed.ts` only) rather than cleaning this one — see
+  `docs/PRODUCTION_LAUNCH_CHECKLIST.md`. If this exact database is instead promoted to production
+  directly, this item becomes a hard launch blocker, not deferrable debt.
+- **Planned milestone:** Resolved automatically if launch uses a fresh database; otherwise must be
+  resolved before real applicants populate Cohort 1.

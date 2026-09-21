@@ -714,6 +714,51 @@ changed this milestone; every fix was a live data/configuration correction throu
   `docs/PRODUCTION_LAUNCH_CHECKLIST.md` — see that checklist for the complete, item-by-item verified/
   not-verified launch status.
 
+## Milestone 10 — Post-launch stabilization (2026-09-21)
+
+An evidence-driven stabilization pass, not a feature milestone. Project Forge has not yet been
+deployed to real production (Milestone 9 concluded "READY WITH DOCUMENTED BLOCKERS"), so there is no
+real production error log or user feedback to draw from — this is stated explicitly rather than
+invented, per this milestone's own instruction. Evidence instead came from a live, read-only
+data-integrity audit of the full Application → Approval → Enrollment → Track → Cohort → Curriculum
+Snapshot → Submission → Mentor Review → Chat Membership chain, `docs/KNOWN_TECHNICAL_DEBT.md`'s
+accumulated register, and direct code inspection of hot paths this project's own prior live testing
+actually exercised. Full findings in `docs/V1.1_ISSUE_REGISTER.md`.
+
+- **Fixed: a real chat-roster gap found by the audit.** An enrolled student was missing from their
+  track's chat channel roster — `ChatMembershipSyncService.backfillTrackChannelRoster()` (Milestone 8)
+  only ever backfills a channel's roster at the moment that channel is *newly created*, so a channel
+  that already existed before that fix shipped never got reconciled. Fixed with a new, permanent,
+  idempotent reconciliation script (`apps/api/prisma/repairs/repair-chat-membership.ts`,
+  `pnpm --filter @forge/api repair:chat-membership`) — safe to re-run any time, in production too,
+  since it only ever adds rows via the existing upsert and never touches access authorization (which
+  was already computed live and was never actually affected by this gap). Run once against the live
+  database this milestone: 5 track channels reconciled, 1 real gap closed, re-verified at zero
+  remaining gaps. `ChatMembershipSyncService` had zero unit test coverage before this milestone despite
+  being exactly where the gap lived — 7 new tests added.
+- **Fixed: no notification when a mentor reviews a submission.** Directly observed during Milestone 9's
+  own live testing (a revision request went unnoticed until the submission was manually re-opened) and
+  confirmed by data (100% of this database's 18 ever-created `Notification` rows were
+  `dm.message.received` — no application-status, task-review, or mentor-assignment event had ever
+  fired one). `SubmissionReviewsService.recordDecision()` now calls the existing
+  `NotificationsService.notify()` after recording the decision, reusing the exact fire-and-forget,
+  never-blocks-the-transaction pattern `ChatMessagesService.notifyReply()` already established — no new
+  notification infrastructure, no new schema. 3 new regression tests.
+- **Found, documented, deliberately not fixed: an N+1 query pattern in the mentor review queue.**
+  `MentorDashboardService.listReviewQueue()` looks up enrollments, tasks, and review history one ID at
+  a time via `Promise.all(ids.map(...))` rather than batched `findMany` calls. Real finding, but no
+  measured production slowness exists at Cohort 1's actual scale (capacity 30) — fixing it now would be
+  exactly the "premature optimization" this milestone's own instructions warned against. Documented in
+  `docs/V1.1_ISSUE_REGISTER.md` (V11-003) and `docs/POST_LAUNCH_BACKLOG.md` with the exact fix already
+  described for whoever picks it up once there's a real reason to.
+- **Security/isolation regression check: no regression found.** Re-ran the login rate-limit check (5
+  attempts through, 6th blocked) and the full automated suite including
+  `tenant-isolation.integration.spec.ts` and `chat-websocket-isolation.integration.spec.ts` — every
+  previously-fixed boundary from Milestones 8/9 remains intact.
+- **New documents**: `docs/V1.1_ISSUE_REGISTER.md` (the full evidence-driven findings register) and
+  `docs/POST_LAUNCH_BACKLOG.md` (consolidating deferred items already tracked across
+  `docs/KNOWN_TECHNICAL_DEBT.md` and `docs/development-roadmap.md` — nothing newly invented).
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.
