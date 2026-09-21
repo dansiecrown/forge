@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Patch, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ActiveOrganizationId } from '../../../decorators/active-organization-id.decorator';
 import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { RequirePermissions } from '../../../decorators/require-permissions.decorator';
@@ -32,8 +33,11 @@ export class ChatMessagesController {
     );
   }
 
+  // Chat-spam guard (Milestone 8): tighter than the 300/min global default,
+  // generous enough for genuine fast-paced conversation.
   @Post('chat/channels/:channelId/messages')
   @RequirePermissions('chat.message.create')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   create(
     @Param('channelId') channelId: string,
     @Body() dto: CreateChatMessageDto,

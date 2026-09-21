@@ -11,6 +11,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { CurrentUser } from '../../../decorators/current-user.decorator';
 import { Public } from '../../../decorators/public.decorator';
@@ -61,7 +62,19 @@ export class AuthController {
     private readonly auditLog: AuditLogService,
   ) {}
 
+  // Tiered rate limiting (Milestone 8 production hardening): the global
+  // 300/min-per-IP default in AppModule stays as a blanket DoS backstop;
+  // these per-route overrides tighten the specific endpoints most exposed
+  // to credential/brute-force/abuse per docs/KNOWN_TECHNICAL_DEBT.md's
+  // flat-rate-limiting entry. Tracked per-IP (the throttler default),
+  // never per-account: `ThrottlerGuard` runs before `JwtAuthGuard` in
+  // AppModule's global guard order, so no authenticated identity is yet
+  // available to key on for these routes without reordering guards
+  // app-wide — a bigger change than this pass makes. Account-level
+  // lockout (`AuthService.registerFailedAttempt`) is the complementary,
+  // identity-scoped defense for login specifically.
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
@@ -90,6 +103,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Req() req: AuthenticatedRequest, @Res({ passthrough: true }) res: Response) {
@@ -127,6 +141,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Post('forgot-password')
   @HttpCode(HttpStatus.ACCEPTED)
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
@@ -135,6 +150,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('reset-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   async resetPassword(@Body() dto: ResetPasswordDto) {
@@ -149,6 +165,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Post('verification-email')
   @HttpCode(HttpStatus.ACCEPTED)
   async resendVerificationEmail(@Body() dto: ResendVerificationEmailDto) {
@@ -196,6 +213,7 @@ export class AuthController {
     await this.authSessionsRepository.revoke(sessionId);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('mfa/enroll')
   async enrollMfa(@CurrentUser() user: { id: string }, @Body() _dto: MfaEnrollDto) {
     const currentUser = await this.usersService.getById(user.id);
@@ -203,6 +221,7 @@ export class AuthController {
     return enrollment;
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('mfa/confirm-enrollment')
   @HttpCode(HttpStatus.NO_CONTENT)
   async confirmMfaEnrollment(
@@ -219,6 +238,7 @@ export class AuthController {
     });
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('mfa/disable')
   @HttpCode(HttpStatus.NO_CONTENT)
   async disableMfa(@CurrentUser() user: { id: string }, @Body() dto: DisableMfaDto) {
@@ -233,6 +253,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('mfa/verify')
   @HttpCode(HttpStatus.OK)
   async verifyMfa(
