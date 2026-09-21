@@ -15,6 +15,24 @@ import { RedisEventsService } from '../services/redis-events.service';
 
 const REVALIDATE_INTERVAL_MS = 30_000;
 
+// Milestone 8 production hardening: `@nestjs/throttler`'s `ThrottlerGuard`
+// only intercepts HTTP requests (it reads `ExecutionContext.switchToHttp()`),
+// so it never runs for this gateway at all — WebSocket connections and
+// events needed their own, separately-implemented flood protection. Both
+// limiters below are simple in-memory fixed-window counters, reset on their
+// own interval — deliberately not Redis-backed (this gateway already uses
+// Redis only for cross-instance event fan-out, never as an authorization or
+// rate-limit store) and consistent with the HTTP throttler's own in-memory,
+// per-instance model. In a multi-instance deployment each instance enforces
+// its own window independently, which is a coarser guarantee than a shared
+// counter but still meaningfully bounds abuse from a single source; a
+// cross-instance limit would need Redis-backed counters, a bigger decision
+// left for whenever horizontal WebSocket scaling is actually load-tested.
+const CONNECTIONS_PER_IP_LIMIT = 30;
+const CONNECTIONS_WINDOW_MS = 60_000;
+const EVENTS_PER_SOCKET_LIMIT = 60;
+const EVENTS_WINDOW_MS = 10_000;
+
 interface SocketData {
   userId?: string;
   /** channelId -> organizationId, for every room this socket has actually
@@ -58,6 +76,17 @@ type ChatSocket = Socket & { data: SocketData };
 })
 export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private revalidateTimer?: NodeJS.Timeout;
+  private connectionWindowTimer?: NodeJS.Timeout;
+  private eventWindowTimer?: NodeJS.Timeout;
+
+  /** Connection-flood counters, keyed by remote IP; cleared in full every
+   * `CONNECTIONS_WINDOW_MS` rather than tracked per-key expiry, which is
+   * simpler and can't leak memory across long uptimes. */
+  private connectionCounts = new Map<string, number>();
+  /** Event-flood counters, keyed by `socket.id`; cleared in full every
+   * `EVENTS_WINDOW_MS`, and also explicitly deleted on disconnect so a
+   * closed socket's key never lingers even within one window. */
+  private eventCounts = new Map<string, number>();
 
   @WebSocketServer()
   server!: Namespace;
@@ -76,14 +105,32 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     this.revalidateTimer = setInterval(() => {
       void this.revalidateAll();
     }, REVALIDATE_INTERVAL_MS);
+    this.connectionWindowTimer = setInterval(() => {
+      this.connectionCounts.clear();
+    }, CONNECTIONS_WINDOW_MS);
+    this.eventWindowTimer = setInterval(() => {
+      this.eventCounts.clear();
+    }, EVENTS_WINDOW_MS);
   }
 
   onModuleDestroy(): void {
     if (this.revalidateTimer) clearInterval(this.revalidateTimer);
+    if (this.connectionWindowTimer) clearInterval(this.connectionWindowTimer);
+    if (this.eventWindowTimer) clearInterval(this.eventWindowTimer);
   }
 
   handleConnection(client: ChatSocket): void {
     client.data.subscriptions = new Map();
+
+    const ip = client.handshake.address;
+    const connectionCount = (this.connectionCounts.get(ip) ?? 0) + 1;
+    this.connectionCounts.set(ip, connectionCount);
+    if (connectionCount > CONNECTIONS_PER_IP_LIMIT) {
+      client.emit('chat.error', { code: 'RATE_LIMITED' });
+      client.disconnect(true);
+      return;
+    }
+
     const token = extractToken(client);
     if (!token) {
       client.emit('chat.error', { code: 'UNAUTHENTICATED' });
@@ -99,10 +146,27 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
   }
 
-  handleDisconnect(): void {
+  handleDisconnect(client: ChatSocket): void {
     // Nothing to persist — presence is deliberately not tracked (Phase 6:
     // "do not build a full presence service"); socket.io's own room
-    // membership is cleaned up automatically on disconnect.
+    // membership is cleaned up automatically on disconnect. The event-flood
+    // counter is the one piece of state this gateway itself owns per
+    // socket, so it's the one thing cleaned up here.
+    this.eventCounts.delete(client.id);
+  }
+
+  /** Shared by every client-originated event below — `chat.subscribe` and
+   * both typing events. Returns true (and rejects the client) once this
+   * socket has exceeded `EVENTS_PER_SOCKET_LIMIT` within the current
+   * window; every handler must check this before doing any real work. */
+  private isRateLimited(client: ChatSocket): boolean {
+    const count = (this.eventCounts.get(client.id) ?? 0) + 1;
+    this.eventCounts.set(client.id, count);
+    if (count > EVENTS_PER_SOCKET_LIMIT) {
+      this.reject(client, 'RATE_LIMITED');
+      return true;
+    }
+    return false;
   }
 
   @SubscribeMessage('chat.subscribe')
@@ -110,6 +174,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     @ConnectedSocket() client: ChatSocket,
     @MessageBody() body: { channelId?: string; organizationId?: string },
   ): Promise<void> {
+    if (this.isRateLimited(client)) return;
     const userId = client.data.userId;
     if (!userId) return this.reject(client, 'UNAUTHENTICATED');
     if (!body?.channelId || !body?.organizationId) {
@@ -150,6 +215,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     @ConnectedSocket() client: ChatSocket,
     @MessageBody() body: { channelId?: string },
   ): void {
+    if (this.isRateLimited(client)) return;
     this.relayTyping(client, body?.channelId, 'chat.typing.started');
   }
 
@@ -158,6 +224,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     @ConnectedSocket() client: ChatSocket,
     @MessageBody() body: { channelId?: string },
   ): void {
+    if (this.isRateLimited(client)) return;
     this.relayTyping(client, body?.channelId, 'chat.typing.stopped');
   }
 
