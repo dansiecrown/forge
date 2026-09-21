@@ -589,6 +589,70 @@ not see/appear in that track's chat channel.
   Cohort-level sync above; there is no narrower "this track only" concept to build without a schema
   change, which was out of scope for this fix.
 
+## Milestone 8 — Production hardening (2026-09-21)
+
+A security/reliability/deployability pass over the existing platform — explicitly not a new-feature
+milestone. Full findings, fixes, and live verification are in the milestone completion report; the
+decisions worth recording here are the ones with lasting effect on how the codebase works.
+
+- **Rate limiting is now tiered, not one flat global rule.** `@nestjs/throttler`'s existing
+  (already-installed) named-throttler support is used via per-route `@Throttle({ default: {...} })`
+  overrides on login, refresh, forgot/reset-password, every MFA route, invitations, and chat/DM
+  message-send — closing DEBT-003. Deliberately still IP-based, not per-authenticated-user: global
+  guard order (`ThrottlerGuard` before `JwtAuthGuard`) means no authenticated identity exists yet when
+  the throttler's tracker runs, and reordering guards app-wide was judged too broad a change to make
+  silently in a hardening pass — see DEBT-037.
+- **`ChatGateway` gained its own flood protection**, since `ThrottlerGuard` never runs for WebSocket
+  gateways at all (it only reads `ExecutionContext.switchToHttp()`). Two independent in-memory,
+  per-instance, fixed-window counters: a per-IP connection limit (30/min) and a per-socket event limit
+  (60/10s, covering `chat.subscribe` and both typing events — message *sending* was already
+  REST-only, per ADR-0014 Decision 3, so it was already covered by the HTTP throttler). Not
+  Redis-backed — see DEBT-038 for the multi-instance caveat this leaves open.
+- **`GET /health` (liveness) and `GET /health/ready` (readiness) are now two different checks.**
+  Liveness never touches the database, so a real Postgres outage can't cause an orchestrator to kill
+  otherwise-healthy API instances on top of the outage; readiness does check the database (`SELECT 1`
+  via Prisma) and returns `503 NOT_READY` if it's unreachable. Redis is deliberately not part of
+  readiness — chat's REST read/write paths keep working without it (ADR-0014 Decision 2), so an
+  unreachable Redis is not a reason to report the whole API as not ready.
+- **`env.validation.ts` now rejects the literal placeholder secret value `.env.example` ships**
+  (`"replace-with-a-random-32-byte-minimum-secret"`) for `JWT_ACCESS_SECRET`/`COOKIE_SECRET`, in every
+  environment, not only production — it happened to be long enough to pass the existing `.min(32)`
+  check, meaning a `.env` copied without actually generating real secrets would previously boot
+  "successfully" on a publicly-known value. `NODE_ENV` is now a recognized, validated config value
+  (default `development`); `main.ts` logs an explicit warning at boot if `NODE_ENV=production` with no
+  SMTP configured (password reset/verification emails would only be console-logged) or a non-HTTPS
+  `WEB_ORIGIN`.
+- **CI now actually runs what it claims to.** `pnpm test` was previously executed with no database or
+  Redis at all, even though six `*.integration.spec.ts` suites need a real PostgreSQL (one also needs
+  Redis and boots the full `AppModule`) — verified locally that these suites fail immediately
+  (`PrismaClientInitializationError`) without a reachable database, so this was very likely failing
+  silently or being ignored rather than actually validating anything. `.github/workflows/ci.yml` now
+  provisions `postgres:16-alpine` and `redis:7-alpine` service containers (matching
+  `docker-compose.dev.yml`), sets the required env vars as CI-only throwaway values, and adds
+  `prisma validate` and `prisma migrate deploy` steps before `pnpm test`. Also adds an informational
+  (non-blocking) `pnpm audit --prod` step — non-blocking because pnpm's `--prod` flag does not cleanly
+  exclude devDependency-only advisories in this workspace, confirmed by testing it; making it blocking
+  now would fail CI on tooling vulnerabilities that never reach a shipped runtime.
+- **Runtime-reachable dependency vulnerabilities fixed via version bumps**, not overrides where a
+  direct bump was possible: `react-router-dom` (CSRF-bypass advisory, was resolving to a vulnerable
+  7.18.1), `joi` (prototype-pollution advisories). `qs` and `multer` — both transitive, both actually
+  reachable in the API's production dependency graph via Express/`@nestjs/platform-express` — pinned
+  via a new root `pnpm.overrides` entry. Six remaining advisories (`brace-expansion`, `fast-uri`,
+  `js-yaml`, `nanoid`, `deepmerge-ts`, `postcss`) confirmed via `pnpm why` to be devDependency-only
+  (eslint's and Tailwind's own dependency trees) — never shipped to a production runtime — and left
+  alone rather than force-overridden under time pressure; see the CI audit step above.
+- **A production Dockerfile for the API now exists** (`apps/api/Dockerfile`) — none did before, despite
+  `docs/system-architecture.md` §14 calling for a "containerized Nest API." Standard multi-stage
+  pnpm-workspace build using `pnpm deploy` to extract `@forge/api`'s own production `node_modules`.
+  **Not build-verified** — Docker was unavailable in the environment this was written in — see
+  DEBT-039. No cloud provider or hosting platform was selected; this is a build artifact only.
+- **The web app gained a router-level `errorElement`** (`RouteErrorPage`) and a configured
+  `QueryClient` (bounded retry that skips 4xx client errors, since `client.ts`'s own 401
+  refresh-and-retry logic already handles the one 4xx retrying could ever fix). Both are production
+  reliability fixes, not redesigns: previously an uncaught render error anywhere in the route tree
+  unmounted the whole app to a blank screen, and every failed query retried 3 times by default
+  regardless of whether the error was retryable.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.
