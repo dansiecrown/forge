@@ -12,7 +12,8 @@
     "prisma:validate": "dotenv -e ../../.env -- prisma validate",
     "prisma:migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
     "prisma:seed": "ts-node --transpile-only prisma/seeds/identity.seed.ts",
-    "seed:cohort1": "ts-node --transpile-only prisma/seeds/tech-impact-cohort1.seed.ts"
+    "seed:cohort1": "ts-node --transpile-only prisma/seeds/tech-impact-cohort1.seed.ts",
+    "repair:chat-membership": "ts-node --transpile-only prisma/repairs/repair-chat-membership.ts"
   },
   "jest": {
     "rootDir": "src",
