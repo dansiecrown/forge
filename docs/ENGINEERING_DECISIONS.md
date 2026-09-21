@@ -653,6 +653,67 @@ decisions worth recording here are the ones with lasting effect on how the codeb
   unmounted the whole app to a blank screen, and every failed query retried 3 times by default
   regardless of whether the error was retryable.
 
+## Milestone 9 — Production launch readiness (2026-09-21)
+
+A launch-readiness audit and documentation pass, not a feature milestone — the goal was verifying the
+existing system is genuinely ready for the real Tech Impact Fellowship Cohort 1 launch, fixing only
+genuine launch-blocking issues found, and documenting everything an operator needs. No product code was
+changed this milestone; every fix was a live data/configuration correction through real, existing APIs.
+
+- **Found and fixed: a duplicate public Fellowship listing.** A stale "Tech Impact Fellowship" row
+  (slug `tif`, under an already-archived academy, left over from early Milestone 3/4 testing) was
+  independently `isPublic: true` alongside the real one (slug `tech-impact-fellowship`, the one Cohort 1
+  actually belongs to) — the public catalog (`GET /public/fellowships`) would have shown a real
+  applicant two "Tech Impact Fellowship" entries, one of them a dead end. Fixed via the real admin API
+  (`PATCH /fellowships/:id { isPublic: false }`), not a database edit — confirmed the catalog now shows
+  exactly one.
+- **Found and fixed (explicit product decision): Cohort 1 was not actually applyable.** The public
+  application system correctly only lists cohorts with status `enrolling` (an already-`active` cohort
+  shouldn't accept new applicants) — but Cohort 1's status had been set to `active`, and its dates
+  backdated two weeks, by the Milestone 7 seed script specifically to let the student learning
+  experience be tested immediately. That meant zero cohorts appeared on the public page at all. Per
+  explicit user decision, Cohort 1 was reopened: status set to `enrolling`, dates moved to a real future
+  window (`startsAt` ~3 weeks out, `endsAt` = `startsAt` + the Fellowship's 12-week duration). Verified
+  safe beforehand by reading `DeadlineService.computeFromContext()`: it uses
+  `enrollment.joinedAt ?? cohort.startsAt`, and every already-enrolled student has a real `joinedAt`
+  already set, so their progress/deadlines are unaffected by the date change; `cohort.endsAt` is only
+  ever surfaced as a display "estimated completion date," never gating logic. `CohortsService`'s
+  lifecycle state machine has no `active → enrolling` transition (by design — a real running cohort
+  shouldn't normally un-start), so this was a one-time, explicitly-approved direct data correction, not
+  a new admin feature — the same category of action this codebase's own seed scripts already use for
+  controlled initialization, not a precedent for routine cohort management.
+- **Removed clearly-disposable test fixtures from the real Cohort 1**: three synthetic
+  `CohortApplication` rows used to verify the admin review queue
+  (`ada.tester`/`bola.tester`/`chidi.tester`@example.com) and four stale application-history rows
+  against the Milestone 2 `student@test.local` fixture, plus the two never-activated "invited"
+  enrollments the approved ones had created. Two now-orphaned, never-activated `User`/`Membership` rows
+  (Ada/Bola) were deliberately left in place rather than hard-deleted — they hold no enrollment or
+  application anywhere and can never log in (no password was ever set), and `User` has enough
+  `onDelete: Restrict` relations elsewhere that verifying the full deletion blast radius for two already
+  -harmless rows wasn't worth the risk under launch time pressure.
+- **Confirmed, not fixed: this shared development database is not a direct production candidate.**
+  Full audit found ~300 auto-generated integration-test fixture accounts (from repeatedly running
+  `*.integration.spec.ts` against this database rather than an isolated one) and three documented,
+  intentional development fixtures (`student@test.local`, `student@techimpact.test`, `mentor@test.local`)
+  still holding real enrollment/mentor-assignment slots in Cohort 1. Recommendation, documented in
+  `docs/runbooks/database-operations.md`: launch on a genuinely fresh database (migrations +
+  `identity.seed.ts` only), not by promoting this one.
+- **Confirmed live: email is real, not a stub.** SMTP credentials were already configured in this
+  environment; a real send was attempted through the configured relay as part of live E2E testing and
+  produced a genuine SMTP-level rejection (because the test recipient was intentionally fake) — proving
+  the relay is live and reachable, not a console-log stub. Also confirmed: a failed email send does not
+  roll back or corrupt the triggering action (a user/enrollment was still created despite the bounce).
+- **No dedicated "resend invitation" action exists** — if an invitation email fails to deliver, the
+  practical recovery is `POST /auth/forgot-password` once the address is corrected (reuses the existing
+  reset-password flow). Documented as a real, disclosed gap rather than built, per this milestone's
+  explicit "document as backlog instead of implementing" instruction for anything not required for
+  launch itself.
+- **New documentation**: `docs/runbooks/production-deployment.md`, `environment-configuration.md`,
+  `database-operations.md`, `admin-operations.md`, `student-onboarding.md`, `mentor-onboarding.md`,
+  `incident-recovery.md`, `release-checklist.md`, and the top-level
+  `docs/PRODUCTION_LAUNCH_CHECKLIST.md` — see that checklist for the complete, item-by-item verified/
+  not-verified launch status.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

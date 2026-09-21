@@ -58,3 +58,20 @@ pnpm --filter @forge/api seed:cohort1   # ts-node --transpile-only prisma/seeds/
 - **Container image:** `apps/api/Dockerfile` is a multi-stage pnpm-workspace build (`docker build -f apps/api/Dockerfile -t forge-api .` from the repo root). It has not been build-verified in this environment (no Docker available) — build and smoke-test it before using it for a real deployment; see `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-039.
 - **CI** (`.github/workflows/ci.yml`) now provisions real PostgreSQL and Redis service containers and runs `prisma validate`/`prisma migrate deploy` before the test suite, since several integration tests need a real database and were not previously running against one in CI.
 - See `docs/ENGINEERING_DECISIONS.md`'s "Milestone 8 — Production hardening" entry for the full list of changes, and `docs/KNOWN_TECHNICAL_DEBT.md` DEBT-037 through DEBT-041 for what remains open.
+
+## Production launch readiness (Milestone 9)
+
+Operational documentation for actually deploying and running Project Forge — start at
+**`docs/PRODUCTION_LAUNCH_CHECKLIST.md`** for the single authoritative, item-by-item launch status.
+Detailed guides live in `docs/runbooks/`:
+
+- `production-deployment.md` — infrastructure requirements, deploy/verify/rollback, CI/CD
+- `environment-configuration.md` — every environment variable, dev/test/production differences, how the first Super Admin is created
+- `database-operations.md` — migrations, backup/restore requirements, what's system config vs. seed/demo data
+- `admin-operations.md` — the Organization → Academy → Fellowship → Cohort hierarchy, applications, curriculum snapshots, mentors
+- `student-onboarding.md` / `mentor-onboarding.md` — the real, verified end-to-end flows
+- `incident-recovery.md` — what to do when production fails, by symptom
+- `release-checklist.md` — the repeatable checklist for every release after launch
+
+See `docs/ENGINEERING_DECISIONS.md`'s "Milestone 9 — Production launch readiness" entry for what was
+audited, fixed, and found during this pass.
