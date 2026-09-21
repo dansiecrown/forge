@@ -288,6 +288,14 @@ export class EnrollmentsService {
           EnrollmentsService.CHAT_ACCESS_STATUSES.has(input.status),
         );
       }
+      if (input.currentLearningTrackId) {
+        await this.chatMembershipSync.syncTrackMembership(
+          existing.cohortId,
+          existing.userId,
+          existing.currentLearningTrackId,
+          input.currentLearningTrackId,
+        );
+      }
       return toEnrollmentEntity(updated);
     } catch (error) {
       if (error instanceof EnrollmentVersionConflictError) {
@@ -364,6 +372,12 @@ export class EnrollmentsService {
         actorUserId: callerId,
         metadata: { learningTrackId, previousTrackId: existing.currentLearningTrackId },
       });
+      await this.chatMembershipSync.syncTrackMembership(
+        existing.cohortId,
+        existing.userId,
+        existing.currentLearningTrackId,
+        learningTrackId,
+      );
       return toEnrollmentEntity(updated);
     } catch (error) {
       if (error instanceof EnrollmentVersionConflictError) {

@@ -548,6 +548,47 @@ idempotent-upsert convention — no new service, module, or API route.
   Cohort 1 seed data" section) and must never be set as real credentials in any deployed
   configuration — same convention already established for `dev-test-users.seed.ts`.
 
+## Track chat channel membership now syncs instantly (2026-09-14)
+
+Reported live: a Student selecting "Web Development" for the Tech Impact Fellowship Cohort 1 did
+not see/appear in that track's chat channel.
+
+- **Root cause was two-fold.** (1) The Cohort 1 seed script (`tech-impact-cohort1.seed.ts`) wrote
+  its 3 new tracks into `CohortLearningTrack` directly via Prisma, bypassing
+  `CohortsService.setOfferedTracks()` — the only code path that auto-creates a track's chat channel
+  (`ChatChannelsService.createTrackChannel()`). Result: Web Development, WordPress Website Design,
+  and Graphics Design had no `type: 'track'` channel at all. Fixed by driving the real
+  `PUT /cohorts/:id/tracks` endpoint (remove-then-restore the 3 tracks so `setOfferedTracks()`'s
+  own newly-added-track diff sees them as new), not a direct Prisma write — see this doc's own
+  "Tech Impact Fellowship — Cohort 1 realistic learning data" entry above for why that seed bypassed
+  the service layer in the first place, since this is the fallout of that same shortcut.
+  (2) Even once a track channel exists, `ChatMembershipSyncService` (the `FellowshipChatChannelMember`
+  roster-sync introduced 2026-09-07) only ever covered `#general` + Enrollment status — track
+  channels and Mentor assignment were never wired into it at all, so a channel's "who's in this
+  channel" roster (`GET /chat/channels/:id/members`) would stay empty regardless. **Access itself
+  was never actually blocked** — `ChatChannelsService.list()`/`ChatMessagesService.requireChannelAccess()`
+  already compute track-channel read/write access live from `Enrollment.currentLearningTrackId` and
+  `CohortMentor`, never from this roster table — but the roster not reflecting reality is what a
+  real user sees as "I wasn't added."
+- **Fix:** `ChatMembershipSyncService` gains three methods. `syncTrackMembership()` — called from
+  `EnrollmentsService.selectTrack()` (self-service) and `.update()` (admin-driven) whenever
+  `currentLearningTrackId` changes — adds the student to their new track's channel roster and
+  removes them from their previous one on a switch. `syncMentorMembership()` — called from
+  `CohortsService.assignMentor()`/`.unassignMentor()` — adds/removes a Mentor from a Cohort's
+  `#general` and every one of its track channels. `backfillTrackChannelRoster()` — called right
+  after `createTrackChannel()` creates a *new* channel — populates it immediately with every
+  Student already on that track and every Mentor already on that cohort, so a channel created after
+  those relationships already existed (a track added mid-cohort, or backfilled as above) doesn't
+  start with an empty roster despite already-granted access. None of these change how access is
+  authorized; they only keep the roster (`FellowshipChatChannelMember`) — which the codebase already
+  keeps solely as a display convenience, per that service's own file-level doc comment — accurate.
+- **Mentors have no per-track assignment in the schema** (`CohortMentor` is Cohort-wide, not scoped
+  to a Learning Track), matching `ChatAccessService`'s existing design where a Mentor's
+  `canCreateChannels` already grants them every track channel in a Fellowship they're assigned to,
+  not just one. "Instant access when added to a track" for a Mentor is therefore satisfied by the
+  Cohort-level sync above; there is no narrower "this track only" concept to build without a schema
+  change, which was out of scope for this fix.
+
 ## Amendment process
 
 A new permanent decision is added here, dated, when a milestone establishes one. A decision is only ever *superseded* (with the change dated and the reason recorded, as in the Database Naming section above) — never silently deleted, so the history of why the constitution reads the way it does stays intact.

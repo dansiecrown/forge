@@ -4,6 +4,7 @@ import { CurriculumSnapshotService } from '../../catalog/services/curriculum-sna
 import { FellowshipsService } from '../../catalog/services/fellowships.service';
 import { LearningTracksService } from '../../catalog/services/learning-tracks.service';
 import { ChatChannelsService } from '../../chat/services/chat-channels.service';
+import { ChatMembershipSyncService } from '../../chat/services/chat-membership-sync.service';
 import { UsersService } from '../../identity/services/users.service';
 import { MembershipsService } from '../../organizations/services/memberships.service';
 import { AuditLogService } from '../../platform/audit-log.service';
@@ -37,6 +38,7 @@ export class CohortsService {
     private readonly usersService: UsersService,
     private readonly learningTracksService: LearningTracksService,
     private readonly chatChannelsService: ChatChannelsService,
+    private readonly chatMembershipSync: ChatMembershipSyncService,
   ) {}
 
   async list(
@@ -352,7 +354,7 @@ export class CohortsService {
     membershipId: string,
     actorUserId: string,
   ): Promise<CohortMentorEntity> {
-    await this.get(scope, cohortId, actorUserId);
+    const cohort = await this.get(scope, cohortId, actorUserId);
     const membership = await this.membershipsService.findById(scope, membershipId);
     if (!membership) {
       throw AppException.validation([
@@ -384,6 +386,15 @@ export class CohortsService {
       actorUserId,
       metadata: { membershipId },
     });
+    // Access itself is already instant and fellowship-wide the moment
+    // `ChatAccessService` sees this assignment; this only makes the roster
+    // (#general + this cohort's track channels) reflect it too.
+    await this.chatMembershipSync.syncMentorMembership(
+      cohort.fellowshipId,
+      cohortId,
+      membership.userId,
+      true,
+    );
     const user = await this.usersService.getById(membership.userId);
     return toCohortMentorEntity(assignment, user);
   }
@@ -394,7 +405,7 @@ export class CohortsService {
     membershipId: string,
     actorUserId: string,
   ): Promise<void> {
-    await this.get(scope, cohortId, actorUserId);
+    const cohort = await this.get(scope, cohortId, actorUserId);
     const { count } = await this.cohortsRepository.unassignMentor(cohortId, membershipId);
     if (count === 0) {
       throw AppException.notFound('This mentor is not currently assigned to this cohort.');
@@ -408,6 +419,15 @@ export class CohortsService {
       actorUserId,
       metadata: { membershipId },
     });
+    const membership = await this.membershipsService.findById(scope, membershipId);
+    if (membership) {
+      await this.chatMembershipSync.syncMentorMembership(
+        cohort.fellowshipId,
+        cohortId,
+        membership.userId,
+        false,
+      );
+    }
   }
 
   /** Thin wrapper over the existing `findActiveMentorAssignment` repository
@@ -505,12 +525,16 @@ export class CohortsService {
     // the normal chat API).
     for (const track of newlyAddedTracks) {
       try {
-        await this.chatChannelsService.createTrackChannel(
+        const channel = await this.chatChannelsService.createTrackChannel(
           scope.organizationId,
           cohort.fellowshipId,
           { id: cohort.id, slug: cohort.slug },
           { id: track.id, name: track.name, slug: track.slug },
         );
+        // Populates the new channel's roster with anyone already entitled
+        // to it (a Student already on this track, a Mentor already on this
+        // cohort) — see `backfillTrackChannelRoster()`'s own doc comment.
+        await this.chatMembershipSync.backfillTrackChannelRoster(channel.id, cohort.id, track.id);
       } catch (error) {
         this.logger.warn(
           `Failed to create chat channel for track "${track.name}" on cohort ${cohort.id}: ${(error as Error).message}`,

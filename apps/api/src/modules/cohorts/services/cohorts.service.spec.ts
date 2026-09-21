@@ -4,6 +4,7 @@ import type { FellowshipsService } from '../../catalog/services/fellowships.serv
 import type { CurriculumSnapshotService } from '../../catalog/services/curriculum-snapshot.service';
 import type { LearningTracksService } from '../../catalog/services/learning-tracks.service';
 import type { ChatChannelsService } from '../../chat/services/chat-channels.service';
+import type { ChatMembershipSyncService } from '../../chat/services/chat-membership-sync.service';
 import type { AuditLogService } from '../../platform/audit-log.service';
 import type { UsersService } from '../../identity/services/users.service';
 import type { MembershipsService } from '../../organizations/services/memberships.service';
@@ -89,8 +90,15 @@ function fakeLearningTracksService(): LearningTracksService {
 
 function fakeChatChannelsService(): ChatChannelsService {
   return {
-    createTrackChannel: jest.fn(async () => undefined),
+    createTrackChannel: jest.fn(async () => ({ id: 'channel-1' })),
   } as unknown as ChatChannelsService;
+}
+
+function fakeChatMembershipSyncService(): ChatMembershipSyncService {
+  return {
+    backfillTrackChannelRoster: jest.fn(async () => undefined),
+    syncMentorMembership: jest.fn(async () => undefined),
+  } as unknown as ChatMembershipSyncService;
 }
 
 describe('CohortsService', () => {
@@ -107,6 +115,7 @@ describe('CohortsService', () => {
       fakeUsersService(),
       fakeLearningTracksService(),
       fakeChatChannelsService(),
+      fakeChatMembershipSyncService(),
     );
 
     await expect(
@@ -131,6 +140,7 @@ describe('CohortsService', () => {
       fakeUsersService(),
       fakeLearningTracksService(),
       fakeChatChannelsService(),
+      fakeChatMembershipSyncService(),
     );
 
     await expect(
@@ -154,6 +164,7 @@ describe('CohortsService', () => {
       fakeUsersService(),
       fakeLearningTracksService(),
       fakeChatChannelsService(),
+      fakeChatMembershipSyncService(),
     );
 
     await expect(
@@ -187,6 +198,7 @@ describe('CohortsService', () => {
       fakeUsersService(),
       fakeLearningTracksService(),
       fakeChatChannelsService(),
+      fakeChatMembershipSyncService(),
     );
 
     await expect(
@@ -214,6 +226,7 @@ describe('CohortsService', () => {
       fakeUsersService(),
       fakeLearningTracksService(),
       fakeChatChannelsService(),
+      fakeChatMembershipSyncService(),
     );
 
     await expect(
@@ -248,6 +261,7 @@ describe('CohortsService', () => {
       fakeUsersService(),
       fakeLearningTracksService(),
       fakeChatChannelsService(),
+      fakeChatMembershipSyncService(),
     );
 
     const result = await service.syncCurriculum(
@@ -274,6 +288,7 @@ describe('CohortsService', () => {
       fakeUsersService(),
       fakeLearningTracksService(),
       fakeChatChannelsService(),
+      fakeChatMembershipSyncService(),
     );
 
     await expect(
@@ -299,6 +314,7 @@ describe('CohortsService — track switch grace period', () => {
       fakeUsersService(),
       fakeLearningTracksService(),
       fakeChatChannelsService(),
+      fakeChatMembershipSyncService(),
     );
 
     const result = await service.closeTrackSwitching(
@@ -335,6 +351,7 @@ describe('CohortsService — track switch grace period', () => {
       fakeUsersService(),
       fakeLearningTracksService(),
       fakeChatChannelsService(),
+      fakeChatMembershipSyncService(),
     );
 
     const result = await service.reopenTrackSwitching(
@@ -369,6 +386,7 @@ describe('CohortsService — track switch grace period', () => {
       fakeUsersService(),
       fakeLearningTracksService(),
       fakeChatChannelsService(),
+      fakeChatMembershipSyncService(),
     );
 
     await expect(
@@ -406,6 +424,7 @@ describe('CohortsService — track switch grace period', () => {
         fakeUsersService(),
         fakeTrackLookup(),
         chatChannelsService,
+        fakeChatMembershipSyncService(),
       );
 
       await service.setOfferedTracks(
@@ -444,6 +463,7 @@ describe('CohortsService — track switch grace period', () => {
         fakeUsersService(),
         fakeTrackLookup(),
         chatChannelsService,
+        fakeChatMembershipSyncService(),
       );
 
       await expect(
