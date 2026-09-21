@@ -35,5 +35,11 @@
       "prettier --write"
     ],
     "*.{json,md,yml,yaml,css}": "prettier --write"
+  },
+  "pnpm": {
+    "overrides": {
+      "qs": "^6.16.0",
+      "multer": "^2.3.0"
+    }
   }
 }
